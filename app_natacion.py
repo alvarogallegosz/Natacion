@@ -30,31 +30,31 @@ st.sidebar.header("📊 Configuración de la Prueba")
 titulo_grafico = st.sidebar.text_input("Estilo y Distancia:", value="100 Libre")
 
 st.sidebar.subheader("⏳ Hitos de Edad")
-t0 = st.sidebar.number_input("Edad Start (t0):", min_value=5.0, max_value=20.0, value=9.80, step=0.01)
-t_pb = st.sidebar.number_input("Edad del PB Actual (t_pb):", min_value=t0, max_value=30.0, value=11.3, step=0.01)
+t0 = st.sidebar.number_input("Edad Start (t0):", min_value=5.0, max_value=20.0, value=9, step=0.01)
+t_pb = st.sidebar.number_input("Edad del PB Actual (t_pb):", min_value=t0, max_value=30.0, value=9, step=0.01)
 t_peak = st.sidebar.number_input("Edad Peak Proyectado (t_peak):", min_value=t_pb, max_value=30.0, value=23.0, step=0.01)
 
 st.sidebar.subheader("⏱️ Hitos de Tiempo")
-T0 = st.sidebar.number_input("Tiempo Inicial (T0 en segundos):", min_value=1.0, value=90.0, step=0.1)
-T_pb = st.sidebar.number_input("Tiempo del PB Actual (T_pb en segundos):", min_value=1.0, value=73.28, step=0.01)
-T_target = st.sidebar.number_input("Tiempo Objetivo Peak (T_target en segundos):", min_value=1.0, value=53.5, step=0.01)
+T0 = st.sidebar.number_input("Tiempo Inicial (T0 en segundos):", min_value=1.0, value=1.0, step=0.1)
+T_pb = st.sidebar.number_input("Tiempo del PB Actual (T_pb en segundos):", min_value=1.0, value=1.0, step=0.01)
+T_target = st.sidebar.number_input("Tiempo Objetivo Peak (T_target en segundos):", min_value=1.0, value=1.0, step=0.01)
 
 st.sidebar.subheader("🎛️ Amortiguación de Deriva")
-h = st.sidebar.slider("Factor de deriva manual (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
+h = st.sidebar.slider("Factor de deriva manual (h):", min_value=0.1, max_value=1.0, value=0.3, step=0.05)
 
 # NUEVA SECCIÓN: MARCAS CONSTANTES DE REFERENCIA
 st.sidebar.subheader("🏆 Marcas de Referencia Internacional (y = c)")
 st.sidebar.markdown("*Dejar en 0.0 para ocultar en el gráfico*")
-m_ano = st.sidebar.number_input("a) Marca Mínima del Año:", min_value=0.0, value=71.5, step=0.1)
-m_panam_a = st.sidebar.number_input("b) PANAM Jr - Marca A:", min_value=0.0, value=59.2, step=0.1)
-m_panam_b = st.sidebar.number_input("c) PANAM Jr - Marca B:", min_value=0.0, value=61.8, step=0.1)
-m_wa_a = st.sidebar.number_input("d) World Aquatics - Marca A:", min_value=0.0, value=54.25, step=0.1)
-m_wa_b = st.sidebar.number_input("e) World Aquatics - Marca B:", min_value=0.0, value=56.15, step=0.1)
-m_wr = st.sidebar.number_input("f) World Record:", min_value=0.0, value=51.71, step=0.1)
+m_ano = st.sidebar.number_input("a) Marca Mínima del Año:", min_value=0.0, value=0.0, step=0.1)
+m_panam_a = st.sidebar.number_input("b) PANAM Jr - Marca A:", min_value=0.0, value=0.0, step=0.1)
+m_panam_b = st.sidebar.number_input("c) PANAM Jr - Marca B:", min_value=0.0, value=0.0, step=0.1)
+m_wa_a = st.sidebar.number_input("d) World Aquatics - Marca A:", min_value=0.0, value=0.0, step=0.1)
+m_wa_b = st.sidebar.number_input("e) World Aquatics - Marca B:", min_value=0.0, value=0.0, step=0.1)
+m_wr = st.sidebar.number_input("f) World Record:", min_value=0.0, value=0.0, step=0.1)
 
 # CONSULTA INTERMEDIA
 st.sidebar.subheader("🔍 Calculadora Intermedia")
-t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=14.0, step=0.1)
+t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=15.0, step=0.1)
 
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO (Ecuación Exponencial Inversa)
