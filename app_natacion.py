@@ -5,7 +5,21 @@ from scipy.optimize import fsolve
 
 # Configuración de la página
 st.set_page_config(page_title="Simulador de Rendimiento Proyectado de Natación", layout="wide")
-
+st.markdown(
+    """
+    <style>
+    /* Reduce el tamaño del número */
+    div[data-testid="stMetricValue"] {
+        font-size: 22px !important; /* El tamaño por defecto suele ser ~40px */
+    }
+    /* Reduce el tamaño de la etiqueta superior (opcional) */
+    div[data-testid="stMetricLabel"] {
+        font-size: 13px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 st.header("🏊‍♀️ Sistema de Proyección y Metas de Rendimiento para Natación")
 st.markdown("---")
 
@@ -99,7 +113,7 @@ c1, c2, c3 = st.columns(3)
 with c1:
     st.metric(label="Tasa de Mejora Calculada (k)", value=f"{k:.4f}")
 with c2:
-    st.metric(label="Deriva Total Mitigada (D)", value=f"{D:.2f} s")
+    st.metric(label="Deriva Total PB vs T_target (D)", value=f"{D:.2f} s")
 with c3:
     st.metric(label=f"Predicción a los {t_intermedia:.1f} años", value=f"{tiempo_intermedio_proyectado:.2f} s")
 
@@ -185,7 +199,7 @@ for ref in referencias:
 
 # 6. Formateo estético del gráfico y ENCUEBRE DE EJES SOLICITADO
 # -------------------------------------------------------------
-ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}", fontsize=10, fontweight="bold", pad=15)
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}", fontsize=12, fontweight="bold", pad=15)
 ax.set_xlabel("Edad Fisiológica (Años)", fontsize=11)
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=11)
 
