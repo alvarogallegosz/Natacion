@@ -20,7 +20,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-st.header("🏊‍♀️ Sistema de Proyección y Metas de Rendimiento para Natación")
+st.subheader("🏊‍♀️ Sistema de Proyección y Metas de Rendimiento para Natación")
 st.markdown("---")
 
 # -------------------------------------------------------------
