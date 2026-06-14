@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 
 # Configuración de la página
-st.set_page_config(page_title="Simulador de Rendimiento - Natalia 2032", layout="wide")
+st.set_page_config(page_title="Simulador de Rendimiento Proyectado de Natación", layout="wide")
 
-st.title("🏊‍♀️ Sistema de Proyección y Metas de Rendimiento: Natalia Gallegos")
+st.title("🏊‍♀️ Sistema de Proyección y Metas de Rendimiento para Natación")
 st.markdown("---")
 
 # -------------------------------------------------------------
