@@ -185,7 +185,7 @@ for ref in referencias:
 
 # 6. Formateo estético del gráfico y ENCUEBRE DE EJES SOLICITADO
 # -------------------------------------------------------------
-ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}", fontsize=14, fontweight="bold", pad=15)
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}", fontsize=10, pad=15)
 ax.set_xlabel("Edad Fisiológica (Años)", fontsize=11)
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=11)
 
