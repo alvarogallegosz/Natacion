@@ -53,7 +53,7 @@ def login_usuario(user, password):
 
 # Interfaz de acceso si el usuario no está logueado
 if not st.session_state.autenticado:
-    st.markdown("<h2 style='text-align: center;'>🔐 Acceso al Club de Natación</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🔐 Acceso al Sistema de Control y Proyección de Rendimiento del Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
     
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
