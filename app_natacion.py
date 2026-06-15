@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 import pandas as pd
-from supabase import create_client, Client  # <- Conector oficial de Supabase
+from supabase import create_client, Client
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador de Rendimiento de Natación", layout="wide")
@@ -30,7 +30,7 @@ st.markdown(
 st.markdown("---")
 
 # -------------------------------------------------------------
-# NUEVO: CONEXIÓN SEGURA CON SUPABASE
+# CONEXIÓN SEGURA CON SUPABASE
 # -------------------------------------------------------------
 try:
     url: str = st.secrets["SUPABASE_URL"]
@@ -108,13 +108,12 @@ st.sidebar.subheader("🔍 Calculadora Intermedia")
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0_manual), max_value=float(t_peak), value=14.0, step=0.1)
 
 # -------------------------------------------------------------
-# MODIFICADO: EXTRACCIÓN EN TIEMPO REAL DESDE SUPABASE
+# CORREGIDO: EXTRACCIÓN CON EL PARÁMETRO CORRECTO PARA PYTHON (desc=False)
 # -------------------------------------------------------------
 try:
-    response = supabase.table("marcas_historicas").select("id, edad, tiempo, nota").eq("prueba", titulo_grafico).order("edad", ascending=True).execute()
+    response = supabase.table("marcas_historicas").select("id, edad, tiempo, nota").eq("prueba", titulo_grafico).order("edad", desc=False).execute()
     if response.data:
         df_procesado = pd.DataFrame(response.data)
-        # Emparejamos mayúsculas/minúsculas con el resto de tu código gráfico
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Nota"})
     else:
         df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Nota"])
@@ -228,7 +227,7 @@ ax.legend(loc="upper right", fontsize=9)
 st.pyplot(fig)
 
 # -------------------------------------------------------------
-# MODIFICADO: INTERFAZ DE ESCRITURA/ELIMINACIÓN DIRECTA EN SUPABASE
+# INTERFAZ DE ESCRITURA/ELIMINACIÓN DIRECTA EN SUPABASE
 # -------------------------------------------------------------
 st.subheader(f"🗃️ Repositorio Histórico de PBs ({titulo_grafico})")
 st.markdown("*Los datos ingresados aquí se guardan de forma permanente y segura en la base de datos de Supabase.*")
