@@ -22,7 +22,7 @@ st.markdown(
 st.markdown(
     """
     <h1 style='font-size: 26px; font-weight: bold; color: #111111; margin-bottom: 0px;'>
-        室内🏊‍♀️ Sistema Adaptativo y Metas de Natación
+        🏊‍♀️ Sistema Adaptativo y Metas de Natación
     </h1>
     """, 
     unsafe_allow_html=True
