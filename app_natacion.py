@@ -118,7 +118,7 @@ if not st.session_state.autenticado:
     st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Categorías Feveda</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
-        tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Nadador"])
+        tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios"])
         
         with tab_login:
             with st.form("form_login"):
@@ -131,27 +131,44 @@ if not st.session_state.autenticado:
                         
         with tab_registro:
             with st.form("form_registro"):
-                nuevo_nombre = st.text_input("Nombre completo del Nadador:")
+                nuevo_nombre = st.text_input("Nombre completo:")
                 nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")
                 nuevo_email = st.text_input("Correo Electrónico:")
                 nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
-                nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
-                nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
                 
-                if st.form_submit_button("🚀 Crear Ficha Deportiva"):
+                # CAMBIO CRUCIAL: Selector de Rol para abrir el abanico de registros
+                nuevo_rol = st.selectbox("Rol en el Sistema:", options=["Nadador", "Entrenador", "Administrador"])
+                
+                # Valores por defecto para perfiles no-atletas
+                nuevo_genero = "F"
+                nueva_fecha_nac = None
+                
+                # LÓGICA CONDICIONAL: Solo pedimos datos deportivos si es Nadador
+                if nuevo_rol == "Nadador":
+                    st.markdown("---")
+                    nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
+                    nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
+                
+                if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
                     if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
                         try:
                             chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
+                                # Modificamos el payload para que sea dinámico y respete el Rol elegido
                                 nuevo_registro = {
-                                    "nombre": nuevo_nombre, "usuario": nuevo_usuario, "email": nuevo_email,
-                                    "contrasena": nueva_contrasena, "genero": nuevo_genero,
-                                    "fecha_nacimiento": nueva_fecha_nac.isoformat(), "rol": "Nadador", "estatus": "Activo"
+                                    "nombre": nuevo_nombre, 
+                                    "usuario": nuevo_usuario, 
+                                    "email": nuevo_email,
+                                    "contrasena": nueva_contrasena, 
+                                    "genero": nuevo_genero if nuevo_rol == "Nadador" else None,
+                                    "fecha_nacimiento": nueva_fecha_nac.isoformat() if (nuevo_rol == "Nadador" and nueva_fecha_nac) else None, 
+                                    "rol": nuevo_rol, 
+                                    "estatus": "Activo"
                                 }
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
-                                st.success("¡Registro exitoso! Ya puede iniciar sesión.")
+                                st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
                         except Exception as reg_err:
                             st.error(f"Error en registro: {reg_err}")
                     else:
@@ -416,7 +433,7 @@ with tab_entrenador:
                 st.success(f"Tiempos de referencia actualizados para {u_cat} ({st.session_state.nadador_seleccionado_genero}).")
                 st.rerun()
     else:
-        st.warning("🔒 Requiere credenciales de Dirección Técnica o Entrenador.")
+        st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
 
 with tab_admin:
     if st.session_state.rol == "Administrador":
