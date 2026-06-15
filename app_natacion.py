@@ -51,7 +51,7 @@ def login_usuario(user, password):
         st.error(f"Error en la verificación de credenciales: {e}")
         return False
 
-# Interfaz de acceso si el usuario no está logueado
+# Interfaz de acceso si el usuario no está logueado (Línea 56 Modificada)
 if not st.session_state.autenticado:
     st.markdown("<h2 style='text-align: center;'>🔐 Acceso al Sistema de Control y Proyección de Rendimiento del Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
     
@@ -140,7 +140,6 @@ st.sidebar.header("📊 Configuración de la Prueba")
 lista_pruebas = list(diccionario_wr.keys())
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=1)
 
-# Extraemos el Record Mundial correspondiente de forma automática
 wr_oficial = diccionario_wr[titulo_grafico]
 tstart_predefinido_estimado = float(round(wr_oficial * 2.0, 2))
 
@@ -157,17 +156,50 @@ try:
         .select("id, edad, tiempo, nota") \
         .eq("prueba", titulo_grafico) \
         .eq("usuario_id", st.session_state.usuario_id) \
-        .order("edad", desc=False).execute()
+        .order("edad", desc=False).execute()  # Orden cronológico estricto (de menor a mayor edad)
         
     if response.data:
         df_procesado = pd.DataFrame(response.data)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Nota"})
         
-        # Extracción automática estricta del primer y último registro cronológico
+        # El Punto Inicial (Start t0 y T0) siempre es el primer registro indexado (el más antiguo)
         db_t0 = float(df_procesado.iloc[0]["Edad"])
         db_T0 = float(df_procesado.iloc[0]["Tiempo"])
-        db_t_pb = float(df_procesado.iloc[-1]["Edad"])
-        db_T_pb = float(df_procesado.iloc[-1]["Tiempo"])
+        
+        n_registros = len(df_procesado)
+        
+        if n_registros == 1:
+            db_t_pb = db_t0
+            db_T_pb = db_T0
+        elif n_registros == 2:
+            # Con dos marcas, evaluamos directamente la menor de las dos para el hito PB
+            if float(df_procesado.iloc[-1]["Tiempo"]) <= float(df_procesado.iloc[-2]["Tiempo"]):
+                db_t_pb = float(df_procesado.iloc[-1]["Edad"])
+                db_T_pb = float(df_procesado.iloc[-1]["Tiempo"])
+            else:
+                db_t_pb = float(df_procesado.iloc[-2]["Edad"])
+                db_T_pb = float(df_procesado.iloc[-2]["Tiempo"])
+        else:
+            # ANÁLISIS METODOLÓGICO AVANZADO (3 o más competencias registradas)
+            indice_min_tiempo = df_procesado["Tiempo"].idxmin()
+            posicion_desde_el_final = (n_registros - 1) - indice_min_tiempo
+            
+            # Caso 1: Regresión prolongada (el menor tiempo histórico ocurrió de la antepenúltima hacia atrás)
+            if posicion_desde_el_final >= 2:
+                db_t_pb = float(df_procesado.iloc[-1]["Edad"])
+                db_T_pb = float(df_procesado.iloc[-1]["Tiempo"])
+            # Caso 2: El mejor tiempo está en el entorno reciente -> Se adopta rigurosamente la menor de las dos últimas marcas
+            else:
+                tiempo_ultima = float(df_procesado.iloc[-1]["Tiempo"])
+                tiempo_penultima = float(df_procesado.iloc[-2]["Tiempo"])
+                
+                if tiempo_ultima <= tiempo_penultima:
+                    db_t_pb = float(df_procesado.iloc[-1]["Edad"])
+                    db_T_pb = tiempo_ultima
+                else:
+                    db_t_pb = float(df_procesado.iloc[-2]["Edad"])
+                    db_T_pb = tiempo_penultima
+                    
     else:
         df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Nota"])
         db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
@@ -179,7 +211,6 @@ except Exception as err:
 # CONFIGURACIÓN DE VALORES POR DEFECTO DINÁMICOS EN LA UI
 st.sidebar.subheader("⏳ Hitos Básicos")
 
-# Asignación inteligente de valores iniciales en los controles
 val_t0 = db_t0 if (sincronizar_db and db_t0 is not None) else 9.80
 val_T0 = db_T0 if (sincronizar_db and db_T0 is not None) else tstart_predefinido_estimado
 val_t_pb = db_t_pb if (sincronizar_db and db_t_pb is not None) else 11.30
