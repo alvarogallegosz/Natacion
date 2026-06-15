@@ -1,29 +1,25 @@
+```python
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 import pandas as pd
-import sqlite3  # <- Adición segura para manejo de repositorio local
+from supabase import create_client, Client  # <- Conector oficial de Supabase
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador de Rendimiento de Natación", layout="wide")
 
-# 2. INYECCIÓN DE CSS (Control de tamaño de títulos y métricas para móviles/web)
+# 2. INYECCIÓN DE CSS (Control de tamaño de títulos y métricas)
 st.markdown(
     """
     <style>
-    div[data-testid="stMetricValue"] {
-        font-size: 22px !important;
-    }
-    div[data-testid="stMetricLabel"] {
-        font-size: 13px !important;
-    }
+    div[data-testid="stMetricValue"] { font-size: 22px !important; }
+    div[data-testid="stMetricLabel"] { font-size: 13px !important; }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# Título con tamaño reducido controlado
 st.markdown(
     """
     <h1 style='font-size: 26px; font-weight: bold; color: #111111; margin-bottom: 0px;'>
@@ -35,85 +31,98 @@ st.markdown(
 st.markdown("---")
 
 # -------------------------------------------------------------
-# NUEVO: GESTIÓN DE REPOSITORIO LOCAL (SQLite) - Sustituye la sesión volátil
+# NUEVO: CONEXIÓN SEGURA CON SUPABASE
 # -------------------------------------------------------------
-DB_NAME = "natacion_repositorio.db"
-
-def inicializar_base_datos():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS marcas_historicas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prueba TEXT NOT NULL,
-            edad REAL NOT NULL,
-            tiempo REAL NOT NULL,
-            nota TEXT
-        )
-    """)
-    conn.commit()
-    
-    # Si está vacía por ser la primera corrida, insertamos tus marcas base por defecto
-    cursor.execute("SELECT COUNT(*) FROM marcas_historicas")
-    if cursor.fetchone()[0] == 0:
-        valores_base = [
-            ("100 Libre", 9.80, 90.00, "Pstart - Registro Inicial"),
-            ("100 Libre", 10.50, 81.20, "Paso de Control"),
-            ("100 Libre", 11.30, 73.28, "PB Oficial Actual")
-        ]
-        cursor.executemany("INSERT INTO marcas_historicas (prueba, edad, tiempo, nota) VALUES (?, ?, ?, ?)", valores_base)
-        conn.commit()
-    conn.close()
-
-# Ejecución inicial invisible
-inicializar_base_datos()
+try:
+    url: str = st.secrets["SUPABASE_URL"]
+    key: str = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
+except Exception as e:
+    st.error("Faltan las credenciales de Supabase en los Secrets de la aplicación. Revisa el archivo secrets.toml o la configuración de Streamlit Cloud.")
+    st.stop()
 
 # -------------------------------------------------------------
-# BARRA LATERAL: ENTRADA DE DATOS (PRESERVADA AL 100%)
+# BARRA LATERAL: REESTRUCTURACIÓN ESTRICTA Y CAMPOS SEGUROS
 # -------------------------------------------------------------
+# a) Prueba
 st.sidebar.header("📊 Configuración de la Prueba")
 titulo_grafico = st.sidebar.text_input("Estilo y Distancia:", value="100 Libre")
 
+# b) Modo del modelo
 st.sidebar.subheader("⚙️ Modo del Modelo")
 sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=False, 
-                                     help="Si se activa, el punto inicial y el PB se calcularán automáticamente desde la tabla de abajo.")
+                                     help="Si se activa, el punto inicial y el PB se calcularán automáticamente desde Supabase.")
 
-st.sidebar.subheader("⏳ Hitos de Edad")
-t0_manual = st.sidebar.number_input("Edad Start (t0):", min_value=5.0, max_value=20.0, value=9.80, step=0.01)
-t_pb_manual = st.sidebar.number_input("Edad del PB Actual (t_pb):", min_value=t0_manual, max_value=30.0, value=11.30, step=0.01)
-t_peak = st.sidebar.number_input("Edad Peak Proyectado (t_peak):", min_value=t_pb_manual, max_value=30.0, value=23.0, step=0.01)
+# c) Hitos básicos
+st.sidebar.subheader("⏳ Hitos Básicos")
 
-st.sidebar.subheader("⏱️ Hitos de Tiempo")
-T0_manual = st.sidebar.number_input("Tiempo Inicial (T0 en segundos):", min_value=1.0, value=90.0, step=0.1)
-T_pb_manual = st.sidebar.number_input("Tiempo del PB Actual (T_pb en segundos):", min_value=1.0, value=73.28, step=0.01)
-T_target = st.sidebar.number_input("Tiempo Objetivo Peak (T_target en segundos):", min_value=1.0, value=53.5, step=0.01)
+# 1. Edad Start (t0)
+t0_input = st.sidebar.number_input("1. Edad Start (t0):", min_value=5.0, max_value=20.0, value=None, placeholder="Ej: 9.80", step=0.01, disabled=sincronizar_db)
+t0_manual = t0_input if t0_input is not None else 9.80
 
-st.sidebar.subheader("🎛️ Amortiguación de Deriva")
+# 2. Tstart (T0)
+T0_input = st.sidebar.number_input("2. Tiempo Inicial (T0 en seg):", min_value=1.0, value=None, placeholder="Ej: 90.0", step=0.1, disabled=sincronizar_db)
+T0_manual = T0_input if T0_input is not None else 90.0
+
+# 3. Edad Peak (t_peak)
+t_peak_input = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, value=None, placeholder="Ej: 23.0", step=0.01)
+t_peak = t_peak_input if t_peak_input is not None else 23.0
+
+# 4. Ttarget (T_target)
+T_target_input = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target en seg):", min_value=1.0, value=None, placeholder="Ej: 53.50", step=0.01)
+T_target = T_target_input if T_target_input is not None else 53.50
+
+# 5. Edad PB (t_pb)
+t_pb_input = st.sidebar.number_input("5. Edad del PB Actual (t_pb):", min_value=5.0, max_value=30.0, value=None, placeholder="Ej: 11.30", step=0.01, disabled=sincronizar_db)
+t_pb_manual = t_pb_input if t_pb_input is not None else 11.30
+
+# 6. Tpb (T_pb)
+T_pb_input = st.sidebar.number_input("6. Tiempo del PB Actual (T_pb en seg):", min_value=1.0, value=None, placeholder="Ej: 73.28", step=0.01, disabled=sincronizar_db)
+T_pb_manual = T_pb_input if T_pb_input is not None else 73.28
+
+# d) Amortiguación de la deriva
+st.sidebar.subheader("🎛️ Amortiguación de la Deriva")
 h = st.sidebar.slider("Factor de deriva manual (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 
-st.sidebar.subheader("🏆 Marcas de Referencia Internacional (y = c)")
-m_ano = st.sidebar.number_input("a) Marca Mínima del Año:", min_value=0.0, value=71.5, step=0.1)
-m_panam_a = st.sidebar.number_input("b) PANAM Jr - Marca A:", min_value=0.0, value=59.2, step=0.1)
-m_panam_b = st.sidebar.number_input("c) PANAM Jr - Marca B:", min_value=0.0, value=61.8, step=0.1)
-m_wa_a = st.sidebar.number_input("d) World Aquatics - Marca A:", min_value=0.0, value=54.25, step=0.1)
-m_wa_b = st.sidebar.number_input("e) World Aquatics - Marca B:", min_value=0.0, value=56.15, step=0.1)
-m_wr = st.sidebar.number_input("f) World Record:", min_value=0.0, value=51.71, step=0.1)
+# e) Marcas de referencia internacional
+st.sidebar.subheader("🏆 Marcas de Referencia Internacional")
+
+m_ano_in = st.sidebar.number_input("1. Marca Mínima del Año:", min_value=0.0, value=None, placeholder="Ej: 71.5", step=0.1)
+m_ano = m_ano_in if m_ano_in is not None else 71.5
+
+m_panam_b_in = st.sidebar.number_input("2. PANAM Jr - Marca B:", min_value=0.0, value=None, placeholder="Ej: 61.8", step=0.1)
+m_panam_b = m_panam_b_in if m_panam_b_in is not None else 61.8
+
+m_panam_a_in = st.sidebar.number_input("3. PANAM Jr - Marca A:", min_value=0.0, value=None, placeholder="Ej: 59.2", step=0.1)
+m_panam_a = m_panam_a_in if m_panam_a_in is not None else 59.2
+
+m_wa_b_in = st.sidebar.number_input("4. World Aquatics - Marca B:", min_value=0.0, value=None, placeholder="Ej: 56.15", step=0.1)
+m_wa_b = m_wa_b_in if m_wa_b_in is not None else 56.15
+
+m_wa_a_in = st.sidebar.number_input("5. World Aquatics - Marca A:", min_value=0.0, value=None, placeholder="Ej: 54.25", step=0.1)
+m_wa_a = m_wa_a_in if m_wa_a_in is not None else 54.25
+
+m_wr_in = st.sidebar.number_input("6. Record Mundial:", min_value=0.0, value=None, placeholder="Ej: 51.71", step=0.1)
+m_wr = m_wr_in if m_wr_in is not None else 51.71
 
 st.sidebar.subheader("🔍 Calculadora Intermedia")
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0_manual), max_value=float(t_peak), value=14.0, step=0.1)
 
 # -------------------------------------------------------------
-# MODIFICADO: PROCESAMIENTO DESDE EL REPOSITORIO SQLITE
+# MODIFICADO: EXTRACCIÓN EN TIEMPO REAL DESDE SUPABASE
 # -------------------------------------------------------------
-# Extrae la información filtrada por la prueba escrita en la barra lateral
-conn = sqlite3.connect(DB_NAME)
-df_procesado = pd.read_sql_query(
-    "SELECT id, edad AS Edad, tiempo AS Tiempo, nota AS Nota FROM marcas_historicas WHERE prueba = ? ORDER BY edad ASC", 
-    conn, params=(titulo_grafico,)
-)
-conn.close()
+try:
+    response = supabase.table("marcas_historicas").select("id, edad, tiempo, nota").eq("prueba", titulo_grafico).order("edad", ascending=True).execute()
+    if response.data:
+        df_procesado = pd.DataFrame(response.data)
+        # Emparejamos mayúsculas/minúsculas con el resto de tu código gráfico
+        df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Nota"})
+    else:
+        df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Nota"])
+except Exception as err:
+    st.error(f"Error al conectar con la tabla remota de Supabase: {err}")
+    df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Nota"])
 
-# Lógica adaptativa idéntica e intacta
 if sincronizar_db and len(df_procesado) >= 2:
     t0 = float(df_procesado.iloc[0]["Edad"])
     T0 = float(df_procesado.iloc[0]["Tiempo"])
@@ -126,7 +135,7 @@ else:
     T_pb = T_pb_manual
 
 # -------------------------------------------------------------
-# MOTOR MATEMÁTICO (PRESERVADO AL 100% SIN ALTERACIONES)
+# MOTOR MATEMÁTICO (PRESERVADO AL 100%)
 # -------------------------------------------------------------
 tau = (t_pb - t0) / (t_peak - t0)
 D = T_pb - T_target
@@ -169,7 +178,6 @@ with c2: st.metric(label="Deriva Total PB vs T_target (D)", value=f"{D:.2f} s")
 with c3: st.metric(label=f"Predicción a los {t_intermedia:.1f} años", value=f"{tiempo_intermedio_proyectado:.2f} s")
 
 fig, ax = plt.subplots(figsize=(11, 6.5))
-
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=2.5, label=f"Proyección Fisiológica ({titulo_grafico})")
 
 if len(df_procesado) > 0:
@@ -194,10 +202,10 @@ ax.annotate(f"Consulta: {t_intermedia:.1f}a\n{tiempo_intermedio_proyectado:.2f}s
 
 referencias = [
     {"valor": m_ano, "label": "Mín. Año", "color": "#E69F00", "style": ":"},
-    {"valor": m_panam_a, "label": "PANAM Jr A", "color": "#56B4E9", "style": "-."},
     {"valor": m_panam_b, "label": "PANAM Jr B", "color": "#009E73", "style": ":"},
-    {"valor": m_wa_a, "label": "WA Mín. A", "color": "#CC79A7", "style": "-."},
+    {"valor": m_panam_a, "label": "PANAM Jr A", "color": "#56B4E9", "style": "-."},
     {"valor": m_wa_b, "label": "WA Mín. B", "color": "#D55E00", "style": ":"},
+    {"valor": m_wa_a, "label": "WA Mín. A", "color": "#CC79A7", "style": "-."},
     {"valor": m_wr, "label": "World Record", "color": "#000000", "style": "--"}
 ]
 
@@ -221,53 +229,53 @@ ax.legend(loc="upper right", fontsize=9)
 st.pyplot(fig)
 
 # -------------------------------------------------------------
-# MODIFICADO: INTERFAZ DE ADMINISTRACIÓN INTERACTIVA DEL REPOSITORIO LOCAL
+# MODIFICADO: INTERFAZ DE ESCRITURA/ELIMINACIÓN DIRECTA EN SUPABASE
 # -------------------------------------------------------------
 st.subheader(f"🗃️ Repositorio Histórico de PBs ({titulo_grafico})")
-st.markdown("*Los datos ingresados aquí se guardan de forma permanente en el almacenamiento local de tu dispositivo.*")
+st.markdown("*Los datos ingresados aquí se guardan de forma permanente y segura en la base de datos de Supabase.*")
 
-# Crear columnas inferiores para la entrada y visualización controlada
 col_registro, col_tabla = st.columns([1, 2])
 
 with col_registro:
     st.markdown("**Añadir Nueva Marca**")
-    # Formulario controlado para inserción limpia
     with st.form("registro_atletas_form", clear_on_submit=True):
-        ins_edad = st.number_input("Edad de logro:", min_value=5.0, max_value=30.0, value=11.50, step=0.01)
-        ins_tiempo = st.number_input("Tiempo (segundos):", min_value=1.0, value=71.20, step=0.01)
+        ins_edad_in = st.number_input("Edad de logro:", min_value=5.0, max_value=30.0, value=None, placeholder="Ej: 11.50", step=0.01)
+        ins_tiempo_in = st.number_input("Tiempo (segundos):", min_value=1.0, value=None, placeholder="Ej: 71.20", step=0.01)
         ins_nota = st.text_input("Competencia / Nota:", placeholder="Ej: Campeonato Nacional")
         
         if st.form_submit_button("💾 Guardar Marca"):
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO marcas_historicas (prueba, edad, tiempo, nota) VALUES (?, ?, ?, ?)", 
-                (titulo_grafico, ins_edad, ins_tiempo, ins_nota)
-            )
-            conn.commit()
-            conn.close()
-            st.success("¡Guardado exitosamente!")
-            st.rerun()
+            if ins_edad_in is not None and ins_tiempo_in is not None:
+                nueva_marca = {
+                    "prueba": titulo_grafico,
+                    "edad": float(ins_edad_in),
+                    "tiempo": float(ins_tiempo_in),
+                    "nota": ins_nota if ins_nota else ""
+                }
+                try:
+                    supabase.table("marcas_historicas").insert(nueva_marca).execute()
+                    st.success("¡Guardado en Supabase exitosamente!")
+                    st.rerun()
+                except Exception as insert_err:
+                    st.error(f"Error al escribir en Supabase: {insert_err}")
+            else:
+                st.error("Por favor, introduce al menos la Edad y el Tiempo antes de guardar.")
 
 with col_tabla:
-    st.markdown("**Registros en Base de Datos**")
+    st.markdown("**Registros en Base de Datos Remota**")
     if len(df_procesado) > 0:
-        # Formulario o botón para eliminación segura de filas por ID técnico
         id_eliminar = st.selectbox(
             "Eliminar un registro erróneo (Selecciona por ID):", 
             df_procesado["id"].tolist(),
             format_func=lambda x: f"ID {x} | Edad: {df_procesado[df_procesado['id']==x]['Edad'].values[0]:.2f}a -> {df_procesado[df_procesado['id']==x]['Tiempo'].values[0]:.2f}s"
         )
         if st.button("🗑️ Eliminar Fila Seleccionada"):
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM marcas_historicas WHERE id = ?", (id_eliminar,))
-            conn.commit()
-            conn.close()
-            st.warning(f"Registro ID {id_eliminar} eliminado.")
-            st.rerun()
+            try:
+                supabase.table("marcas_historicas").delete().eq("id", int(id_eliminar)).execute()
+                st.warning(f"Registro ID {id_eliminar} eliminado de Supabase.")
+                st.rerun()
+            except Exception as delete_err:
+                st.error(f"Error al eliminar en Supabase: {delete_err}")
             
-        # Despliegue visual limpio excluyendo la columna ID interna
         st.dataframe(df_procesado.drop(columns=["id"]), use_container_width=True)
     else:
-        st.info(f"No hay registros guardados para la prueba '{titulo_grafico}' en este dispositivo.")
+        st.info(f"No hay registros guardados para la prueba '{titulo_grafico}' en la base de datos.")
