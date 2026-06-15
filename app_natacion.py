@@ -43,9 +43,19 @@ except Exception as e:
 # -------------------------------------------------------------
 # BARRA LATERAL: REESTRUCTURACIÓN ESTRICTA Y CAMPOS SEGUROS
 # -------------------------------------------------------------
-# a) Prueba
 st.sidebar.header("📊 Configuración de la Prueba")
-titulo_grafico = st.sidebar.text_input("Estilo y Distancia:", value="100 Libre")
+
+# NUEVO: Lista desplegable estandarizada para evitar errores de transcripción
+lista_pruebas = [
+    "50 Libre", "100 Libre", "200 Libre", "400 Libre", "800 Libre", "1500 Libre",
+    "50 Espalda", "100 Espalda", "200 Espalda",
+    "50 Mariposa", "100 Mariposa", "200 Mariposa",
+    "50 Pecho", "100 Pecho", "200 Pecho",
+    "200 Combinado", "400 Combinado"
+]
+
+# Definimos "100 Libre" como la opción predeterminada al cargar (Index 1)
+titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", opciones=lista_pruebas, index=1)
 
 # b) Modo del modelo
 st.sidebar.subheader("⚙️ Modo del Modelo")
@@ -108,7 +118,7 @@ st.sidebar.subheader("🔍 Calculadora Intermedia")
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0_manual), max_value=float(t_peak), value=14.0, step=0.1)
 
 # -------------------------------------------------------------
-# CORREGIDO: EXTRACCIÓN CON EL PARÁMETRO CORRECTO PARA PYTHON (desc=False)
+# EXTRACCIÓN CON EL PARÁMETRO CORRECTO PARA PYTHON (desc=False)
 # -------------------------------------------------------------
 try:
     response = supabase.table("marcas_historicas").select("id, edad, tiempo, nota").eq("prueba", titulo_grafico).order("edad", desc=False).execute()
