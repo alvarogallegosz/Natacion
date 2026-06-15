@@ -55,7 +55,7 @@ lista_pruebas = [
 ]
 
 # Definimos "100 Libre" como la opción predeterminada al cargar (Index 1)
-titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", opciones=lista_pruebas, index=1)
+titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=1)
 
 # b) Modo del modelo
 st.sidebar.subheader("⚙️ Modo del Modelo")
