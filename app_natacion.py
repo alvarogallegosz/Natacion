@@ -120,7 +120,7 @@ if st.sidebar.button("🚪 Cerrar Sesión"):
 st.markdown(
     f"""
     <h1 style='font-size: 26px; font-weight: bold; color: #111111; margin-bottom: 0px;'>
-        室内🏊‍♀️ Sistema Adaptativo - Expediente de {st.session_state.nombre_nadador}
+        🏊‍♀️ Sistema Adaptativo - Expediente de {st.session_state.nombre_nadador}
     </h1>
     """, 
     unsafe_allow_html=True
