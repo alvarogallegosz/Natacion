@@ -371,7 +371,7 @@ ax.text(t_peak - 0.15, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", f
 
 # AJUSTE ESTÉTICO EXTREMOS DE EJES SOLICITADOS
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
-ax.set_ylim(T_target - (T_target * 0.03), T0 + (T0 * 0.02))
+ax.set_ylim(m_wr - (m_wr * 0.03), T0 + (T0 * 0.02))
 
 # 5. Dibujar marcas horizontales
 if not es_preinfantil:
