@@ -118,7 +118,7 @@ def login_usuario(user, password):
 
 # Renderizado de la Pantalla de Entrada
 if not st.session_state.autenticado:
-    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Categorías Feveda</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de de Resultados en Competencia - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
         tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
@@ -259,13 +259,13 @@ else:
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
 # Encabezado con información del atleta seleccionado
-st.markdown(f"### 🏊‍♂️ Plan de Trabajo: {st.session_state.nadador_seleccionado_nombre}")
+st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
 # -------------------------------------------------------------
 # CONFIGURACIÓN DE LA PRUEBA Y EXTRACCIÓN DE MARCAS CON FILTRO DE CATEGORÍA
 # -------------------------------------------------------------
-st.sidebar.header("📊 Ajustes de Carrera")
+st.sidebar.header("📊 Ajustes por prueba")
 lista_pruebas = ['50 Libre', '100 Libre', '200 Libre', '50 Espalda', '100 Espalda', '200 Espalda', '50 Mariposa', '100 Mariposa', '200 Mariposa', '50 Pecho', '100 Pecho', '200 Pecho', '200 Combinado', '400 Combinado']
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
 
@@ -354,7 +354,7 @@ T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_va
 
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=sincronizar_db)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=sincronizar_db)
-h = st.sidebar.slider("Factor de deriva manual (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
+h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
@@ -430,7 +430,7 @@ ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fo
 
 # LÍMITES AJUSTADOS DE LOS EJES
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
-ax.set_ylim(T_target - (T_target * 0.03), T0 + (T0 * 0.02))
+ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.02))
 
 # 4. MARCAS HORIZONTALES: LEYENDAS A LA IZQUIERDA, PALETA OSCURA Y PREVENCIÓN DE SUPERPOSICIÓN
 if not es_preinfantil:
