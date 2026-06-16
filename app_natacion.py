@@ -70,6 +70,24 @@ def calcular_categoria_competencia(fecha_nac_str):
     return cat, edad_competencia
 
 # -------------------------------------------------------------
+# FUNCIÓN AUXILIAR: CALCULAR EDAD DECIMAL EXACTA
+# -------------------------------------------------------------
+def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
+    if not fecha_nacimiento_str or not fecha_marca:
+        return None
+    try:
+        if isinstance(fecha_nacimiento_str, str):
+            fecha_nac_obj = datetime.date.fromisoformat(fecha_nacimiento_str)
+        else:
+            fecha_nac_obj = fecha_nacimiento_str
+            
+        diferencia_dias = (fecha_marca - fecha_nac_obj).days
+        edad_decimal = diferencia_dias / 365.25
+        return round(edad_decimal, 2)
+    except Exception:
+        return None
+
+# -------------------------------------------------------------
 # CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
 # -------------------------------------------------------------
 if "autenticado" not in st.session_state:
@@ -502,19 +520,44 @@ with tab_marcas:
     with col_ins:
         st.markdown("**Ingresar Nueva Marca**")
         with st.form("form_insertar_marca", clear_on_submit=True):
-            ins_edad = st.number_input("Edad de logro:", min_value=4.0, max_value=30.0, step=0.01)
+            # CAMBIO AQUÍ: Se reemplaza la edad por la fecha del evento
+            ins_fecha_evento = st.date_input("Fecha de la Competencia:", value=datetime.date.today())
             ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
             ins_nota = st.text_input("Evento / Fecha:")
             
             if st.form_submit_button("💾 Guardar Registro"):
                 if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
-                    nueva_m = {
-                        "prueba": titulo_grafico, "edad": float(ins_edad), "tiempo": float(ins_tiempo),
-                        "nota": ins_nota, "usuario_id": st.session_state.nadador_seleccionado_id
-                    }
-                    supabase.table("marcas_historicas").insert(nueva_m).execute()
-                    st.success("Marca guardada.")
-                    st.rerun()
+                    try:
+                        id_atleta = st.session_state.nadador_seleccionado_id
+                        fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
+                        
+                        # Si es entrenador/admin, extraemos la fecha de nacimiento real desde la BD
+                        if st.session_state.rol in ["Entrenador", "Administrador"]:
+                            atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
+                            if atleta_query.data:
+                                fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
+                        
+                        if not fecha_nacimiento_atleta:
+                            st.error("❌ No se puede calcular la edad decimal porque el atleta no posee fecha de nacimiento en su perfil.")
+                        else:
+                            # Calcular la edad exacta con decimales de manera automatizada
+                            edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
+                            
+                            if edad_calculada is None:
+                                st.error("❌ Error al procesar la fecha de nacimiento.")
+                            else:
+                                nueva_m = {
+                                    "prueba": titulo_grafico, 
+                                    "edad": float(edad_calculada), 
+                                    "tiempo": float(ins_tiempo),
+                                    "nota": ins_nota, 
+                                    "usuario_id": id_atleta
+                                }
+                                supabase.table("marcas_historicas").insert(nueva_m).execute()
+                                st.success(f"Marca guardada. Edad calculada automáticamente: {edad_calculada} años.")
+                                st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al procesar o guardar el registro: {e}")
                     
     with col_vistas:
         st.markdown("**Historial Cronológico de Tiempos**")
@@ -580,7 +623,7 @@ with tab_entrenador:
                     st.success(f"Tiempos de referencia actualizados para {u_cat}.")
                     st.rerun()
     else:
-        st.warning("🔒 Requiere credenciales de Dirección Técnica o Entrenador.")
+        st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
 
 with tab_admin:
     if st.session_state.rol == "Administrador":
