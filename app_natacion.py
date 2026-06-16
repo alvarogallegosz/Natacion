@@ -70,7 +70,7 @@ def calcular_categoria_competencia(fecha_nac_str):
     return cat, edad_competencia
 
 # -------------------------------------------------------------
-# CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN
+# CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
 # -------------------------------------------------------------
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
@@ -118,11 +118,10 @@ def login_usuario(user, password):
 
 # Renderizado de la Pantalla de Entrada
 if not st.session_state.autenticado:
-    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Resultados - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Categorías Feveda</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
-        # AGREGADO: Pestaña dedicada a la recuperación de credenciales
-        tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
+        tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])[cite: 3]
         
         with tab_login:
             with st.form("form_login"):
@@ -133,115 +132,99 @@ if not st.session_state.autenticado:
                         st.success("Acceso autorizado.")
                         st.rerun()
                     else:
-                        st.error("Credenciales incorrectas. Verifique sus datos o use la pestaña de recuperación.")
+                        st.error("Credenciales incorrectas. Verifique sus datos o use la pestaña de recuperación.")[cite: 3]
                         
-with tab_registro:
-    st.markdown("### 📝 Registro de Nuevas Cuentas")
-    
-    # 1. El rol se selecciona FUERA del formulario para permitir el dinamismo en tiempo real
-    nuevo_rol = st.selectbox(
-        "Seleccione el Rol para la nueva cuenta:", 
-        options=["Nadador", "Entrenador", "Administrador"]
-    )
-    
-    # Evaluamos si es nadador para decidir si mostramos u ocultamos los datos biométricos
-    es_nadador_reg = (nuevo_rol == "Nadador")
-    
-    # 2. Formulario principal de datos
-    with st.form("form_registro_dinamico"):
-        nuevo_nombre = st.text_input("Nombre completo:")
-        nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")
-        nuevo_email = st.text_input("Correo Electrónico:")
-        nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
-        
-        # Inicializamos las variables por defecto en None
-        nuevo_genero = None
-        nueva_fecha_nac = None
-        
-        # 3. Se muestran las casillas SOLO si es Nadador. Si es Admin/Entrenador, quedan ocultas.
-        if es_nadador_reg:
-            st.markdown("---")
-            st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")
-            nuevo_genero = st.selectbox(
-                "Género:", 
-                options=["F", "M"], 
-                format_func=lambda x: "Femenino" if x == "F" else "Masculino"
-            )
-            nueva_fecha_nac = st.date_input(
-                "Fecha de Nacimiento:", 
-                min_value=datetime.date(1950, 1, 1), 
-                max_value=datetime.date.today()
+        with tab_registro:
+            st.markdown("### 📝 Registro de Nuevas Cuentas")[cite: 3]
+            
+            # El rol fuera del formulario para el dinamismo reactivo
+            nuevo_rol = st.selectbox(
+                "Seleccione el Rol para la nueva cuenta:", 
+                options=["Nadador", "Entrenador", "Administrador"],
+                key="reg_rol_selector"
             )
             
-        if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
-            if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
-                try:
-                    # Validar disponibilidad del alias
-                    chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()
-                    if chequeo.data:
-                        st.error("El nombre de usuario ya está tomado.")
-                    else:
-                        # Estructura limpia para la base de datos
-                        nuevo_registro = {
-                            "nombre": nuevo_nombre, 
-                            "usuario": nuevo_usuario, 
-                            "email": nuevo_email,
-                            "contrasena": nueva_contrasena, 
-                            "rol": nuevo_rol, 
-                            "estatus": "Activo",
-                            # Si es nadador guarda los valores, si está oculto inyecta NULL de forma segura
-                            "genero": nuevo_genero if es_nadador_reg else None,
-                            "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
-                        }
-                        
-                        supabase.table("usuarios").insert(nuevo_registro).execute()
-                        st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
-                except Exception as reg_err:
-                    st.error(f"Error en registro: {reg_err}")
-            else:
-                st.error("Por favor complete todos los datos obligatorios del formulario.")
-
-        # NUEVO: Bloque funcional para la recuperación de contraseña
-        with tab_recuperar:
-            st.markdown("### Restablecer Contraseña")
-            st.write("Introduzca su identificador de usuario y el correo registrado para validar su identidad y asignar una nueva clave.")
+            es_nadador_reg = (nuevo_rol == "Nadador")[cite: 3]
             
-            with st.form("form_recuperacion"):
-                rec_usuario = st.text_input("Nombre de Usuario (Alias):")
-                rec_email = st.text_input("Correo Electrónico Asociado:")
-                nueva_clave = st.text_input("Nueva Contraseña Deseada:", type="password")
-                confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password")
+            with st.form("form_registro_dinamico"):[cite: 3]
+                nuevo_nombre = st.text_input("Nombre completo:")[cite: 3]
+                nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")[cite: 3]
+                nuevo_email = st.text_input("Correo Electrónico:")[cite: 3]
+                nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")[cite: 3]
                 
-                if st.form_submit_button("🔄 Actualizar Contraseña"):
-                    if not (rec_usuario and rec_email and nueva_clave and confirmar_clave):
-                        st.error("Todos los campos del formulario de recuperación son obligatorios.")
-                    elif nueva_clave != confirmar_clave:
-                        st.error("La confirmación no coincide con la nueva contraseña introducida.")
+                nuevo_genero = None[cite: 3]
+                nueva_fecha_nac = None[cite: 3]
+                
+                # Renderizado condicional: Oculto para Administradores y Entrenadores
+                if es_nadador_reg:[cite: 3]
+                    st.markdown("---")
+                    st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")[cite: 3]
+                    nuevo_genero = st.selectbox(
+                        "Género:", 
+                        options=["F", "M"], 
+                        format_func=lambda x: "Femenino" if x == "F" else "Masculino"[cite: 3]
+                    )
+                    nueva_fecha_nac = st.date_input(
+                        "Fecha de Nacimiento:", 
+                        min_value=datetime.date(1950, 1, 1), 
+                        max_value=datetime.date.today()[cite: 3]
+                    )
+                    
+                if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):[cite: 3]
+                    if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:[cite: 3]
+                        try:
+                            chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()[cite: 3]
+                            if chequeo.data:
+                                st.error("El nombre de usuario ya está tomado.")[cite: 3]
+                            else:
+                                nuevo_registro = {
+                                    "nombre": nuevo_nombre, 
+                                    "usuario": nuevo_usuario, 
+                                    "email": nuevo_email,
+                                    "contrasena": nueva_contrasena, 
+                                    "rol": nuevo_rol, 
+                                    "estatus": "Activo",
+                                    "genero": nuevo_genero if es_nadador_reg else None,[cite: 3]
+                                    "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None[cite: 3]
+                                }
+                                supabase.table("usuarios").insert(nuevo_registro).execute()[cite: 3]
+                                st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")[cite: 3]
+                        except Exception as reg_err:
+                            st.error(f"Error en registro: {reg_err}")[cite: 3]
+                    else:
+                        st.error("Por favor complete todos los datos obligatorios del formulario.")[cite: 3]
+
+        with tab_recuperar:[cite: 3]
+            st.markdown("### Restablecer Contraseña")[cite: 3]
+            st.write("Introduzca su identificador de usuario y el correo registrado para validar su identidad y asignar una nueva clave.")[cite: 3]
+            
+            with st.form("form_recuperacion"):[cite: 3]
+                rec_usuario = st.text_input("Nombre de Usuario (Alias):")[cite: 3]
+                rec_email = st.text_input("Correo Electrónico Asociado:")[cite: 3]
+                nueva_clave = st.text_input("Nueva Contraseña Deseada:", type="password")[cite: 3]
+                confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password")[cite: 3]
+                
+                if st.form_submit_button("🔄 Actualizar Contraseña"):[cite: 3]
+                    if not (rec_usuario and rec_email and nueva_clave and confirmar_clave):[cite: 3]
+                        st.error("Todos los campos del formulario de recuperación son obligatorios.")[cite: 3]
+                    elif nueva_clave != confirmar_clave:[cite: 3]
+                        st.error("La confirmación no coincide con la nueva contraseña introducida.")[cite: 3]
                     else:
                         try:
-                            # Validar que exista el par usuario/correo y extraer su id
-                            verificacion = supabase.table("usuarios")\
-                                .select("id, estatus")\
-                                .eq("usuario", rec_usuario)\
-                                .eq("email", rec_email).execute()
-                                
+                            verificacion = supabase.table("usuarios").select("id, estatus").eq("usuario", rec_usuario).eq("email", rec_email).execute()[cite: 3]
                             if verificacion.data:
                                 user_info = verificacion.data[0]
-                                if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
-                                    st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración. No se permiten cambios autonómos.")
+                                if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:[cite: 3]
+                                    st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración. No se permiten cambios autónomos.")[cite: 3]
                                 else:
-                                    # Ejecutar la actualización encriptada/plana según el esquema actual
-                                    supabase.table("usuarios")\
-                                        .update({"contrasena": nueva_clave})\
-                                        .eq("id", user_info["id"]).execute()
-                                    st.success("✅ Contraseña actualizada correctamente. Ya puede dirigirse a la pestaña de 'Iniciar Sesión'.")
+                                    supabase.table("usuarios").update({"contrasena": nueva_clave}).eq("id", user_info["id"]).execute()[cite: 3]
+                                    st.success("✅ Contraseña actualizada correctamente. Ya puede dirigirse a la pestaña de 'Iniciar Sesión'.")[cite: 3]
                             else:
-                                st.error("❌ Los datos proporcionados no coinciden con ningún registro activo en el sistema.")
+                                st.error("❌ Los datos proporcionados no coinciden con ningún registro activo en el sistema.")[cite: 3]
                         except Exception as rec_err:
-                            st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
+                            st.error(f"Error durante el proceso de restablecimiento: {rec_err}")[cite: 3]
                             
-    st.stop()
-
+    st.stop()[cite: 3]
 # -------------------------------------------------------------
 # CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS (ENTRENADOR / ADMIN)
 # -------------------------------------------------------------
