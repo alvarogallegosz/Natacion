@@ -303,7 +303,7 @@ try:
         
     if response.data:
         df_procesado = pd.DataFrame(response.data)
-        df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Nota"})
+        df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
         db_t0 = float(df_procesado.iloc[0]["Edad"])
         db_T0 = float(df_procesado.iloc[0]["Tiempo"])
         n_registros = len(df_procesado)
@@ -504,7 +504,7 @@ with tab_marcas:
         with st.form("form_insertar_marca", clear_on_submit=True):
             ins_edad = st.number_input("Edad de logro:", min_value=4.0, max_value=30.0, step=0.01)
             ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
-            ins_nota = st.text_input("Sede / Evento:")
+            ins_nota = st.text_input("Evento / Fecha:")
             
             if st.form_submit_button("💾 Guardar Registro"):
                 if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
