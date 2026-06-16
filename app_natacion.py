@@ -7,7 +7,7 @@ import datetime
 from supabase import create_client, Client
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(page_title="Simulador de Natación - Categorías Etarias", layout="wide")
+st.set_page_config(page_title="Simulador de proyección de rendimiento para natación", layout="wide")
 
 st.markdown(
     """
@@ -70,7 +70,7 @@ def calcular_categoria_competencia(fecha_nac_str):
     return cat, edad_competencia
 
 # -------------------------------------------------------------
-# CONTROL DE ACCESO Y SESIÓN
+# CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN
 # -------------------------------------------------------------
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
@@ -116,20 +116,24 @@ def login_usuario(user, password):
         st.error(f"Error en Login: {e}")
         return False
 
+# Renderizado de la Pantalla de Entrada
 if not st.session_state.autenticado:
     st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Categorías Feveda</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
-        tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios"])
+        # AGREGADO: Pestaña dedicada a la recuperación de credenciales
+        tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
         
         with tab_login:
             with st.form("form_login"):
-                usuario_input = st.text_input("Usuario / Correo:")
+                usuario_input = st.text_input("Usuario o Correo:")
                 contrasena_input = st.text_input("Contraseña:", type="password")
                 if st.form_submit_button("Ingresar"):
                     if login_usuario(usuario_input, contrasena_input):
                         st.success("Acceso autorizado.")
                         st.rerun()
+                    else:
+                        st.error("Credenciales incorrectas. Verifique sus datos o use la pestaña de recuperación.")
                         
         with tab_registro:
             with st.form("form_registro"):
@@ -139,13 +143,21 @@ if not st.session_state.autenticado:
                 nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
                 nuevo_rol = st.selectbox("Rol en el Sistema:", options=["Nadador", "Entrenador", "Administrador"])
                 
-                nuevo_genero = "F"
-                nueva_fecha_nac = None
+                st.markdown("---")
+                es_nadador_reg = (nuevo_rol == "Nadador")
                 
-                if nuevo_rol == "Nadador":
-                    st.markdown("---")
-                    nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
-                    nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
+                nuevo_genero = st.selectbox(
+                    "Género:", 
+                    options=["F", "M"], 
+                    format_func=lambda x: "Femenino" if x == "F" else "Masculino",
+                    disabled=not es_nadador_reg
+                )
+                nueva_fecha_nac = st.date_input(
+                    "Fecha de Nacimiento:", 
+                    min_value=datetime.date(1950, 1, 1), 
+                    max_value=datetime.date.today(),
+                    disabled=not es_nadador_reg
+                )
                 
                 if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
                     if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
@@ -155,11 +167,14 @@ if not st.session_state.autenticado:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
                                 nuevo_registro = {
-                                    "nombre": nuevo_nombre, "usuario": nuevo_usuario, "email": nuevo_email,
+                                    "nombre": nuevo_nombre, 
+                                    "usuario": nuevo_usuario, 
+                                    "email": nuevo_email,
                                     "contrasena": nueva_contrasena, 
-                                    "genero": nuevo_genero if nuevo_rol == "Nadador" else None,
-                                    "fecha_nacimiento": nueva_fecha_nac.isoformat() if (nuevo_rol == "Nadador" and nueva_fecha_nac) else None, 
-                                    "rol": nuevo_rol, "estatus": "Activo"
+                                    "rol": nuevo_rol, 
+                                    "estatus": "Activo",
+                                    "genero": nuevo_genero if es_nadador_reg else None,
+                                    "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
                                 }
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
                                 st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
@@ -167,6 +182,46 @@ if not st.session_state.autenticado:
                             st.error(f"Error en registro: {reg_err}")
                     else:
                         st.error("Por favor complete todos los datos del formulario.")
+
+        # NUEVO: Bloque funcional para la recuperación de contraseña
+        with tab_recuperar:
+            st.markdown("### Restablecer Contraseña")
+            st.write("Introduzca su identificador de usuario y el correo registrado para validar su identidad y asignar una nueva clave.")
+            
+            with st.form("form_recuperacion"):
+                rec_usuario = st.text_input("Nombre de Usuario (Alias):")
+                rec_email = st.text_input("Correo Electrónico Asociado:")
+                nueva_clave = st.text_input("Nueva Contraseña Deseada:", type="password")
+                confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password")
+                
+                if st.form_submit_button("🔄 Actualizar Contraseña"):
+                    if not (rec_usuario and rec_email and nueva_clave and confirmar_clave):
+                        st.error("Todos los campos del formulario de recuperación son obligatorios.")
+                    elif nueva_clave != confirmar_clave:
+                        st.error("La confirmación no coincide con la nueva contraseña introducida.")
+                    else:
+                        try:
+                            # Validar que exista el par usuario/correo y extraer su id
+                            verificacion = supabase.table("usuarios")\
+                                .select("id, estatus")\
+                                .eq("usuario", rec_usuario)\
+                                .eq("email", rec_email).execute()
+                                
+                            if verificacion.data:
+                                user_info = verificacion.data[0]
+                                if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
+                                    st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración. No se permiten cambios autonómos.")
+                                else:
+                                    # Ejecutar la actualización encriptada/plana según el esquema actual
+                                    supabase.table("usuarios")\
+                                        .update({"contrasena": nueva_clave})\
+                                        .eq("id", user_info["id"]).execute()
+                                    st.success("✅ Contraseña actualizada correctamente. Ya puede dirigirse a la pestaña de 'Iniciar Sesión'.")
+                            else:
+                                st.error("❌ Los datos proporcionados no coinciden con ningún registro activo en el sistema.")
+                        except Exception as rec_err:
+                            st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
+                            
     st.stop()
 
 # -------------------------------------------------------------
@@ -336,75 +391,102 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDERIZADO GRÁFICO DINÁMICO (LÍMITES Y ETIQUETA PEAK CORREGIDOS)
+# RENDERIZADO GRÁFICO OPTIMIZADO (ESTÉTICA, CONTROL DE COLISIONES Y GRID)
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
-fig, ax = plt.subplots(figsize=(11, 5.8))
+# Se redujo ligeramente la altura para mayor esbeltez visual
+fig, ax = plt.subplots(figsize=(11, 5.2))
 
-# 1. Trazar curvas principales
-ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=2.5, label="Proyección Fisiológica")
+# 1. TRAZADO DE CURVAS PRINCIPALES (Espesores delgados y estilizados)
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.5, label="Proyección Fisiológica")
 
 if len(df_procesado) > 0:
-    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", alpha=0.4, label="Evolución Real (PBs)")
-    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=35, zorder=3)
+    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.5, label="Evolución Real (PBs)")
+    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=20, linewidths=0.6, zorder=3)
 
-# 2. Marcadores específicos de los Hitos Clave
-ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=50, zorder=4)
-ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=130, zorder=5, label="PB Actual de Control")
-ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=50, zorder=4, label="Meta Peak")
-ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=45, zorder=5, label="Punto Consultado")
+# 2. MARCADORES DE HITOS CLAVE (Tamaños balanceados)
+ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=30, linewidths=0.6, zorder=4)
+ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=80, linewidths=0.6, zorder=5, label="PB Actual de Control")
+ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=30, linewidths=0.6, zorder=4, label="Meta Peak")
+ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=25, zorder=5, label="Punto Consultado")
 
-# 3. Líneas Verticales de Referencia
-ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=1.2, alpha=0.7)
-ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=1.2, alpha=0.6)
-ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=1.2, alpha=0.7)
-ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=1.0, alpha=0.5)
+# LÍNEAS VERTICALES DE REFERENCIA (Ultra delgadas)
+ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
+ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
+ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
+ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-# 4. Cuadros de Texto Informativos Dinámicos
-offset_y = (T0 - T_target) * 0.035
-ax.text(t0 + 0.15, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8.5, va="bottom", ha="left", 
-        bbox=dict(boxstyle="round,pad=0.3", fc="#FFF2CC", ec="#D6B656", alpha=0.85, lw=0.7))
+# 3. CUADROS DE TEXTO INFORMATIVOS (Líneas finas, texto normal, sin bold)
+offset_y = (T0 - T_target) * 0.025
+estilo_bbox = dict(boxstyle="round,pad=0.2", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-ax.text(t_pb, T_pb + offset_y, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8.5, va="bottom", ha="center", 
-        bbox=dict(boxstyle="round,pad=0.3", fc="#FCE5CD", ec="#B45F06", alpha=0.85, lw=0.7))
+ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
+ax.text(t_pb, T_pb + offset_y, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
-ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8.5, va="bottom", ha="center", 
-        bbox=dict(boxstyle="round,pad=0.3", fc="#F4CCCC", ec="#CC0000", alpha=0.85, lw=0.7))
-
-# AJUSTE: Etiqueta dinámica del Peak solicitada
-ax.text(t_peak - 0.15, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8.5, va="bottom", ha="right", 
-        bbox=dict(boxstyle="round,pad=0.3", fc="#D5F5E3", ec="#2ECC71", alpha=0.85, lw=0.7))
-
-# AJUSTE ESTÉTICO EXTREMOS DE EJES SOLICITADOS
+# LÍMITES AJUSTADOS DE LOS EJES
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
-ax.set_ylim(m_wr - (m_wr * 0.03), T0 + (T0 * 0.02))
+ax.set_ylim(T_target - (T_target * 0.03), T0 + (T0 * 0.02))
 
-# 5. Dibujar marcas horizontales
+# 4. MARCAS HORIZONTALES: LEYENDAS A LA IZQUIERDA, PALETA OSCURA Y PREVENCIÓN DE SUPERPOSICIÓN
 if not es_preinfantil:
+    # Paleta sobria y más oscura para asegurar legibilidad sin estridencias
     referencias = [
-        {"val": m_ano, "lbl": "Mín. Año", "col": "#E69F00"},
-        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#009E73"},
-        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#56B4E9"},
-        {"val": m_wa_b, "lbl": "WA B", "col": "#D55E00"},
-        {"val": m_wa_a, "lbl": "WA A", "col": "#CC79A7"},
-        {"val": m_wr, "lbl": "World Record", "col": "#000000"}
+        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "pos": "center"},
+        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "pos": "top"},      # Marca B -> Arriba
+        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "pos": "bottom"},   # Marca A -> Abajo
+        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "pos": "top"},               # Marca B -> Arriba
+        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            # Marca A -> Abajo
+        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
     ]
+    
+    # x_texto se ubica en el extremo izquierdo (límite inferior de x + un pequeño margen)
+    x_texto = (t0 - 0.5) + 0.05
+    
     for r in referencias:
         if r["val"] > 0:
-            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=1.2)
-            ax.text(t_peak + 0.1, r["val"], f" {r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, fontweight="bold", va="center")
+            # Líneas de referencia ultra delgadas (linewidth=0.6) y sin bold
+            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+            
+            # Control de superposición: asignación inteligente de alineación vertical (va)
+            if r["pos"] == "top":
+                va_ajustada = "bottom"      # Si va arriba de la línea, se alinea desde su base
+                desplazamiento_y = 0.1
+            elif r["pos"] == "bottom":
+                va_ajustada = "top"         # Si va debajo de la línea, se alinea desde su tope
+                desplazamiento_y = -0.1
+            else:
+                va_ajustada = "center"
+                desplazamiento_y = 0.0
+                
+            ax.text(
+                x_texto, 
+                r["val"] + desplazamiento_y, 
+                f"{r['lbl']}: {r['val']:.2f}s", 
+                color=r["col"], 
+                fontsize=7.5, 
+                fontweight="normal",   # Texto limpio sin bold
+                va=va_ajustada, 
+                ha="left"
+            )
 else:
-    ax.axhline(y=m_wr, color="#000000", linestyle="--", linewidth=1.2)
-    ax.text(t_peak + 0.1, m_wr, f" WR Base: {m_wr:.2f}s", color="#000000", fontsize=8, fontweight="bold", va="center")
+    ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
+    ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7.5, fontweight="normal", va="center", ha="left")
     st.info("ℹ️ Las categorías Preinfantiles se consideran de desarrollo formativo y no poseen marcas mínimas exigidas.")
 
-ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, fontweight="bold", pad=12)
-ax.set_xlabel("Edad del Atleta (Años)", fontsize=10, fontweight="bold")
-ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=10, fontweight="bold")
-ax.grid(True, linestyle=":", alpha=0.5)
-ax.legend(loc="upper right", fontsize=9, framealpha=0.9)
+# 5. CONFIGURACIÓN COMPLETA DEL GRID (Ejes X e Y reflejados)
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
+ax.set_xlabel("Edad del Atleta (Años)", fontsize=9, fontweight="bold")
+ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9, fontweight="bold")
+
+# Se fuerza el reflejo explícito del grid tanto en divisiones principales como menores si existieran
+ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
+ax.set_axisbelow(True) # Asegura que la cuadrícula quede detrás de las líneas de proyección
+
+ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
 st.pyplot(fig)
 
