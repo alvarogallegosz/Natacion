@@ -517,16 +517,52 @@ with tab_admin:
                     nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(user_actual["rol"]))
                 with c_est:
                     nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Suspendido", "Bloqueado"], index=["Activo", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
-                with c_gen:
-                    nuevo_gen_user = st.selectbox("Género:", options=["F", "M"], index=["F", "M"].index(user_actual["genero"] if user_actual["genero"] else "F"))
                 
-                nueva_f_nac_admin = st.date_input("Corregir Fecha Nacimiento:", value=datetime.date.fromisoformat(user_actual["fecha_nacimiento"]) if user_actual["fecha_nacimiento"] else datetime.date.today())
+                # REGLA: Deshabilitar campos biométricos si el rol destino es administrativo o técnico
+                campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
+                
+                with c_gen:
+                    # Protección contra índices nulos (.index(None))
+                    gen_inicial = user_actual["genero"] if user_actual["genero"] in ["F", "M"] else "F"
+                    nuevo_gen_user = st.selectbox(
+                        "Género:", 
+                        options=["F", "M"], 
+                        index=["F", "M"].index(gen_inicial),
+                        disabled=campos_deshabilitados,
+                        help="No aplica para personal técnico" if campos_deshabilitados else ""
+                    )
+                
+                # Protección contra parseo de fechas nulas (fromisoformat(None))
+                if user_actual["fecha_nacimiento"]:
+                    try:
+                        f_nac_inicial = datetime.date.fromisoformat(str(user_actual["fecha_nacimiento"]))
+                    except Exception:
+                        f_nac_inicial = datetime.date.today()
+                else:
+                    f_nac_inicial = datetime.date.today()
+                    
+                nueva_f_nac_admin = st.date_input(
+                    "Corregir Fecha Nacimiento:", 
+                    value=f_nac_inicial,
+                    disabled=campos_deshabilitados,
+                    help="No aplica para personal técnico" if campos_deshabilitados else ""
+                )
                 
                 if st.button("⚠️ Forzar Cambios de Perfil"):
-                    supabase.table("usuarios").update({
-                        "rol": nuevo_rol_user, "estatus": nuevo_est_user, 
-                        "genero": nuevo_gen_user, "fecha_nacimiento": nueva_f_nac_admin.isoformat()
-                    }).eq("id", int(id_mod)).execute()
+                    datos_update = {
+                        "rol": nuevo_rol_user, 
+                        "estatus": nuevo_est_user
+                    }
+                    
+                    # Si el rol es Entrenador/Admin, se fuerza NULL en BD cancelando cualquier corrección
+                    if campos_deshabilitados:
+                        datos_update["genero"] = None
+                        datos_update["fecha_nacimiento"] = None
+                    else:
+                        datos_update["genero"] = nuevo_gen_user
+                        datos_update["fecha_nacimiento"] = nueva_f_nac_admin.isoformat()
+                        
+                    supabase.table("usuarios").update(datos_update).eq("id", int(id_mod)).execute()
                     st.success("Cambios aplicados con éxito.")
                     st.rerun()
         except Exception as e:
