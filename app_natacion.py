@@ -387,8 +387,6 @@ tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 fig = plt.figure(figsize=(8.5, 11.0))
 
 # NUEVAS COORDENADAS: [left, bottom, width, height]
-# Se mete el gráfico hacia adentro (left=0.14, width=0.72) para crear la "zona segura" de textos.
-# Se reduce su altura a 0.33 para conceder un 40% (0.40) total a la tabla inferior.
 ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 
 # Renderizado de curvas
@@ -434,7 +432,8 @@ if not es_preinfantil:
         if r["val"] > 0:
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
             va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
+            # CORRECCIÓN AQUÍ: Se cambió "center" por 0.0 para evitar la suma de Float + String
+            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
@@ -453,7 +452,6 @@ if len(df_procesado) > 0:
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
     df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
     
-    # El nuevo espacio vertical permite subir holgadamente el límite a 16 filas por columna
     limite_filas_por_bloque = 16
     total_filas = len(df_table_render)
     
@@ -468,7 +466,6 @@ if len(df_procesado) > 0:
             else:
                 cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
-    # CASO A: El historial se mantiene compacto en una columna perfectamente alineada al ancho del gráfico
     if total_filas <= limite_filas_por_bloque:
         ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
         ax_table.axis('off')
@@ -482,7 +479,6 @@ if len(df_procesado) > 0:
         )
         estilizar_tabla_nativo(mpl_table)
         
-    # CASO B: El volumen crece y se divide en dos bloques paralelos perfectamente simétricos
     else:
         if total_filas > 32:
             df_table_render = df_table_render.iloc[:32]
@@ -490,7 +486,6 @@ if len(df_procesado) > 0:
         df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
         df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
         
-        # Bloque Izquierdo (ajustado a la mitad izquierda de la zona segura)
         ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
         ax_table1.axis('off')
         mpl_table1 = ax_table1.table(
@@ -502,7 +497,6 @@ if len(df_procesado) > 0:
         )
         estilizar_tabla_nativo(mpl_table1)
         
-        # Bloque Derecho (ajustado a la mitad derecha de la zona segura, finalizando en 0.86 exacto)
         ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
         ax_table2.axis('off')
         mpl_table2 = ax_table2.table(
