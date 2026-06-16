@@ -387,35 +387,39 @@ with c3:
     st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDIMIENTO GRÁFICO (MODO EQUIPO CORREGIDO)
+# RENDIMIENTO GRÁFICO (MODO EQUIPO TOTALMENTE PERSONALIZABLE)
 # -------------------------------------------------------------
 if modo_equipo:
-    st.subheader(f"👥 Evolución Colectiva y Proyecciones - {titulo_grafico}")
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
+    tipo_filtro = st.sidebar.radio("Segmentar por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
     
     try:
-        # 1. Obtener todos los nadadores activos
-        resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+        resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         atletas_lista = resp_todos.data if resp_todos.data else []
         
-        if not atletas_lista:
-            st.warning("No se encontraron atletas activos en la base de datos.")
+        atletas_filtrados = []
+        if tipo_filtro == "Todos los Atletas":
+            atletas_filtrados = atletas_lista
+        elif tipo_filtro == "Categoría Etaria":
+            categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_lista])))
+            cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
+            atletas_filtrados = [a for a in atletas_lista if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
+        elif tipo_filtro == "Atletas Específicos":
+            dict_nom = {a["id"]: a["nombre"] for a in atletas_lista}
+            ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
+            atletas_filtrados = [a for a in atletas_lista if a["id"] in ids_sel]
+
+        if not atletas_filtrados:
+            st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
         else:
             fig = plt.figure(figsize=(8.5, 11.0))
-            ax = fig.add_axes([0.14, 0.52, 0.72, 0.33]) # Layout idéntico al individual
+            ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
             
-            colores = plt.get_cmap("tab10", len(atletas_lista))
-            
-            # Variables para identificar al nadador con el mejor tiempo absoluto (PB más bajo)
-            mejor_tiempo_global = float('inf')
-            datos_mejor_atleta = None
-            atleta_con_mejor_curva = ""
-            
-            # Diccionario para almacenar los históricos cargados y no hacer doble consulta a la BD
-            historicos_equipo = {}
+            colores = plt.get_cmap("tab10", len(atletas_filtrados))
             hay_datos_visibles = False
-
-            # PRIMER PASO: Cargar históricos y determinar quién tiene el mejor PB actual
-            for idx, atl in enumerate(atletas_lista):
+            
+            for idx, atl in enumerate(atletas_filtrados):
                 a_id = atl["id"]
                 a_nom = atl["nombre"]
                 
@@ -428,58 +432,32 @@ if modo_equipo:
                 if res_marcas.data:
                     df_atl_m = pd.DataFrame(res_marcas.data)
                     df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-                    historicos_equipo[a_id] = (a_nom, df_atl_m, colores(idx))
                     hay_datos_visibles = True
+                    color_curr = colores(idx)
                     
-                    # Encontrar el PB mínimo de este atleta
-                    idx_pb_local = df_atl_m["Tiempo"].idxmin()
-                    pb_local = float(df_atl_m.loc[idx_pb_local, "Tiempo"])
+                    # Calcular parámetros individuales del modelo asintótico
+                    t0_i = float(df_atl_m.iloc[0]["Edad"])
+                    T0_i = float(df_atl_m.iloc[0]["Tiempo"])
+                    idx_pb_i = df_atl_m["Tiempo"].idxmin()
+                    t_pb_i = float(df_atl_m.loc[idx_pb_i, "Edad"])
+                    T_pb_i = float(df_atl_m.loc[idx_pb_i, "Tiempo"])
                     
-                    # Comparar para hallar el mejor del equipo
-                    if pb_local < mejor_tiempo_global:
-                        mejor_tiempo_global = pb_local
-                        atleta_con_mejor_curva = a_nom
-                        datos_mejor_atleta = {
-                            "t0": float(df_atl_m.iloc[0]["Edad"]),
-                            "T0": float(df_atl_m.iloc[0]["Tiempo"]),
-                            "t_pb": float(df_atl_m.loc[idx_pb_local, "Edad"]),
-                            "T_pb": pb_local
-                        }
+                    k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
+                    edades_curva_i = np.linspace(t0_i, t_peak, 300)
+                    tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
+                    
+                    # Trazar Curva del Atleta (idéntico al gráfico individual original)
+                    ax.plot(edades_curva_i, tiempos_curva_i, color=color_curr, linewidth=1.5, label=f"Proyección Fisiológica - {a_nom}")
+                    
+                    # Trazar Puntos Históricos de Evolución Real (PBs)
+                    ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="--", linewidth=0.8, alpha=0.5)
+                    ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=20, linewidths=0.5, zorder=3)
+                    
+                    # Destacar su estrella de PB Actual de Control
+                    ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
             if hay_datos_visibles:
-                # SEGUNDO PASO: Dibujar la ÚNICA línea maestra proyectada (del mejor atleta actual)
-                if datos_mejor_atleta:
-                    k_maestro = resolver_k_individual(
-                        datos_mejor_atleta["t0"], datos_mejor_atleta["T0"], 
-                        datos_mejor_atleta["t_pb"], datos_mejor_atleta["T_pb"], 
-                        t_peak, T_target
-                    )
-                    edades_curva_maestra = np.linspace(datos_mejor_atleta["t0"], t_peak, 500)
-                    tiempos_curva_maestra = calcular_curva_atleta(
-                        edades_curva_maestra, 
-                        datos_mejor_atleta["t0"], datos_mejor_atleta["T0"], 
-                        datos_mejor_atleta["t_pb"], datos_mejor_atleta["T_pb"], 
-                        t_peak, T_target, k_maestro, h
-                    )
-                    # Línea maestra discontinua, oscura y delgada
-                    ax.plot(
-                        edades_curva_maestra, tiempos_curva_maestra, 
-                        color="#2C3E50", linestyle="--", linewidth=1.0, 
-                        label=f"Proyección Líder ({atleta_con_mejor_curva})"
-                    )
-
-                # TERCER PASO: Superponer marcas históricas de cada atleta usando cruces delgadas (+)
-                for a_id, (a_nom, df_atl_m, color_atleta) in historicos_equipo.items():
-                    # Línea continua delgada que une las marcas históricas reales
-                    ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_atleta, linestyle="-", linewidth=1.0, alpha=0.7)
-                    
-                    # Puntos históricos reales representados como cruces delgadas (+) que no se obstruyen entre sí
-                    ax.scatter(
-                        df_atl_m["Edad"], df_atl_m["Tiempo"], 
-                        color=color_atleta, marker="+", s=40, linewidths=0.8, zorder=3, label=a_nom
-                    )
-
-                # Límites, marcas de referencia y estilos de rejilla unificados
+                # Estructura e Identidad Visual del Lienzo (Igual a image_dd1947.png)
                 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
                 ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.03))
                 
@@ -492,28 +470,30 @@ if modo_equipo:
                         {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            
                         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
                     ]
+                    x_texto = (t0 - 0.5) + 0.05
                     for r in referencias:
                         if r["val"] > 0:
                             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+                            va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
+                            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
+                            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
                 
-                ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=11, fontweight="bold", pad=10)
+                ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
                 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="bold")
                 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="bold")
                 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
                 ax.set_axisbelow(True)
-                
-                # Cuadro de nombres de atletas y colores ubicado estrictamente en la esquina superior derecha
                 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
                 
                 st.pyplot(fig)
             else:
-                st.info("No se encontraron registros de tiempos históricos para los atletas del equipo.")
+                st.info("No se hallaron marcas en la base de datos para los nadadores seleccionados en esta prueba.")
     except Exception as e:
-        st.error(f"Error procesando la comparativa de equipo: {e}")
+        st.error(f"Error procesando los segmentos de equipo: {e}")
 
 else:
     # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL ORIGINAL
+    # LIENZO INDIVIDUAL ORIGINAL CORREGIDO (SIN NEGRILLA EN TÍTULO)
     # -------------------------------------------------------------
     edades_curva = np.linspace(t0, t_peak, 500)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -562,13 +542,13 @@ else:
             if r["val"] > 0:
                 ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                 va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-                desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
+                desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
                 ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
     else:
         ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
         ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
 
-    ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
+    ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, pad=10)
     ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="bold")
     ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="bold")
     ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
@@ -616,35 +596,6 @@ else:
             estilizar_tabla_nativo(mpl_table2)
 
     st.pyplot(fig)
-
-# BLOQUE COMPLEMENTARIO: EVALUACIÓN DE PROYECCIÓN TRIMESTRAL HASTA LOS 18 AÑOS
-if not modo_equipo and st.session_state.nadador_seleccionado_id:
-    try:
-        resp_perfil = supabase.table("usuarios").select("fecha_nacimiento").eq("id", st.session_state.nadador_seleccionado_id).execute()
-        f_nac_raw = resp_perfil.data[0]["fecha_nacimiento"] if resp_perfil.data else None
-        
-        if f_nac_raw:
-            edad_decimal_actual = calcular_edad_decimal(f_nac_raw, datetime.date.today())
-            
-            if edad_decimal_actual and edad_decimal_actual < 18.0:
-                st.markdown("---")
-                st.markdown("### 📈 Plan de Proyecciones Trimestrales de Control (Hasta los 18 años)")
-                st.caption("Planificación requerida cada 3 meses para verificar cumplimiento de marcas mínimas con miras a campeonatos nacionales, internacionales y sustentación de currículum académico.")
-                
-                edades_trimestrales = np.arange(edad_decimal_actual, 18.01, 0.25)
-                
-                if len(edades_trimestrales) > 0:
-                    tiempos_trimestrales = calcular_curva_atleta(edades_trimestrales, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-                    
-                    df_trimestral = pd.DataFrame({
-                        "Edad Objetivo": [f"{e:.2f} años" for e in edades_trimestrales],
-                        "Tiempo Proyectado": [f"{t:.2f} s" for t in tiempos_trimestrales],
-                        "Estatus vs Mínimo Año": ["🟢 CUMPLE" if (m_ano > 0 and t <= m_ano) else "🔴 NO ALCANZA" if m_ano > 0 else "Sin Ref." for t in tiempos_trimestrales],
-                        "Estatus vs PANAM Jr B": ["🟢 CUMPLE" if (m_panam_b > 0 and t <= m_panam_b) else "🟡 Pendiente" if m_panam_b > 0 else "Sin Ref." for t in tiempos_trimestrales]
-                    })
-                    st.dataframe(df_trimestral, use_container_width=True)
-    except Exception:
-        pass
 
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
