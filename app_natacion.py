@@ -135,7 +135,6 @@ def login_usuario(user, password):
         st.error(f"Error en Login: {e}")
         return False
 
-# Renderizado de la Pantalla de Entrada
 if not st.session_state.autenticado:
     st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Resultados en Competencia - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
@@ -292,7 +291,6 @@ if not es_preinfantil:
 
 sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
 
-# EXTRACCIÓN CRONOLÓGICA DE MARCAS
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -380,26 +378,27 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# LIENZO DEFINITIVO: FORMATO CARTA VERTICAL CON MÁRGENES ESTÁNDAR
+# LIENZO AJUSTADO: CORRECCIÓN DE MARGENES Y REASIGNACIÓN VERTICAL
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
-# Inicialización rigurosa del lienzo tamaño Carta (8.5 x 11 pulgadas)
+# Inicialización fija del lienzo Carta Vertical (8.5 x 11 pulgadas)
 fig = plt.figure(figsize=(8.5, 11.0))
 
-# Coordenadas calculadas según márgenes solicitados (L/R=1.5cm, Top=2.5cm, Bottom=1.5cm)
-# Formato: [left, bottom, width, height] en fracciones del lienzo
-ax = fig.add_axes([0.07, 0.43, 0.86, 0.48])
+# NUEVAS COORDENADAS: [left, bottom, width, height]
+# Se mete el gráfico hacia adentro (left=0.14, width=0.72) para crear la "zona segura" de textos.
+# Se reduce su altura a 0.33 para conceder un 40% (0.40) total a la tabla inferior.
+ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 
-# 1. RENDERIZADO DEL GRÁFICO PRINCIPAL
+# Renderizado de curvas
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
 if len(df_procesado) > 0:
     ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
     ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
-# Marcadores de hitos estables
+# Hitos y marcadores
 ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
 ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
 ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
@@ -435,32 +434,33 @@ if not es_preinfantil:
         if r["val"] > 0:
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
             va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
+            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
 
-ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, fontweight="bold", pad=12)
-ax.set_xlabel("Edad del Atleta (Años)", fontsize=10, fontweight="bold")
-ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=10, fontweight="bold")
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
+ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="bold")
+ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="bold")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
-ax.legend(loc="upper right", fontsize=8.5, framealpha=0.8)
+ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# 2. RENDERIZADO DE TABLA(S) INFERIOR(ES) CON CAPACIDAD DE BIFURCACIÓN HORIZONTAL
+# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO
 if len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
     df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
     
-    limite_filas_por_bloque = 12
+    # El nuevo espacio vertical permite subir holgadamente el límite a 16 filas por columna
+    limite_filas_por_bloque = 16
     total_filas = len(df_table_render)
     
     def estilizar_tabla_nativo(instancia_tabla):
         instancia_tabla.auto_set_font_size(False)
         instancia_tabla.set_fontsize(8.5)
-        instancia_tabla.scale(1.0, 1.35)
+        instancia_tabla.scale(1.0, 1.3)
         for (row, col), cell in instancia_tabla.get_celld().items():
             if row == 0:
                 cell.set_text_props(fontweight='bold', color='white')
@@ -468,9 +468,9 @@ if len(df_procesado) > 0:
             else:
                 cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
-    # CASO A: El historial cabe en una sola sección limpia abajo del gráfico
+    # CASO A: El historial se mantiene compacto en una columna perfectamente alineada al ancho del gráfico
     if total_filas <= limite_filas_por_bloque:
-        ax_table = fig.add_axes([0.07, 0.054, 0.86, 0.32])
+        ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
         ax_table.axis('off')
         
         mpl_table = ax_table.table(
@@ -478,21 +478,20 @@ if len(df_procesado) > 0:
             colLabels=df_table_render.columns,
             cellLoc='center',
             loc='upper center',
-            colWidths=[0.15, 0.15, 0.70] # 70% de ancho útil a la descripción evita el desborde por completo
+            colWidths=[0.15, 0.15, 0.70]
         )
         estilizar_tabla_nativo(mpl_table)
         
-    # CASO B: El historial crece y se bifurca en dos columnas simétricas lado a lado
+    # CASO B: El volumen crece y se divide en dos bloques paralelos perfectamente simétricos
     else:
-        # Garantía física de formato Carta: truncamos a un máximo de 24 registros combinados
-        if total_filas > 24:
-            df_table_render = df_table_render.iloc[:24]
+        if total_filas > 32:
+            df_table_render = df_table_render.iloc[:32]
             
         df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
         df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
         
-        # Bloque Izquierdo
-        ax_table1 = fig.add_axes([0.07, 0.054, 0.41, 0.32])
+        # Bloque Izquierdo (ajustado a la mitad izquierda de la zona segura)
+        ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
         ax_table1.axis('off')
         mpl_table1 = ax_table1.table(
             cellText=df_bloque_izq.values,
@@ -503,8 +502,8 @@ if len(df_procesado) > 0:
         )
         estilizar_tabla_nativo(mpl_table1)
         
-        # Bloque Derecho
-        ax_table2 = fig.add_axes([0.52, 0.054, 0.41, 0.32])
+        # Bloque Derecho (ajustado a la mitad derecha de la zona segura, finalizando en 0.86 exacto)
+        ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
         ax_table2.axis('off')
         mpl_table2 = ax_table2.table(
             cellText=df_bloque_der.values,
@@ -669,7 +668,7 @@ with tab_admin:
         st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-# CENTRO DE EXPORTACIÓN (Fiel al Lienzo Carta Vertical Configurado)
+# CENTRO DE EXPORTACIÓN (Actualizado con Margenes Precisos)
 # -------------------------------------------------------------
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
@@ -680,7 +679,6 @@ if len(df_procesado) > 0:
     txt_string = export_df.to_string(index=False)
     
     img_buffer = io.BytesIO()
-    # Preservamos los bordes y el escalado de alta fidelidad a 300 DPI
     fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
     img_buffer.seek(0)
     
@@ -692,6 +690,6 @@ if len(df_procesado) > 0:
     with c_exp3:
         st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
         
-    st.caption("💡 *Nota de Impresión:* Al guardar la imagen PNG, esta mantendrá una proporción exacta de 8.5\" x 11\". Puedes imprimirla o insertarla en tus informes técnicos directamente.")
+    st.caption("💡 *Nota de Impresión:* La imagen generada respeta estrictamente los márgenes de 1.5 cm laterales, 2.5 cm superior y 1.5 cm inferior al imprimirse en formato Carta vertical.")
 else:
     st.info("No hay datos históricos disponibles para exportar en esta prueba todavía.")
