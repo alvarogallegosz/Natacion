@@ -446,7 +446,7 @@ if modo_equipo:
                     edades_curva_i = np.linspace(t0_i, t_peak, 300)
                     tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
                     
-                    # Trazar Curva del Atleta (idéntico al gráfico individual original)
+                    # Trazar Curva del Atleta
                     ax.plot(edades_curva_i, tiempos_curva_i, color=color_curr, linewidth=1.5, label=f"Proyección Fisiológica - {a_nom}")
                     
                     # Trazar Puntos Históricos de Evolución Real (PBs)
@@ -457,7 +457,7 @@ if modo_equipo:
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
             if hay_datos_visibles:
-                # Estructura e Identidad Visual del Lienzo (Igual a image_dd1947.png)
+                # Estructura e Identidad Visual del Lienzo
                 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
                 ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.03))
                 
@@ -475,7 +475,7 @@ if modo_equipo:
                         if r["val"] > 0:
                             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                             va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-                            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
+                            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
                             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
                 
                 ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
@@ -542,7 +542,7 @@ else:
             if r["val"] > 0:
                 ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                 va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-                desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
+                desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
                 ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
     else:
         ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
