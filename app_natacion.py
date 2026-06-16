@@ -403,7 +403,7 @@ if modo_equipo:
             ax_eq = fig_equipo.add_axes([0.14, 0.40, 0.72, 0.45]) # Ajustado para dar espacio a la leyenda abajo
             
             # Paleta de colores dinámica para los atletas
-            colores = plt.cm.get_cmap("tab10", len(atletas_lista))
+            colores = plt.get_cmap("tab10", len(atletas_lista))
             
             hay_datos_visibles = False
             rango_t_min, rango_t_max = 30.0, 5.0 # Para ajustar los límites dinámicos del eje X
