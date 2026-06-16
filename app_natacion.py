@@ -135,15 +135,11 @@ if not st.session_state.autenticado:
                 nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")
                 nuevo_email = st.text_input("Correo Electrónico:")
                 nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
-                
-                # CAMBIO CRUCIAL: Selector de Rol para abrir el abanico de registros
                 nuevo_rol = st.selectbox("Rol en el Sistema:", options=["Nadador", "Entrenador", "Administrador"])
                 
-                # Valores por defecto para perfiles no-atletas
                 nuevo_genero = "F"
                 nueva_fecha_nac = None
                 
-                # LÓGICA CONDICIONAL: Solo pedimos datos deportivos si es Nadador
                 if nuevo_rol == "Nadador":
                     st.markdown("---")
                     nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
@@ -156,16 +152,12 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
-                                # Modificamos el payload para que sea dinámico y respete el Rol elegido
                                 nuevo_registro = {
-                                    "nombre": nuevo_nombre, 
-                                    "usuario": nuevo_usuario, 
-                                    "email": nuevo_email,
+                                    "nombre": nuevo_nombre, "usuario": nuevo_usuario, "email": nuevo_email,
                                     "contrasena": nueva_contrasena, 
                                     "genero": nuevo_genero if nuevo_rol == "Nadador" else None,
                                     "fecha_nacimiento": nueva_fecha_nac.isoformat() if (nuevo_rol == "Nadador" and nueva_fecha_nac) else None, 
-                                    "rol": nuevo_rol, 
-                                    "estatus": "Activo"
+                                    "rol": nuevo_rol, "estatus": "Activo"
                                 }
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
                                 st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
@@ -209,7 +201,7 @@ else:
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
 # Encabezado con información del atleta seleccionado
-st.markdown(f"### 🏊‍♂️ Plan de Trabajo: {st.session_state.nadador_seleccionado_nombre}")
+st.markdown(f"### 出租️ Plan de Trabajo: {st.session_state.nadador_seleccionado_nombre}")
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
 # -------------------------------------------------------------
@@ -328,25 +320,52 @@ def calcular_tiempo_proyectado(t_array):
         tiempos.append(T_t)
     return np.array(tiempos)
 
+T_intermedia_val = float(calcular_tiempo_proyectado([t_intermedia])[0])
+
 c1, c2, c3 = st.columns(3)
 with c1: st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k:.4f}")
 with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s")
-with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{calcular_tiempo_proyectado([t_intermedia])[0]:.2f} s")
+with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDERIZADO GRÁFICO DINÁMICO (Con Ocultación de Marcas Mínimas)
+# RENDERIZADO GRÁFICO DINÁMICO (RESTALURADO CON MÁXIMO DETALLE)
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
-fig, ax = plt.subplots(figsize=(11, 5.2))
-ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=2.5, label="Proyección Teórica")
+fig, ax = plt.subplots(figsize=(11, 5.8))
+
+# 1. Trazar curvas principales
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=2.5, label="Proyección Fisiológica")
 
 if len(df_procesado) > 0:
-    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", alpha=0.6)
-    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=40, label="PBs Reales", zorder=3)
+    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", alpha=0.4, label="Evolución Real (PBs)")
+    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=35, zorder=3)
 
-# Dibujar marcas únicamente si NO es categoría Preinfantil
+# 2. Marcadores específicos de los Hitos Clave (Start, PB, Peak e Intermedio)
+ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=50, zorder=4)
+ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=130, zorder=5, label="PB Actual de Control")
+ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=50, zorder=4, label="Meta Peak")
+ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=45, zorder=5, label="Punto Consultado")
+
+# 3. Líneas Verticales de Referencia Estructural
+ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=1.2, alpha=0.7)
+ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=1.2, alpha=0.6)
+ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=1.2, alpha=0.7)
+ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=1.0, alpha=0.5)
+
+# 4. Cuadros de Texto Informativos Dinámicos (Bboxes)
+offset_y = (T0 - T_target) * 0.035
+ax.text(t0 + 0.15, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8.5, va="bottom", ha="left", 
+        bbox=dict(boxstyle="round,pad=0.3", fc="#FFF2CC", ec="#D6B656", alpha=0.85, lw=0.7))
+
+ax.text(t_pb, T_pb + offset_y, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8.5, va="bottom", ha="center", 
+        bbox=dict(boxstyle="round,pad=0.3", fc="#FCE5CD", ec="#B45F06", alpha=0.85, lw=0.7))
+
+ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8.5, va="bottom", ha="center", 
+        bbox=dict(boxstyle="round,pad=0.3", fc="#F4CCCC", ec="#CC0000", alpha=0.85, lw=0.7))
+
+# 5. Dibujar marcas horizontales únicamente si NO es categoría Preinfantil
 if not es_preinfantil:
     referencias = [
         {"val": m_ano, "lbl": "Mín. Año", "col": "#E69F00"},
@@ -361,13 +380,17 @@ if not es_preinfantil:
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=1.2)
             ax.text(t_peak, r["val"], f" {r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, fontweight="bold", va="bottom")
 else:
-    # Para categorías preinfantiles solo dibujamos la línea base del Record Mundial como cota informativa
     ax.axhline(y=m_wr, color="#000000", linestyle="--", linewidth=1.2)
     ax.text(t_peak, m_wr, f" WR Base: {m_wr:.2f}s", color="#000000", fontsize=8, fontweight="bold", va="bottom")
     st.info("ℹ️ Las categorías Preinfantiles se consideran de desarrollo formativo y no poseen marcas mínimas exigidas.")
 
-ax.set_title(f"Curva de Evolución - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}")
+# 6. Rotulado, Leyendas Estéticas y Ejes
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, fontweight="bold", pad=12)
+ax.set_xlabel("Edad del Atleta (Anos)", fontsize=10, fontweight="bold")
+ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=10, fontweight="bold")
 ax.grid(True, linestyle=":", alpha=0.5)
+ax.legend(loc="upper right", fontsize=9, framealpha=0.9)
+
 st.pyplot(fig)
 
 # -------------------------------------------------------------
@@ -433,7 +456,7 @@ with tab_entrenador:
                 st.success(f"Tiempos de referencia actualizados para {u_cat} ({st.session_state.nadador_seleccionado_genero}).")
                 st.rerun()
     else:
-        st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
+        st.warning("🔒 Requiere credenciales de Dirección Técnica o Entrenador.")
 
 with tab_admin:
     if st.session_state.rol == "Administrador":
