@@ -535,21 +535,27 @@ with tab_admin:
         st.warning("🔒 Acceso restringido al Administrador del sistema.")
 
 # -------------------------------------------------------------
-# AJUSTE: MÓDULO TRANVERSAL DE EXPORTACIÓN E IMPRESIÓN (TODOS LOS USUARIOS)
+# CENTRO DE EXPORTACIÓN REVISADO Y OPERATIVO (TODOS LOS USUARIOS)
 # -------------------------------------------------------------
 st.markdown("---")
-st.markdown("### 🖨️ Centro de Exportación e Impresión de Reportes")
+st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
+
 if len(df_procesado) > 0:
     export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
     
-    # Añadir las columnas de la curva proyectada calculada para enriquecer el archivo descargable
-    df_curva_export = pd.DataFrame({"Edad_Proyectada": edades_curva, "Tiempo_Proyectado": tiempos_curva})
+    # 1. Preparar los datos tabulares (CSV y TXT)
+    csv_data = export_df.to_csv(index=False).encode('utf-8')
+    txt_string = export_df.to_string(index=False)
+    
+    # 2. PREPARAR EL GRÁFICO COMO IMAGEN (PNG) EN MEMORIA
+    import io
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format="png", bbox_inches="tight", dpi=300)
+    img_buffer.seek(0)
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
     
     with c_exp1:
-        # Descarga en CSV
-        csv_data = export_df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Descargar Historial (CSV)",
             data=csv_data,
@@ -558,8 +564,6 @@ if len(df_procesado) > 0:
         )
         
     with c_exp2:
-        # Descarga en TXT (Tabulado plano)
-        txt_string = export_df.to_string(index=False)
         st.download_button(
             label="📄 Descargar Datos (TXT)",
             data=txt_string,
@@ -568,11 +572,16 @@ if len(df_procesado) > 0:
         )
         
     with c_exp3:
-        # Ejecución del disparador de impresión nativa del sistema operativo mediante JS de la ventana
-        # Esto permite al usuario tanto "Imprimir físicamente" como "Guardar como PDF / Imagen" de forma nativa limpia.
-        st.markdown(
-            '<button onclick="window.print()" style="width:100%; height:38px; background-color:#007A87; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">🖨️ Imprimir / Guardar PDF o Imagen</button>', 
-            unsafe_allow_html=True
+        # Descarga directa de la imagen del gráfico en alta resolución
+        st.download_button(
+            label="🖼️ Guardar Gráfico (Imagen PNG)",
+            data=img_buffer,
+            file_name=f"curva_proyeccion_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png",
+            mime="image/png"
         )
+        
+    # Tip para guardar como PDF de manera limpia:
+    st.caption("💡 *Nota para PDF:* Si deseas el reporte completo en PDF, puedes presionar `Ctrl + P` (o `Cmd + P` en Mac) directamente en tu teclado para abrir el menú de impresión de tu navegador y seleccionar 'Guardar como PDF'.")
+
 else:
     st.info("No hay datos históricos disponibles para exportar en esta prueba todavía.")
