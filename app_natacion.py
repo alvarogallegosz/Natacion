@@ -118,7 +118,7 @@ def login_usuario(user, password):
 
 # Renderizado de la Pantalla de Entrada
 if not st.session_state.autenticado:
-    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Categorías Feveda</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Resultados - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
         # AGREGADO: Pestaña dedicada a la recuperación de credenciales
