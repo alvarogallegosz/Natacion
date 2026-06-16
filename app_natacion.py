@@ -299,15 +299,40 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.subheader("👥 Análisis Colectivo")
     modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
 
-# Elemento 5: Filtros de segmentación por equipos (Con segmentación obligatoria por género)
+# Elemento 5: Filtros de segmentación por equipos con selectores secundarios agrupados aquí de forma nativa
 tipo_filtro = "Todos los Atletas"
 filtro_genero = "Todos"
+cat_sel = None
+ids_sel = []
+
 if modo_equipo:
     st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
     filtro_genero = st.sidebar.radio("Segmentar obligatoriamente por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
     tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
+    
+    # Pre-carga controlada de atletas para poblar los selectores secundarios en este bloque exacto de la barra lateral
+    try:
+        resp_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+        atletas_preload = resp_preload.data if resp_preload.data else []
+        
+        if filtro_genero == "Femenino (F)":
+            atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
+        elif filtro_genero == "Masculino (M)":
+            atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
 
-# Carga de datos históricos base
+        if tipo_filtro == "Categoría Etaria" and atletas_preload:
+            categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
+            if categorias_disponibles:
+                cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
+                
+        elif tipo_filtro == "Atletas Específicos" and atletas_preload:
+            dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
+            if dict_nom:
+                ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
+    except Exception as e:
+        st.sidebar.error("Error cargando los filtros secundarios.")
+
+# Carga de datos históricos base para el cálculo de límites
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -413,26 +438,19 @@ if modo_equipo:
         resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         atletas_lista = resp_todos.data if resp_todos.data else []
         
-        # Aplicar primero la segmentación obligatoria por género
+        # Aplicar segmentación obligatoria por género
         if filtro_genero == "Femenino (F)":
             atletas_lista = [a for a in atletas_lista if a["genero"] == "F"]
         elif filtro_genero == "Masculino (M)":
-            bytes_atl = [a for a in atletas_lista if a["genero"] == "M"]
-            atletas_lista = bytes_atl
+            atletas_lista = [a for a in atletas_lista if a["genero"] == "M"]
 
         atletas_filtrados = []
         if tipo_filtro == "Todos los Atletas":
             atletas_filtrados = atletas_lista
-        elif tipo_filtro == "Categoría Etaria":
-            categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_lista])))
-            if categorias_disponibles:
-                cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
-                atletas_filtrados = [a for a in atletas_lista if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
-        elif tipo_filtro == "Atletas Específicos":
-            dict_nom = {a["id"]: a["nombre"] for a in atletas_lista}
-            if dict_nom:
-                ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
-                atletas_filtrados = [a for a in atletas_lista if a["id"] in ids_sel]
+        elif tipo_filtro == "Categoría Etaria" and cat_sel:
+            atletas_filtrados = [a for a in atletas_lista if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
+        elif tipo_filtro == "Atletas Específicos" and ids_sel:
+            atletas_filtrados = [a for a in atletas_lista if a["id"] in ids_sel]
 
         if not atletas_filtrados:
             st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
@@ -442,8 +460,6 @@ if modo_equipo:
             
             colores = plt.get_cmap("tab10", len(atletas_filtrados))
             hay_datos_visibles = False
-            
-            # Se agrega una única entrada genérica para la proyección asintótica según requerimiento 2
             linea_fisiologica_anotada = False
             
             for idx, atl in enumerate(atletas_filtrados):
@@ -462,7 +478,6 @@ if modo_equipo:
                     hay_datos_visibles = True
                     color_curr = colores(idx)
                     
-                    # Calcular parámetros individuales del modelo asintótico
                     t0_i = float(df_atl_m.iloc[0]["Edad"])
                     T0_i = float(df_atl_m.iloc[0]["Tiempo"])
                     idx_pb_i = df_atl_m["Tiempo"].idxmin()
@@ -473,14 +488,12 @@ if modo_equipo:
                     edades_curva_i = np.linspace(t0_i, t_peak, 300)
                     tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
                     
-                    # Trazar Curva del Atleta
                     if not linea_fisiologica_anotada:
                         ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica estimada")
                         linea_fisiologica_anotada = True
                     else:
                         ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
                     
-                    # Trazar e identificar líneas individuales por color y nombre completo del atleta
                     ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"Evolución real - {a_nom}")
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
@@ -506,7 +519,6 @@ if modo_equipo:
                             desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
                             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
                 
-                # Eliminación absoluta de negritas en títulos y etiquetas
                 ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
                 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
                 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
@@ -522,7 +534,7 @@ if modo_equipo:
 
 else:
     # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL ORIGINAL CORREGIDO (SIN NEGRITAS)
+    # LIENZO INDIVIDUAL ORIGINAL
     # -------------------------------------------------------------
     edades_curva = np.linspace(t0, t_peak, 500)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -584,7 +596,6 @@ else:
     ax.set_axisbelow(True) 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-    # RENDERIZADO DE TABLAS BAJO EL GRÁFICO
     if len(df_procesado) > 0:
         df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
         df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
