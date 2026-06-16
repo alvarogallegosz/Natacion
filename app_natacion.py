@@ -410,13 +410,17 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDERIZADO GRÁFICO OPTIMIZADO (ESTÉTICA, CONTROL DE COLISIONES Y GRID)
+# RENDERIZADO GRÁFICO OPTIMIZADO CON TABLA LATERAL INTEGRADA
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
-# Se redujo ligeramente la altura para mayor esbeltez visual
-fig, ax = plt.subplots(figsize=(11, 5.2))
+# CAMBIO: Si hay datos, creamos una figura de 2 columnas (Gráfico izquierda, Tabla derecha)
+if len(df_procesado) > 0:
+    fig, (ax, ax_table) = plt.subplots(1, 2, figsize=(16, 5.5), gridspec_kw={'width_ratios': [2.2, 1]})
+else:
+    fig, ax = plt.subplots(figsize=(11, 5.2))
+    ax_table = None
 
 # 1. TRAZADO DE CURVAS PRINCIPALES (Espesores delgados y estilizados)
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.5, label="Proyección Fisiológica")
@@ -452,30 +456,26 @@ ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.02))
 
 # 4. MARCAS HORIZONTALES: LEYENDAS A LA IZQUIERDA, PALETA OSCURA Y PREVENCIÓN DE SUPERPOSICIÓN
 if not es_preinfantil:
-    # Paleta sobria y más oscura para asegurar legibilidad sin estridencias
     referencias = [
         {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "pos": "center"},
-        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "pos": "top"},      # Marca B -> Arriba
-        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "pos": "bottom"},   # Marca A -> Abajo
-        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "pos": "top"},               # Marca B -> Arriba
-        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            # Marca A -> Abajo
+        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "pos": "top"},      
+        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "pos": "bottom"},   
+        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "pos": "top"},               
+        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
     ]
     
-    # x_texto se ubica en el extremo izquierdo (límite inferior de x + un pequeño margen)
     x_texto = (t0 - 0.5) + 0.05
     
     for r in referencias:
         if r["val"] > 0:
-            # Líneas de referencia ultra delgadas (linewidth=0.6) y sin bold
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
             
-            # Control de superposición: asignación inteligente de alineación vertical (va)
             if r["pos"] == "top":
-                va_ajustada = "bottom"      # Si va arriba de la línea, se alinea desde su base
+                va_ajustada = "bottom"      
                 desplazamiento_y = 0.1
             elif r["pos"] == "bottom":
-                va_ajustada = "top"         # Si va debajo de la línea, se alinea desde su tope
+                va_ajustada = "top"         
                 desplazamiento_y = -0.1
             else:
                 va_ajustada = "center"
@@ -487,7 +487,7 @@ if not es_preinfantil:
                 f"{r['lbl']}: {r['val']:.2f}s", 
                 color=r["col"], 
                 fontsize=7.5, 
-                fontweight="normal",   # Texto limpio sin bold
+                fontweight="normal",   
                 va=va_ajustada, 
                 ha="left"
             )
@@ -496,16 +496,41 @@ else:
     ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7.5, fontweight="normal", va="center", ha="left")
     st.info("ℹ️ Las categorías Preinfantiles se consideran de desarrollo formativo y no poseen marcas mínimas exigidas.")
 
-# 5. CONFIGURACIÓN COMPLETA DEL GRID (Ejes X e Y reflejados)
+# 5. CONFIGURACIÓN COMPLETA DEL GRID
 ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9, fontweight="bold")
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9, fontweight="bold")
 
-# Se fuerza el reflejo explícito del grid tanto en divisiones principales como menores si existieran
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
-ax.set_axisbelow(True) # Asegura que la cuadrícula quede detrás de las líneas de proyección
-
+ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
+
+# CAMBIO: Renderizado de la tabla descriptiva en el eje derecho antes de dibujar en Streamlit
+if ax_table is not None:
+    ax_table.axis('off')
+    # Filtrar columnas y estructurar la información tabular limpia
+    df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
+    df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
+    df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
+    
+    # Inyectar tabla nativa de Matplotlib al lienzo
+    mpl_table = ax_table.table(
+        cellText=df_table_render.values,
+        colLabels=df_table_render.columns,
+        cellLoc='center',
+        loc='center'
+    )
+    mpl_table.auto_set_font_size(False)
+    mpl_table.set_fontsize(8)
+    mpl_table.scale(1.0, 1.25)
+    
+    # Estilización formal de cabeceras y filas alternas
+    for (row, col), cell in mpl_table.get_celld().items():
+        if row == 0:
+            cell.set_text_props(fontweight='bold', color='white')
+            cell.set_facecolor('#007A87')
+        else:
+            cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
 st.pyplot(fig)
 
@@ -520,7 +545,6 @@ with tab_marcas:
     with col_ins:
         st.markdown("**Ingresar Nueva Marca**")
         with st.form("form_insertar_marca", clear_on_submit=True):
-            # CAMBIO AQUÍ: Se reemplaza la edad por la fecha del evento
             ins_fecha_evento = st.date_input("Fecha de la Competencia:", value=datetime.date.today())
             ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
             ins_nota = st.text_input("Evento / Fecha:")
@@ -531,7 +555,6 @@ with tab_marcas:
                         id_atleta = st.session_state.nadador_seleccionado_id
                         fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
                         
-                        # Si es entrenador/admin, extraemos la fecha de nacimiento real desde la BD
                         if st.session_state.rol in ["Entrenador", "Administrador"]:
                             atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
                             if atleta_query.data:
@@ -540,7 +563,6 @@ with tab_marcas:
                         if not fecha_nacimiento_atleta:
                             st.error("❌ No se puede calcular la edad decimal porque el atleta no posee fecha de nacimiento en su perfil.")
                         else:
-                            # Calcular la edad exacta con decimales de manera automatizada
                             edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
                             
                             if edad_calculada is None:
@@ -574,10 +596,8 @@ with tab_entrenador:
     if st.session_state.rol in ["Entrenador", "Administrador"]:
         st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
         
-        # Selección fuera del Form para permitir refresco de valores por defecto dinámicos
         u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
         
-        # Recuperación en tiempo real de los datos actuales de la BD para la categoría elegida
         db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
         try:
             ref_dinamica = supabase.table("marcas_referencia").select("*")\
@@ -598,7 +618,6 @@ with tab_entrenador:
         with st.form("form_update_referencias"):
             st.markdown(f"_Los valores que falten por registrar (NULL) se muestran desactivados._")
             
-            # AJUSTE: Marcados en gris/predeterminados si existen, o desactivados si son NULL
             u_ano = st.number_input("Marca Mínima Año (seg):", value=db_m_ano if db_m_ano is not None else 0.0, disabled=(db_m_ano is None), help="Actual en Base de Datos")
             u_panamb = st.number_input("PANAM Jr - Marca B (seg):", value=db_m_panam_b if db_m_panam_b is not None else 0.0, disabled=(db_m_panam_b is None))
             u_panama = st.number_input("PANAM Jr - Marca A (seg):", value=db_m_panam_a if db_m_panam_a is not None else 0.0, disabled=(db_m_panam_a is None))
@@ -644,11 +663,9 @@ with tab_admin:
                 with c_est:
                     nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Suspendido", "Bloqueado"], index=["Activo", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
                 
-                # REGLA: Deshabilitar campos biométricos si el rol destino es administrativo o técnico
                 campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
                 
                 with c_gen:
-                    # Protección contra índices nulos (.index(None))
                     gen_inicial = user_actual["genero"] if user_actual["genero"] in ["F", "M"] else "F"
                     nuevo_gen_user = st.selectbox(
                         "Género:", 
@@ -658,7 +675,6 @@ with tab_admin:
                         help="No aplica para personal técnico" if campos_deshabilitados else ""
                     )
                 
-                # Protección contra parseo de fechas nulas (fromisoformat(None))
                 if user_actual["fecha_nacimiento"]:
                     try:
                         f_nac_inicial = datetime.date.fromisoformat(str(user_actual["fecha_nacimiento"]))
@@ -680,7 +696,6 @@ with tab_admin:
                         "estatus": nuevo_est_user
                     }
                     
-                    # Si el rol es Entrenador/Admin, se fuerza NULL en BD cancelando cualquier corrección
                     if campos_deshabilitados:
                         datos_update["genero"] = None
                         datos_update["fecha_nacimiento"] = None
@@ -697,7 +712,7 @@ with tab_admin:
         st.warning("🔒 Acceso restringido al Administrador del sistema.")
 
 # -------------------------------------------------------------
-# CENTRO DE EXPORTACIÓN REVISADO Y OPERATIVO (TODOS LOS USUARIOS)
+# CENTRO DE EXPORTACIÓN (TODOS LOS USUARIOS)
 # -------------------------------------------------------------
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
@@ -705,13 +720,12 @@ st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
 if len(df_procesado) > 0:
     export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
     
-    # 1. Preparar los datos tabulares (CSV y TXT)
     csv_data = export_df.to_csv(index=False).encode('utf-8')
     txt_string = export_df.to_string(index=False)
     
-    # 2. PREPARAR EL GRÁFICO COMO IMAGEN (PNG) EN MEMORIA
     import io
     img_buffer = io.BytesIO()
+    # El archivo exportado guardará fielmente el lienzo con el gráfico y la tabla lateralizada
     fig.savefig(img_buffer, format="png", bbox_inches="tight", dpi=300)
     img_buffer.seek(0)
     
@@ -734,7 +748,6 @@ if len(df_procesado) > 0:
         )
         
     with c_exp3:
-        # Descarga directa de la imagen del gráfico en alta resolución
         st.download_button(
             label="🖼️ Guardar Gráfico (Imagen PNG)",
             data=img_buffer,
@@ -742,7 +755,6 @@ if len(df_procesado) > 0:
             mime="image/png"
         )
         
-    # Tip para guardar como PDF de manera limpia:
     st.caption("💡 *Nota para PDF:* Si deseas el reporte completo en PDF, puedes presionar `Ctrl + P` (o `Cmd + P` en Mac) directamente en tu teclado para abrir el menú de impresión de tu navegador y seleccionar 'Guardar como PDF'.")
 
 else:
