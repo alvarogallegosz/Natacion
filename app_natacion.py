@@ -13,8 +13,8 @@ st.set_page_config(page_title="Simulador de proyección de rendimiento para nata
 st.markdown(
     """
     <style>
-    div[data-testid="stMetricValue"] { font-size: 22px !important; }
-    div[data-testid="stMetricLabel"] { font-size: 13px !important; }
+    div[data-testid="stMetricValue"] { font-size: 22px !important; }\r
+    div[data-testid="stMetricLabel"] { font-size: 13px !important; }\r
     @media print {
         .no-print { display: none !important; }
         .print-only { display: block !important; }
@@ -562,7 +562,7 @@ else:
             if r["val"] > 0:
                 ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                 va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-                desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else "center")
+                desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
                 ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
     else:
         ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
@@ -617,7 +617,7 @@ else:
 
     st.pyplot(fig)
 
-# BLOQUE COMPLEMENTARIO: EVALUACIÓN DE PROYECCIÓN TRIMESTRAL HASTA LOS 18 AÑOS[cite: 4]
+# BLOQUE COMPLEMENTARIO: EVALUACIÓN DE PROYECCIÓN TRIMESTRAL HASTA LOS 18 AÑOS
 if not modo_equipo and st.session_state.nadador_seleccionado_id:
     try:
         resp_perfil = supabase.table("usuarios").select("fecha_nacimiento").eq("id", st.session_state.nadador_seleccionado_id).execute()
@@ -629,7 +629,7 @@ if not modo_equipo and st.session_state.nadador_seleccionado_id:
             if edad_decimal_actual and edad_decimal_actual < 18.0:
                 st.markdown("---")
                 st.markdown("### 📈 Plan de Proyecciones Trimestrales de Control (Hasta los 18 años)")
-                st.caption("Planificación requerida cada 3 meses para verificar cumplimiento de marcas mínimas con miras a campeonatos nacionales, internacionales y sustentación de currículum académico[cite: 4].")
+                st.caption("Planificación requerida cada 3 meses para verificar cumplimiento de marcas mínimas con miras a campeonatos nacionales, internacionales y sustentación de currículum académico.")
                 
                 edades_trimestrales = np.arange(edad_decimal_actual, 18.01, 0.25)
                 
