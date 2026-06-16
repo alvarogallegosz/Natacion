@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 import pandas as pd
 import datetime
+import io
 from supabase import create_client, Client
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
@@ -136,7 +137,7 @@ def login_usuario(user, password):
 
 # Renderizado de la Pantalla de Entrada
 if not st.session_state.autenticado:
-    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de de Resultados en Competencia - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Resultados en Competencia - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
         tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
@@ -154,14 +155,7 @@ if not st.session_state.autenticado:
                         
         with tab_registro:
             st.markdown("### 📝 Registro de Nuevas Cuentas")
-            
-            # El rol fuera del formulario para el dinamismo reactivo
-            nuevo_rol = st.selectbox(
-                "Seleccione el Rol para la nueva cuenta:", 
-                options=["Nadador", "Entrenador", "Administrador"],
-                key="reg_rol_selector"
-            )
-            
+            nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Entrenador", "Administrador"], key="reg_rol_selector")
             es_nadador_reg = (nuevo_rol == "Nadador")
             
             with st.form("form_registro_dinamico"):
@@ -173,20 +167,11 @@ if not st.session_state.autenticado:
                 nuevo_genero = None
                 nueva_fecha_nac = None
                 
-                # Renderizado condicional: Oculto para Administradores y Entrenadores
                 if es_nadador_reg:
                     st.markdown("---")
                     st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")
-                    nuevo_genero = st.selectbox(
-                        "Género:", 
-                        options=["F", "M"], 
-                        format_func=lambda x: "Femenino" if x == "F" else "Masculino"
-                    )
-                    nueva_fecha_nac = st.date_input(
-                        "Fecha de Nacimiento:", 
-                        min_value=datetime.date(1950, 1, 1), 
-                        max_value=datetime.date.today()
-                    )
+                    nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
+                    nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
                     
                 if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
                     if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
@@ -214,8 +199,6 @@ if not st.session_state.autenticado:
 
         with tab_recuperar:
             st.markdown("### Restablecer Contraseña")
-            st.write("Introduzca su identificador de usuario y el correo registrado para validar su identidad y asignar una nueva clave.")
-            
             with st.form("form_recuperacion"):
                 rec_usuario = st.text_input("Nombre de Usuario (Alias):")
                 rec_email = st.text_input("Correo Electrónico Asociado:")
@@ -233,18 +216,19 @@ if not st.session_state.autenticado:
                             if verificacion.data:
                                 user_info = verificacion.data[0]
                                 if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
-                                    st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración. No se permiten cambios autónomos.")
+                                    st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
                                 else:
                                     supabase.table("usuarios").update({"contrasena": nueva_clave}).eq("id", user_info["id"]).execute()
-                                    st.success("✅ Contraseña actualizada correctamente. Ya puede dirigirse a la pestaña de 'Iniciar Sesión'.")
+                                    st.success("✅ Contraseña actualizada correctamente.")
                             else:
-                                st.error("❌ Los datos proporcionados no coinciden con ningún registro activo en el sistema.")
+                                st.error("❌ Los datos proporcionados no coinciden.")
                         except Exception as rec_err:
                             st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
                             
     st.stop()
+
 # -------------------------------------------------------------
-# CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS (ENTRENADOR / ADMIN)
+# CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS
 # -------------------------------------------------------------
 st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:** `{st.session_state.rol}`")
 if st.sidebar.button("🚪 Salir del Sistema"):
@@ -276,12 +260,11 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# Encabezado con información del atleta seleccionado
 st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
 # -------------------------------------------------------------
-# CONFIGURACIÓN DE LA PRUEBA Y EXTRACCIÓN DE MARCAS CON FILTRO DE CATEGORÍA
+# CONFIGURACIÓN DE LA PRUEBA Y EXTRACCIÓN DE MARCAS
 # -------------------------------------------------------------
 st.sidebar.header("📊 Ajustes por prueba")
 lista_pruebas = ['50 Libre', '100 Libre', '200 Libre', '50 Espalda', '100 Espalda', '200 Espalda', '50 Mariposa', '100 Mariposa', '200 Mariposa', '50 Pecho', '100 Pecho', '200 Pecho', '200 Combinado', '400 Combinado']
@@ -309,9 +292,7 @@ if not es_preinfantil:
 
 sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
 
-# -------------------------------------------------------------
-# EXTRACCIÓN CRONOLÓGICA DE MARCAS DESDE LA BASE DE DATOS
-# -------------------------------------------------------------
+# EXTRACCIÓN CRONOLÓGICA DE MARCAS
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -346,39 +327,28 @@ try:
                 else:
                     db_t_pb, db_T_pb = float(df_procesado.iloc[-2]["Edad"]), t_penultima
     else:
-        df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Nota"])
+        df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
         db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
 except Exception:
-    df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Nota"])
+    df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
     db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
 
-# Controles Dinámicos de la UI
 val_t0 = db_t0 if (sincronizar_db and db_t0 is not None) else 10.0
 val_T0 = db_T0 if (sincronizar_db and db_T0 is not None) else float(round(m_wr * 1.8, 2))
 val_t_pb = db_t_pb if (sincronizar_db and db_t_pb is not None) else 12.0
 val_T_pb = db_T_pb if (sincronizar_db and db_T_pb is not None) else float(round(m_wr * 1.3, 2))
-
-# AJUSTE: El valor por defecto de T_target se calcula como un 1% por debajo de m_wa_a (si existe)
 val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
 t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=sincronizar_db)
 T0 = st.sidebar.number_input("2. Tiempo Inicial (T0):", min_value=1.0, value=val_T0, step=0.1, disabled=sincronizar_db)
-
-# AJUSTE: El valor por defecto para la edad Peak ahora se propone en 23.0 años, completamente modificable
 t_peak = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, value=23.0)
-
-# AJUSTE: Se asigna la variable dinámica al input numérico
 T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_value=1.0, value=val_T_target)
-
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=sincronizar_db)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=sincronizar_db)
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
-
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# -------------------------------------------------------------
 # MOTOR MATEMÁTICO ASINTÓTICO
-# -------------------------------------------------------------
 if t_peak > t0 and t_pb > t0:
     tau = (t_pb - t0) / (t_peak - t0)
     D = T_pb - T_target
@@ -410,51 +380,47 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDERIZADO GRÁFICO OPTIMIZADO CON TABLA LATERAL INTEGRADA
+# LIENZO DEFINITIVO: FORMATO CARTA VERTICAL CON MÁRGENES ESTÁNDAR
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
-# CAMBIO: Si hay datos, creamos una figura de 2 columnas (Gráfico izquierda, Tabla derecha)
+# Inicialización rigurosa del lienzo tamaño Carta (8.5 x 11 pulgadas)
+fig = plt.figure(figsize=(8.5, 11.0))
+
+# Coordenadas calculadas según márgenes solicitados (L/R=1.5cm, Top=2.5cm, Bottom=1.5cm)
+# Formato: [left, bottom, width, height] en fracciones del lienzo
+ax = fig.add_axes([0.07, 0.43, 0.86, 0.48])
+
+# 1. RENDERIZADO DEL GRÁFICO PRINCIPAL
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
+
 if len(df_procesado) > 0:
-    fig, (ax, ax_table) = plt.subplots(1, 2, figsize=(16, 5.5), gridspec_kw={'width_ratios': [2.2, 1]})
-else:
-    fig, ax = plt.subplots(figsize=(11, 5.2))
-    ax_table = None
+    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
+    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
-# 1. TRAZADO DE CURVAS PRINCIPALES (Espesores delgados y estilizados)
-ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.5, label="Proyección Fisiológica")
+# Marcadores de hitos estables
+ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
+ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
+ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
+ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=30, zorder=5, label="Punto Consultado")
 
-if len(df_procesado) > 0:
-    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.5, label="Evolución Real (PBs)")
-    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=20, linewidths=0.6, zorder=3)
-
-# 2. MARCADORES DE HITOS CLAVE (Tamaños balanceados)
-ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=30, linewidths=0.6, zorder=4)
-ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=80, linewidths=0.6, zorder=5, label="PB Actual de Control")
-ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=30, linewidths=0.6, zorder=4, label="Meta Peak")
-ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=25, zorder=5, label="Punto Consultado")
-
-# LÍNEAS VERTICALES DE REFERENCIA (Ultra delgadas)
 ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
 ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
 ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
 ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-# 3. CUADROS DE TEXTO INFORMATIVOS (Líneas finas, texto normal, sin bold)
 offset_y = (T0 - T_target) * 0.025
-estilo_bbox = dict(boxstyle="round,pad=0.2", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
+estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
 ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
 ax.text(t_pb, T_pb + offset_y, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
-# LÍMITES AJUSTADOS DE LOS EJES
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
-ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.02))
+ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.03))
 
-# 4. MARCAS HORIZONTALES: LEYENDAS A LA IZQUIERDA, PALETA OSCURA Y PREVENCIÓN DE SUPERPOSICIÓN
 if not es_preinfantil:
     referencias = [
         {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "pos": "center"},
@@ -464,73 +430,90 @@ if not es_preinfantil:
         {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
     ]
-    
     x_texto = (t0 - 0.5) + 0.05
-    
     for r in referencias:
         if r["val"] > 0:
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-            
-            if r["pos"] == "top":
-                va_ajustada = "bottom"      
-                desplazamiento_y = 0.1
-            elif r["pos"] == "bottom":
-                va_ajustada = "top"         
-                desplazamiento_y = -0.1
-            else:
-                va_ajustada = "center"
-                desplazamiento_y = 0.0
-                
-            ax.text(
-                x_texto, 
-                r["val"] + desplazamiento_y, 
-                f"{r['lbl']}: {r['val']:.2f}s", 
-                color=r["col"], 
-                fontsize=7.5, 
-                fontweight="normal",   
-                va=va_ajustada, 
-                ha="left"
-            )
+            va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
+            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
+            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-    ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7.5, fontweight="normal", va="center", ha="left")
-    st.info("ℹ️ Las categorías Preinfantiles se consideran de desarrollo formativo y no poseen marcas mínimas exigidas.")
+    ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
 
-# 5. CONFIGURACIÓN COMPLETA DEL GRID
-ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
-ax.set_xlabel("Edad del Atleta (Años)", fontsize=9, fontweight="bold")
-ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9, fontweight="bold")
-
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, fontweight="bold", pad=12)
+ax.set_xlabel("Edad del Atleta (Años)", fontsize=10, fontweight="bold")
+ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=10, fontweight="bold")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
-ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
+ax.legend(loc="upper right", fontsize=8.5, framealpha=0.8)
 
-# CAMBIO: Renderizado de la tabla descriptiva en el eje derecho antes de dibujar en Streamlit
-if ax_table is not None:
-    ax_table.axis('off')
-    # Filtrar columnas y estructurar la información tabular limpia
+# 2. RENDERIZADO DE TABLA(S) INFERIOR(ES) CON CAPACIDAD DE BIFURCACIÓN HORIZONTAL
+if len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
     df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
     
-    # Inyectar tabla nativa de Matplotlib al lienzo
-    mpl_table = ax_table.table(
-        cellText=df_table_render.values,
-        colLabels=df_table_render.columns,
-        cellLoc='center',
-        loc='center'
-    )
-    mpl_table.auto_set_font_size(False)
-    mpl_table.set_fontsize(8)
-    mpl_table.scale(1.0, 1.25)
+    limite_filas_por_bloque = 12
+    total_filas = len(df_table_render)
     
-    # Estilización formal de cabeceras y filas alternas
-    for (row, col), cell in mpl_table.get_celld().items():
-        if row == 0:
-            cell.set_text_props(fontweight='bold', color='white')
-            cell.set_facecolor('#007A87')
-        else:
-            cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
+    def estilizar_tabla_nativo(instancia_tabla):
+        instancia_tabla.auto_set_font_size(False)
+        instancia_tabla.set_fontsize(8.5)
+        instancia_tabla.scale(1.0, 1.35)
+        for (row, col), cell in instancia_tabla.get_celld().items():
+            if row == 0:
+                cell.set_text_props(fontweight='bold', color='white')
+                cell.set_facecolor('#007A87')
+            else:
+                cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
+
+    # CASO A: El historial cabe en una sola sección limpia abajo del gráfico
+    if total_filas <= limite_filas_por_bloque:
+        ax_table = fig.add_axes([0.07, 0.054, 0.86, 0.32])
+        ax_table.axis('off')
+        
+        mpl_table = ax_table.table(
+            cellText=df_table_render.values,
+            colLabels=df_table_render.columns,
+            cellLoc='center',
+            loc='upper center',
+            colWidths=[0.15, 0.15, 0.70] # 70% de ancho útil a la descripción evita el desborde por completo
+        )
+        estilizar_tabla_nativo(mpl_table)
+        
+    # CASO B: El historial crece y se bifurca en dos columnas simétricas lado a lado
+    else:
+        # Garantía física de formato Carta: truncamos a un máximo de 24 registros combinados
+        if total_filas > 24:
+            df_table_render = df_table_render.iloc[:24]
+            
+        df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
+        df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
+        
+        # Bloque Izquierdo
+        ax_table1 = fig.add_axes([0.07, 0.054, 0.41, 0.32])
+        ax_table1.axis('off')
+        mpl_table1 = ax_table1.table(
+            cellText=df_bloque_izq.values,
+            colLabels=df_bloque_izq.columns,
+            cellLoc='center',
+            loc='upper center',
+            colWidths=[0.18, 0.18, 0.64]
+        )
+        estilizar_tabla_nativo(mpl_table1)
+        
+        # Bloque Derecho
+        ax_table2 = fig.add_axes([0.52, 0.054, 0.41, 0.32])
+        ax_table2.axis('off')
+        mpl_table2 = ax_table2.table(
+            cellText=df_bloque_der.values,
+            colLabels=df_bloque_der.columns,
+            cellLoc='center',
+            loc='upper center',
+            colWidths=[0.18, 0.18, 0.64]
+        )
+        estilizar_tabla_nativo(mpl_table2)
 
 st.pyplot(fig)
 
@@ -561,10 +544,9 @@ with tab_marcas:
                                 fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
                         
                         if not fecha_nacimiento_atleta:
-                            st.error("❌ No se puede calcular la edad decimal porque el atleta no posee fecha de nacimiento en su perfil.")
+                            st.error("❌ El atleta no posee fecha de nacimiento en su perfil.")
                         else:
                             edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
-                            
                             if edad_calculada is None:
                                 st.error("❌ Error al procesar la fecha de nacimiento.")
                             else:
@@ -579,7 +561,7 @@ with tab_marcas:
                                 st.success(f"Marca guardada. Edad calculada automáticamente: {edad_calculada} años.")
                                 st.rerun()
                     except Exception as e:
-                        st.error(f"Error al procesar o guardar el registro: {e}")
+                        st.error(f"Error al guardar el registro: {e}")
                     
     with col_vistas:
         st.markdown("**Historial Cronológico de Tiempos**")
@@ -595,7 +577,6 @@ with tab_marcas:
 with tab_entrenador:
     if st.session_state.rol in ["Entrenador", "Administrador"]:
         st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
-        
         u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
         
         db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
@@ -616,9 +597,7 @@ with tab_entrenador:
             pass
 
         with st.form("form_update_referencias"):
-            st.markdown(f"_Los valores que falten por registrar (NULL) se muestran desactivados._")
-            
-            u_ano = st.number_input("Marca Mínima Año (seg):", value=db_m_ano if db_m_ano is not None else 0.0, disabled=(db_m_ano is None), help="Actual en Base de Datos")
+            u_ano = st.number_input("Marca Mínima Año (seg):", value=db_m_ano if db_m_ano is not None else 0.0, disabled=(db_m_ano is None))
             u_panamb = st.number_input("PANAM Jr - Marca B (seg):", value=db_m_panam_b if db_m_panam_b is not None else 0.0, disabled=(db_m_panam_b is None))
             u_panama = st.number_input("PANAM Jr - Marca A (seg):", value=db_m_panam_a if db_m_panam_a is not None else 0.0, disabled=(db_m_panam_a is None))
             u_wab = st.number_input("World Aquatics - Marca B (seg):", value=db_m_wa_b if db_m_wa_b is not None else 0.0, disabled=(db_m_wa_b is None))
@@ -667,35 +646,13 @@ with tab_admin:
                 
                 with c_gen:
                     gen_inicial = user_actual["genero"] if user_actual["genero"] in ["F", "M"] else "F"
-                    nuevo_gen_user = st.selectbox(
-                        "Género:", 
-                        options=["F", "M"], 
-                        index=["F", "M"].index(gen_inicial),
-                        disabled=campos_deshabilitados,
-                        help="No aplica para personal técnico" if campos_deshabilitados else ""
-                    )
+                    nuevo_gen_user = st.selectbox("Género:", options=["F", "M"], index=["F", "M"].index(gen_inicial), disabled=campos_deshabilitados)
                 
-                if user_actual["fecha_nacimiento"]:
-                    try:
-                        f_nac_inicial = datetime.date.fromisoformat(str(user_actual["fecha_nacimiento"]))
-                    except Exception:
-                        f_nac_inicial = datetime.date.today()
-                else:
-                    f_nac_inicial = datetime.date.today()
-                    
-                nueva_f_nac_admin = st.date_input(
-                    "Corregir Fecha Nacimiento:", 
-                    value=f_nac_inicial,
-                    disabled=campos_deshabilitados,
-                    help="No aplica para personal técnico" if campos_deshabilitados else ""
-                )
+                f_nac_inicial = datetime.date.fromisoformat(str(user_actual["fecha_nacimiento"])) if user_actual["fecha_nacimiento"] else datetime.date.today()
+                nueva_f_nac_admin = st.date_input("Corregir Fecha Nacimiento:", value=f_nac_inicial, disabled=campos_deshabilitados)
                 
                 if st.button("⚠️ Forzar Cambios de Perfil"):
-                    datos_update = {
-                        "rol": nuevo_rol_user, 
-                        "estatus": nuevo_est_user
-                    }
-                    
+                    datos_update = {"rol": nuevo_rol_user, "estatus": nuevo_est_user}
                     if campos_deshabilitados:
                         datos_update["genero"] = None
                         datos_update["fecha_nacimiento"] = None
@@ -709,53 +666,32 @@ with tab_admin:
         except Exception as e:
             st.error(f"Error en panel de control: {e}")
     else:
-        st.warning("🔒 Acceso restringido al Administrador del sistema.")
+        st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-# CENTRO DE EXPORTACIÓN (TODOS LOS USUARIOS)
+# CENTRO DE EXPORTACIÓN (Fiel al Lienzo Carta Vertical Configurado)
 # -------------------------------------------------------------
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
 
 if len(df_procesado) > 0:
     export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
-    
     csv_data = export_df.to_csv(index=False).encode('utf-8')
     txt_string = export_df.to_string(index=False)
     
-    import io
     img_buffer = io.BytesIO()
-    # El archivo exportado guardará fielmente el lienzo con el gráfico y la tabla lateralizada
-    fig.savefig(img_buffer, format="png", bbox_inches="tight", dpi=300)
+    # Preservamos los bordes y el escalado de alta fidelidad a 300 DPI
+    fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
     img_buffer.seek(0)
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
-    
     with c_exp1:
-        st.download_button(
-            label="📥 Descargar Historial (CSV)",
-            data=csv_data,
-            file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv",
-            mime="text/csv"
-        )
-        
+        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
     with c_exp2:
-        st.download_button(
-            label="📄 Descargar Datos (TXT)",
-            data=txt_string,
-            file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt",
-            mime="text/plain"
-        )
-        
+        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
     with c_exp3:
-        st.download_button(
-            label="🖼️ Guardar Gráfico (Imagen PNG)",
-            data=img_buffer,
-            file_name=f"curva_proyeccion_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png",
-            mime="image/png"
-        )
+        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
         
-    st.caption("💡 *Nota para PDF:* Si deseas el reporte completo en PDF, puedes presionar `Ctrl + P` (o `Cmd + P` en Mac) directamente en tu teclado para abrir el menú de impresión de tu navegador y seleccionar 'Guardar como PDF'.")
-
+    st.caption("💡 *Nota de Impresión:* Al guardar la imagen PNG, esta mantendrá una proporción exacta de 8.5\" x 11\". Puedes imprimirla o insertarla en tus informes técnicos directamente.")
 else:
     st.info("No hay datos históricos disponibles para exportar en esta prueba todavía.")
