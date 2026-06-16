@@ -386,10 +386,10 @@ if not es_preinfantil:
     for r in referencias:
         if r["val"] > 0:
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=1.2)
-            ax.text(t_peak + 0.1, r["val"], f" {r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, fontweight="bold", va="middle")
+            ax.text(t_peak + 0.1, r["val"], f" {r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, fontweight="bold", va="center")
 else:
     ax.axhline(y=m_wr, color="#000000", linestyle="--", linewidth=1.2)
-    ax.text(t_peak + 0.1, m_wr, f" WR Base: {m_wr:.2f}s", color="#000000", fontsize=8, fontweight="bold", va="middle")
+    ax.text(t_peak + 0.1, m_wr, f" WR Base: {m_wr:.2f}s", color="#000000", fontsize=8, fontweight="bold", va="center")
     st.info("ℹ️ Las categorías Preinfantiles se consideran de desarrollo formativo y no poseen marcas mínimas exigidas.")
 
 ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, fontweight="bold", pad=12)
