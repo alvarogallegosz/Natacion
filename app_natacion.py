@@ -135,53 +135,71 @@ if not st.session_state.autenticado:
                     else:
                         st.error("Credenciales incorrectas. Verifique sus datos o use la pestaña de recuperación.")
                         
-        with tab_registro:
-            with st.form("form_registro"):
-                nuevo_nombre = st.text_input("Nombre completo:")
-                nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")
-                nuevo_email = st.text_input("Correo Electrónico:")
-                nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
-                nuevo_rol = st.selectbox("Rol en el Sistema:", options=["Nadador", "Entrenador", "Administrador"])
-                
-                st.markdown("---")
-                es_nadador_reg = (nuevo_rol == "Nadador")
-                
-                nuevo_genero = st.selectbox(
-                    "Género:", 
-                    options=["F", "M"], 
-                    format_func=lambda x: "Femenino" if x == "F" else "Masculino",
-                    disabled=not es_nadador_reg
-                )
-                nueva_fecha_nac = st.date_input(
-                    "Fecha de Nacimiento:", 
-                    min_value=datetime.date(1950, 1, 1), 
-                    max_value=datetime.date.today(),
-                    disabled=not es_nadador_reg
-                )
-                
-                if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
-                    if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
-                        try:
-                            chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()
-                            if chequeo.data:
-                                st.error("El nombre de usuario ya está tomado.")
-                            else:
-                                nuevo_registro = {
-                                    "nombre": nuevo_nombre, 
-                                    "usuario": nuevo_usuario, 
-                                    "email": nuevo_email,
-                                    "contrasena": nueva_contrasena, 
-                                    "rol": nuevo_rol, 
-                                    "estatus": "Activo",
-                                    "genero": nuevo_genero if es_nadador_reg else None,
-                                    "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
-                                }
-                                supabase.table("usuarios").insert(nuevo_registro).execute()
-                                st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
-                        except Exception as reg_err:
-                            st.error(f"Error en registro: {reg_err}")
+with tab_registro:
+    st.markdown("### 📝 Registro de Nuevas Cuentas")
+    
+    # 1. El rol se selecciona FUERA del formulario para permitir el dinamismo en tiempo real
+    nuevo_rol = st.selectbox(
+        "Seleccione el Rol para la nueva cuenta:", 
+        options=["Nadador", "Entrenador", "Administrador"]
+    )
+    
+    # Evaluamos si es nadador para decidir si mostramos u ocultamos los datos biométricos
+    es_nadador_reg = (nuevo_rol == "Nadador")
+    
+    # 2. Formulario principal de datos
+    with st.form("form_registro_dinamico"):
+        nuevo_nombre = st.text_input("Nombre completo:")
+        nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")
+        nuevo_email = st.text_input("Correo Electrónico:")
+        nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
+        
+        # Inicializamos las variables por defecto en None
+        nuevo_genero = None
+        nueva_fecha_nac = None
+        
+        # 3. Se muestran las casillas SOLO si es Nadador. Si es Admin/Entrenador, quedan ocultas.
+        if es_nadador_reg:
+            st.markdown("---")
+            st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")
+            nuevo_genero = st.selectbox(
+                "Género:", 
+                options=["F", "M"], 
+                format_func=lambda x: "Femenino" if x == "F" else "Masculino"
+            )
+            nueva_fecha_nac = st.date_input(
+                "Fecha de Nacimiento:", 
+                min_value=datetime.date(1950, 1, 1), 
+                max_value=datetime.date.today()
+            )
+            
+        if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
+            if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
+                try:
+                    # Validar disponibilidad del alias
+                    chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()
+                    if chequeo.data:
+                        st.error("El nombre de usuario ya está tomado.")
                     else:
-                        st.error("Por favor complete todos los datos del formulario.")
+                        # Estructura limpia para la base de datos
+                        nuevo_registro = {
+                            "nombre": nuevo_nombre, 
+                            "usuario": nuevo_usuario, 
+                            "email": nuevo_email,
+                            "contrasena": nueva_contrasena, 
+                            "rol": nuevo_rol, 
+                            "estatus": "Activo",
+                            # Si es nadador guarda los valores, si está oculto inyecta NULL de forma segura
+                            "genero": nuevo_genero if es_nadador_reg else None,
+                            "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
+                        }
+                        
+                        supabase.table("usuarios").insert(nuevo_registro).execute()
+                        st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
+                except Exception as reg_err:
+                    st.error(f"Error en registro: {reg_err}")
+            else:
+                st.error("Por favor complete todos los datos obligatorios del formulario.")
 
         # NUEVO: Bloque funcional para la recuperación de contraseña
         with tab_recuperar:
