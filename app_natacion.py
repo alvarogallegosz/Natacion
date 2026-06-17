@@ -234,7 +234,7 @@ if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-# Elemento 1: Panel de navegación
+# Panel de navegación
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
@@ -263,7 +263,7 @@ else:
 st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
-# Elemento 2: Ajuste por prueba
+# Ajuste por prueba
 st.sidebar.markdown("---")
 st.sidebar.subheader("📊 Ajustes por prueba")
 lista_pruebas = ['50 Libre', '100 Libre', '200 Libre', '50 Espalda', '100 Espalda', '200 Espalda', '50 Mariposa', '100 Mariposa', '200 Mariposa', '50 Pecho', '100 Pecho', '200 Pecho', '200 Combinado', '400 Combinado']
@@ -289,17 +289,17 @@ if not es_preinfantil:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# Elemento 3: Adaptar modelo a Base de datos
+# Adaptar modelo a Base de datos
 sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
 
-# Elemento 4: Análisis Colectivo
+# Análisis Colectivo
 modo_equipo = False
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.markdown("---")
     st.sidebar.subheader("👥 Análisis Colectivo")
     modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
 
-# Elemento 5: Filtros de segmentación por equipos
+# Filtros de segmentación por equipos
 tipo_filtro = "Todos los Atletas"
 filtro_genero = "Todos"
 cat_sel = None
@@ -378,7 +378,7 @@ val_t_pb = db_t_pb if (sincronizar_db and db_t_pb is not None) else 12.0
 val_T_pb = db_T_pb if (sincronizar_db and db_T_pb is not None) else float(round(m_wr * 1.3, 2))
 val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
-# Elemento 6: Celdas de edad y tiempos para limites y PB
+# Celdas de configuración lateral
 st.sidebar.markdown("---")
 st.sidebar.subheader("📐 Parámetros de Límites y PB")
 t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=sincronizar_db)
@@ -388,14 +388,13 @@ T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_va
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=sincronizar_db)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=sincronizar_db)
 
-# Elemento 7: Factores ajustables de rapidez de deriva y edad intermedia
 st.sidebar.markdown("---")
 st.sidebar.subheader("⏱️ Rapidez de Deriva e Intervalo")
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
 
-# MOTOR MATEMÁTICO ASINTÓTICO GENERAL
+# MOTOR MATEMÁTICO ASINTÓTICO
 def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
     if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
         tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
@@ -419,7 +418,6 @@ def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak,
         tiempos.append(T_t)
     return np.array(tiempos)
 
-# Valores de control del perfil principal
 k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
 
 c1, c2, c3 = st.columns(3)
@@ -430,14 +428,13 @@ with c3:
     st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDIMIENTO GRÁFICO (MODO EQUIPO - LÓGICA DE LÍMITES CORREGIDA)
+# RENDIMIENTO GRÁFICO: MODO EQUIPO (CON REUBICACIÓN DE CORTE)
 # -------------------------------------------------------------
 if modo_equipo:
     try:
         resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         atletas_lista = resp_todos.data if resp_todos.data else []
         
-        # Aplicar segmentación obligatoria por género
         if filtro_genero == "Femenino (F)":
             atletas_lista = [a for a in atletas_lista if a["genero"] == "F"]
         elif filtro_genero == "Masculino (M)":
@@ -461,7 +458,6 @@ if modo_equipo:
             hay_datos_visibles = False
             linea_fisiologica_anotada = False
             
-            # Vectores colectivos globales para escaneo de extremos reales
             todas_las_edades_0 = []
             todos_los_tiempos_colectivo = []
             datos_atletas_cargados = []
@@ -481,7 +477,6 @@ if modo_equipo:
                     df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
                     hay_datos_visibles = True
                     
-                    # Guardamos la Edad 0 (primer registro) y todos los tiempos del nadador
                     todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
                     todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
                     
@@ -492,19 +487,16 @@ if modo_equipo:
                     })
 
             if hay_datos_visibles:
-                # Eje X Colectivo: Edad 0 menor del grupo menos 6 meses hasta t_peak + 1 año
                 edad_0_min_colectivo = min(todas_las_edades_0)
                 lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
                 lim_x_max = t_peak + 1.0
                 ax.set_xlim(lim_x_min, lim_x_max)
                 
-                # Eje Y Colectivo: 95% del WR hasta el peor tiempo registrado en el grupo + 5%
                 peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
                 lim_y_inferior = m_wr * 0.95
                 lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
                 ax.set_ylim(lim_y_inferior, lim_y_superior)
                 
-                # Renderizar los datos cargados previamente
                 for item in datos_atletas_cargados:
                     df_atl_m = item["df"]
                     color_curr = item["color"]
@@ -530,26 +522,25 @@ if modo_equipo:
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
-                # Líneas horizontales de referencia estándar
+                # Renderizado de marcas mínimas (Modo Equipo)
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
-                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "pos": "center"},
-                        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "pos": "top"},      
-                        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "pos": "bottom"},   
-                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "pos": "top"},               
-                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            
-                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
+                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, # Arriba de la línea
+                        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
+                        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
+                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
+                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
+                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   # Debajo de la línea
                     ]
                     for r in referencias:
                         if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
                             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                            va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-                            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.008 if r["pos"] == "top" else (-((lim_y_superior - lim_y_inferior) * 0.008) if r["pos"] == "bottom" else 0.0)
-                            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
+                            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+                            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
                 else:
                     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-                    ax.text(x_texto, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
+                    ax.text(x_texto, m_wr - ((lim_y_superior - lim_y_inferior) * 0.006), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7, va="top", ha="left")
                 
                 ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
                 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
@@ -566,7 +557,7 @@ if modo_equipo:
 
 else:
     # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL ORIGINAL (LÓGICA DE LÍMITES CORREGIDA)
+    # LIENZO INDIVIDUAL (CON REUBICACIÓN DE CORTE CORREGIDA)
     # -------------------------------------------------------------
     edades_curva = np.linspace(t0, t_peak, 500)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -592,12 +583,10 @@ else:
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-    # Eje X Individual: Edad 0 (t0) menos 6 meses hasta t_peak + 1 año
     lim_x_min = max(4.0, t0 - 0.5)
     lim_x_max = t_peak + 1.0
     ax.set_xlim(lim_x_min, lim_x_max)
 
-    # Eje Y Individual: 95% del WR hasta el peor tiempo detectado + 5%
     peor_tiempo_ind = max(todos_los_tiempos_ind)
     lim_y_inferior = m_wr * 0.95
     lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
@@ -611,25 +600,25 @@ else:
     ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
     ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
+    # Renderizado de marcas mínimas (Individual)
     x_texto = lim_x_min + 0.1
     if not es_preinfantil:
         referencias = [
-            {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "pos": "center"},
-            {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "pos": "top"},      
-            {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "pos": "bottom"},   
-            {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "pos": "top"},               
-            {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "pos": "bottom"},            
-            {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
+            {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, # Arriba de la línea
+            {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
+            {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
+            {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
+            {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
+            {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   # Debajo de la línea
         ]
         for r in referencias:
             if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
                 ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-                desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.008 if r["pos"] == "top" else (-((lim_y_superior - lim_y_inferior) * 0.008) if r["pos"] == "bottom" else 0.0)
-                ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
+                desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+                ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
     else:
         ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-        ax.text(x_texto, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
+        ax.text(x_texto, m_wr - ((lim_y_superior - lim_y_inferior) * 0.006), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7, va="top", ha="left")
 
     ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, pad=10)
     ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
