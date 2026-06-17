@@ -102,7 +102,7 @@ if not st.session_state.autenticado:
     with pest_login:
         with st.form("login_form"):
             email_log = st.text_input("Correo electrónico:")
-            pass_log = st.text_input("Contraseña:", type="contrasena")
+            pass_log = st.text_input("Contraseña:", type="password")
             btn_login = st.form_submit_button("Ingresar")
             
             if btn_login:
