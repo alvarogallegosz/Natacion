@@ -102,25 +102,26 @@ if not st.session_state.autenticado:
     with pest_login:
         with st.form("login_form"):
             email_log = st.text_input("Correo electrónico:")
-            pass_log = st.text_input("Contraseña:", type="password")
+            # 'password' aquí es requerido por Streamlit para ocultar caracteres visualmente
+            pass_log = st.text_input("Contraseña:", type="password") 
             btn_login = st.form_submit_button("Ingresar")
             
             if btn_login:
                 try:
-                    # Sincronizado exactamente con los nombres de tus campos en la base de datos
+                    # Sincronizado exactamente con las columnas reales de tu BD en español (email, contrasena)
                     res = supabase.table("usuarios").select("*").eq("email", email_log).eq("contrasena", pass_log).execute()
                     if res.data:
                         user = res.data[0]
-                        # Corrección de campo: 'status' en lugar de 'estatus'
-                        if user.get("status") == "Inactivo":
+                        # Validando usando la columna en español 'estatus'
+                        if user.get("estatus") == "Inactivo":
                             st.error("🔒 Acceso Bloqueado: Su cuenta está inactiva. Los roles de Entrenador o Administrador requieren autorización expresa del Administrador del club.")
                         else:
                             st.session_state.autenticado = True
-                            # Corrección de campo: 'role' en lugar de 'rol'
-                            st.session_state.usuario_rol = user["role"]
+                            # Sincronizado con tu columna 'rol'
+                            st.session_state.usuario_rol = user["rol"]
                             st.session_state.usuario_email = user["email"]
-                            st.session_state.nadador_seleccionado_id = user["id"] if user["role"] == "Nadador" else None
-                            st.session_state.nadador_seleccionado_nombre = user["nombre"] if user["role"] == "Nadador" else ""
+                            st.session_state.nadador_seleccionado_id = user["id"] if user["rol"] == "Nadador" else None
+                            st.session_state.nadador_seleccionado_nombre = user["nombre"] if user["rol"] == "Nadador" else ""
                             st.success("Acceso concedido.")
                             st.rerun()
                     else:
@@ -145,14 +146,15 @@ if not st.session_state.autenticado:
                     # GOBERNANZA: Nadadores activos de inmediato; personal técnico nace Inactivo
                     status_inicial = "Activo" if reg_rol == "Nadador" else "Inactivo"
                     
+                    # Estructura del payload ajustada 100% en español
                     payload_nuevo_user = {
                         "nombre": reg_nombre,
                         "email": reg_email,
                         "contrasena": reg_pass,
-                        "role": reg_rol,
+                        "rol": reg_rol,
                         "genero": reg_genero,
                         "fecha_nacimiento": reg_fecha_nac.strftime("%Y-%m-%d"),
-                        "status": status_inicial
+                        "estatus": status_inicial
                     }
                     try:
                         res_ins = supabase.table("usuarios").insert(payload_nuevo_user).execute()
@@ -162,7 +164,7 @@ if not st.session_state.autenticado:
                                 enviar_correo_sistema(
                                     destinatario=st.secrets.get("ADMIN_EMAIL", "admin_gallego@natacion.com"),
                                     asunto="SOLICITUD: Alta de Personal Técnico",
-                                    cuerpo=f"El usuario {reg_nombre} ({reg_email}) solicita ingresar con el rol '{reg_rol}'. Autorice su acceso desde la Consola Global cambiando su status a Activo."
+                                    cuerpo=f"El usuario {reg_nombre} ({reg_email}) solicita ingresar con el rol '{reg_rol}'. Autorice su acceso desde la Consola Global cambiando su estatus a Activo."
                                 )
                             else:
                                 st.success("¡Registro completado! Ya puede iniciar sesión.")
@@ -208,7 +210,8 @@ else:
         st.sidebar.markdown("---")
         st.sidebar.markdown("### 👥 Panel de Dirección de Atletas")
         
-        res_atletas = supabase.table("usuarios").select("id, nombre").eq("role", "Nadador").eq("status", "Activo").execute()
+        # Consulta modificada para buscar con 'rol' y 'estatus' en español
+        res_atletas = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         if res_atletas.data:
             df_atl = pd.DataFrame(res_atletas.data)
             dict_atletas = dict(zip(df_atl["nombre"], df_atl["id"]))
@@ -399,8 +402,8 @@ else:
             res_users_all = supabase.table("usuarios").select("*").execute()
             if res_users_all.data:
                 df_u_all = pd.DataFrame(res_users_all.data)
-                # Muestra la tabla usando los nombres reales de las columnas ('role', 'status')
-                st.dataframe(df_u_all[["id", "nombre", "email", "role", "genero", "fecha_nacimiento", "status"]].rename(columns={"nombre": "Nombre", "email": "Correo", "role": "Rol de Acceso", "status": "Estado"}), use_container_width=True, hide_index=True)
+                # Muestra la tabla usando tus nombres reales de columnas en español
+                st.dataframe(df_u_all[["id", "nombre", "email", "rol", "genero", "fecha_nacimiento", "estatus"]].rename(columns={"nombre": "Nombre", "email": "Correo", "rol": "Rol de Acceso", "estatus": "Estado"}), use_container_width=True, hide_index=True)
                 
                 st.markdown("---")
                 st.subheader("Modificación Forzada de Privilegios")
@@ -410,21 +413,22 @@ else:
                 
                 col_adm1, col_adm2, col_adm3 = st.columns(3)
                 with col_adm1:
-                    new_role = st.selectbox("Cambiar Rol Técnico:", ["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(fila_edit["role"]))
+                    new_role = st.selectbox("Cambiar Rol Técnico:", ["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(fila_edit["rol"]))
                 with col_adm2:
-                    new_status = st.selectbox("Modificar Estado de Acceso:", ["Activo", "Inactivo"], index=["Activo", "Inactivo"].index(fila_edit["status"]))
+                    new_status = st.selectbox("Modificar Estado de Acceso:", ["Activo", "Inactivo"], index=["Activo", "Inactivo"].index(fila_edit["estatus"]))
                 with col_adm3:
                     new_f_nac = st.date_input("Corregir Fecha de Nacimiento:", value=datetime.datetime.strptime(fila_edit["fecha_nacimiento"], "%Y-%m-%d").date())
                     
                 btn_commit_admin = st.button("⚠️ Forzar Cambios de Perfil en Supabase")
                 
                 if btn_commit_admin:
-                    status_previo_db = fila_edit["status"]
+                    status_previo_db = fila_edit["estatus"]
                     correo_usuario_afectado = fila_edit["email"]
                     
+                    # Guardamos los datos respetando tus columnas en español
                     payload_enmienda_admin = {
-                        "role": new_role,
-                        "status": new_status,
+                        "rol": new_role,
+                        "estatus": new_status,
                         "fecha_nacimiento": new_f_nac.strftime("%Y-%m-%d")
                     }
                     
@@ -436,7 +440,7 @@ else:
                         enviar_correo_sistema(
                             destinatario=correo_usuario_afectado,
                             asunto="Notificación Oficial: Modificación de Estado de Cuenta",
-                            cuerpo=f"Estimado {select_user_edit}, le informamos que la Dirección Técnica ha cambiado el estado de su cuenta de acceso a la plataforma de natación a: '{new_status}'."
+                            cuerpo=f"Estimado {select_user_edit}, le informamos que la Dirección Técnico ha cambiado el estado de su cuenta de acceso a la plataforma de natación a: '{new_status}'."
                         )
                         enviar_correo_sistema(
                             destinatario=st.session_state.usuario_email,
