@@ -260,7 +260,7 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# Análisis Colectivo (Definición temprana para el título dinámico)
+# Análisis Colectivo
 modo_equipo = False
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.markdown("---")
@@ -433,7 +433,7 @@ with c3:
     st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# RENDIMIENTO GRÁFICO: MODO EQUIPO (CON REUBICACIÓN DE CORTE)
+# RENDIMIENTO GRÁFICO: MODO EQUIPO
 # -------------------------------------------------------------
 if modo_equipo:
     try:
@@ -562,7 +562,7 @@ if modo_equipo:
 
 else:
     # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL (CON REUBICACIÓN DE CORTE CORREGIDA)
+    # LIENZO INDIVIDUAL
     # -------------------------------------------------------------
     edades_curva = np.linspace(t0, t_peak, 500)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -600,8 +600,12 @@ else:
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
+    # --- RENDERIZADO DE ETIQUETAS CON REUBICACIÓN LATERAL DEL PB ---
     ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-    ax.text(t_pb, T_pb + offset_y, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+    
+    # Se ajusta a la derecha (t_pb + 0.15) con alineación horizontal izquierda y vertical centrada
+    ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+    
     ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
     ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
