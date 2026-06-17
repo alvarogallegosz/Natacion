@@ -316,4 +316,127 @@ else:
                 
                 tpeak_db = tpb_db * 0.85; edad_peak_db = 19.0
                 k_solucion_db = resolver_k_individual(t0_db, edad0_db, tpb_db, edad_pb_db, tpeak_db)
-                cur
+                curva_y_db = calcular_curva_atleta(t0_db, edad0_db, tpeak_db, k_solucion_db, edades_x)
+                tiempo_interp_db = float(np.interp(edad_consulta, edades_x, curva_y_db))
+                
+                ax.plot(edades_x, curva_y_db, label=f"Curva de Proyección Real (k: {k_solucion_db:.4f})", color="blue", linewidth=2.5)
+                ax.scatter(df_procesado["edad_decimal"], df_procesado["tiempo_segundos"], color="red", alpha=0.7, s=40, zorder=4, label="Marcas Históricas en BD")
+                ax.scatter([edad0_db], [t0_db], color="gray", s=100, zorder=5, label=f"Debut T0: {t0_db:.2f}s")
+                ax.scatter([edad_pb_db], [tpb_db], color="gold", marker="*", s=150, zorder=5, label=f"Mejor Marca Personal PB: {tpb_db:.2f}s")
+                ax.scatter([edad_consulta], [tiempo_interp_db], color="darkred", marker="o", s=100, zorder=6, label=f"Consulta {edad_consulta}a: {tiempo_interp_db:.2f}s")
+                
+                if "Pre" not in cat_atleta:
+                    res_umb = supabase.table("umbrales").select("*").eq("categoria", cat_atleta).eq("genero", genero_atleta).execute()
+                    if res_umb.data:
+                        umb = res_umb.data[0]
+                        if umb.get("panam_a"): ax.axhline(umb["panam_a"], color="purple", linestyle="--", alpha=0.6, label=f"Marca PANAM: {umb['panam_a']}s")
+                        if umb.get("wa_b"): ax.axhline(umb["wa_b"], color="orange", linestyle="--", alpha=0.6, label=f"World Aquatics B: {umb['wa_b']}s")
+                        if umb.get("wa_a"): ax.axhline(umb["wa_a"], color="green", linestyle="--", alpha=0.6, label=f"World Aquatics A: {umb['wa_a']}s")
+
+                ax.set_title(f"Curva de Rendimiento Asintótica: {st.session_state.nadador_seleccionado_nombre} - {estilo_seleccionado}", fontsize=11, fontweight="bold")
+                st.pyplot(fig)
+                
+                c_m1, c_m2, c_m3 = st.columns(3)
+                c_m1.metric(label=f"Proyección Estimada para {edad_consulta} años:", value=f"{tiempo_interp_db:.2f} s")
+                c_m2.metric(label="Récord Personal Registrado (PB):", value=f"{tpb_db:.2f} s")
+                c_m3.metric(label="Coeficiente de Progresión (k Solucionado):", value=f"{k_solucion_db:.4f}")
+            else:
+                ax.text(0.5, 0.5, "Sin registros históricos archivados para esta prueba.", transform=ax.transAxes, ha="center", va="center", color="darkgray")
+                st.pyplot(fig)
+
+        st.markdown("---")
+        if modo_online:
+            st.info("💡 Modo Online Activo: Tablas y paneles de registro en Base de Datos han sido deshabilitados de la pantalla.")
+        else:
+            c_tbl, c_frm = st.columns([3, 2])
+            with c_tbl:
+                st.subheader("📋 Historial Cronológico Registrado en Base de Datos")
+                if not df_procesado.empty:
+                    df_grid = df_procesado[["fecha", "edad_decimal", "tiempo_segundos", "evento"]].copy()
+                    df_grid.columns = ["Fecha del Evento", "Edad Decimal", "Tiempo Oficial (seg)", "Nombre del Campeonato / Chequeo"]
+                    st.dataframe(df_grid, use_container_width=True, hide_index=True)
+                else:
+                    st.caption("No se encuentran marcas oficiales archivadas en Supabase.")
+                    
+            with c_frm:
+                st.subheader("📥 Registrar Nueva Marca Oficial")
+                with st.form("form_nueva_marca"):
+                    ins_fecha = st.date_input("Fecha Oficial de la Competencia:", value=datetime.date.today())
+                    ins_tiempo = st.number_input("Tiempo Registrado (segundos):", min_value=10.0, max_value=250.0, value=28.53, step=0.01)
+                    ins_evento = st.text_input("Nombre de la Competencia o Chequeo Interno:")
+                    btn_save_marca = st.form_submit_button("💾 Guardar Marca en el Historial del Club")
+                    
+                    if btn_save_marca:
+                        if not ins_evento:
+                            st.error("Error: Debe indicar obligatoriamente el nombre del evento oficial.")
+                        else:
+                            edad_decimal_calculada = (ins_fecha - nacimiento_date).days / 365.25
+                            # Ajustado el payload para usar exactamente 'id_usuario' según tu tabla
+                            payload_marca_oficial = {
+                                "id_usuario": st.session_state.nadador_seleccionado_id,
+                                "estilo": estilo_seleccionado,
+                                "fecha": ins_fecha.strftime("%Y-%m-%d"),
+                                "edad_decimal": round(edad_decimal_calculada, 2),
+                                "tiempo_segundos": ins_tiempo,
+                                "evento": ins_evento
+                            }
+                            res_save = supabase.table("marcas").insert(payload_marca_oficial).execute()
+                            if res_save.data:
+                                st.success("Marca archivada correctamente en Supabase.")
+                                st.rerun()
+
+    # ------------------------------------------------------------------------------
+    # 5.3 PESTAÑA EXCLUSIVA DE ADMINISTRADOR: CONSOLA GLOBAL DE GOBERNANZA
+    # ------------------------------------------------------------------------------
+    if st.session_state.usuario_rol == "Administrador" and len(tabs_sistema) > 1:
+        with tabs_sistema[1]:
+            st.subheader("🛡️ Consola Global de Administración y Gobierno de Accesos")
+            
+            res_users_all = supabase.table("usuarios").select("*").execute()
+            if res_users_all.data:
+                df_u_all = pd.DataFrame(res_users_all.data)
+                # Corregidas las columnas internas de la tabla a español nativo
+                st.dataframe(df_u_all[["id", "nombre", "email", "rol", "genero", "fecha_nacimiento", "estatus"]].rename(columns={"nombre": "Nombre", "email": "Correo", "rol": "Rol de Acceso", "estatus": "Estado"}), use_container_width=True, hide_index=True)
+                
+                st.markdown("---")
+                st.subheader("Modificación Forzada de Privilegios")
+                
+                select_user_edit = st.selectbox("Seleccione el Usuario a Regularizar:", df_u_all["nombre"].tolist())
+                fila_edit = df_u_all[df_u_all["nombre"] == select_user_edit].iloc[0]
+                
+                col_adm1, col_adm2, col_adm3 = st.columns(3)
+                with col_adm1:
+                    new_role = st.selectbox("Cambiar Rol Técnico:", ["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(fila_edit["rol"]))
+                with col_adm2:
+                    new_status = st.selectbox("Modificar Estado de Acceso:", ["Activo", "Inactivo"], index=["Activo", "Inactivo"].index(fila_edit["estatus"]))
+                with col_adm3:
+                    new_f_nac = st.date_input("Corregir Fecha de Nacimiento:", value=datetime.datetime.strptime(fila_edit["fecha_nacimiento"], "%Y-%m-%d").date())
+                    
+                btn_commit_admin = st.button("⚠️ Forzar Cambios de Perfil en Supabase")
+                
+                if btn_commit_admin:
+                    status_previo_db = fila_edit["estatus"]
+                    correo_usuario_afectado = fila_edit["email"]
+                    
+                    # Corregido payload de actualización a tus campos nativos en español
+                    payload_enmienda_admin = {
+                        "rol": new_role,
+                        "estatus": new_status,
+                        "fecha_nacimiento": new_f_nac.strftime("%Y-%m-%d")
+                    }
+                    
+                    supabase.table("usuarios").update(payload_enmienda_admin).eq("id", fila_edit["id"]).execute()
+                    st.success(f"Enmienda consolidada en Supabase para {select_user_edit}.")
+                    
+                    if status_previo_db != new_status:
+                        enviar_correo_sistema(
+                            destinatario=correo_usuario_afectado,
+                            asunto="Notificación Oficial: Modificación de Estado de Cuenta",
+                            cuerpo=f"Estimado {select_user_edit}, le informamos que la Dirección Técnica ha cambiado el estado de su cuenta de acceso a la plataforma de natación a: '{new_status}'."
+                        )
+                        enviar_correo_sistema(
+                            destinatario=st.session_state.usuario_email,
+                            asunto="LOG DE AUDITORÍA: Cambio de Estado Procesado",
+                            cuerpo=f"Seguridad: Se alteró el estado de ingreso de '{correo_usuario_afectado}'. Transición: {status_previo_db} -> {new_status}."
+                        )
+                    st.rerun()
