@@ -96,52 +96,32 @@ def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
         return None
 
 # -------------------------------------------------------------
-# CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
+# CONTROL DE ACCESO (CORREGIDO: 'rol' y 'estatus')
 # -------------------------------------------------------------
 if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
-    st.session_state.usuario_id = None
-    st.session_state.nombre_nadador = ""
-    st.session_state.genero = "F"
-    st.session_state.rol = "Nadador"
-    st.session_state.usuario_email = ""
-    st.session_state.fecha_nacimiento = None
-    st.session_state.categoria_atleta = ""
-    st.session_state.edad_comp_atleta = 0
-    st.session_state.nadador_seleccionado_id = None
-    st.session_state.nadador_seleccionado_nombre = ""
-    st.session_state.nadador_seleccionado_genero = "F"
-    st.session_state.nadador_seleccionado_categoria = ""
+    st.session_state.update({"autenticado": False, "usuario_id": None, "rol": "Nadador", "nombre_nadador": ""})
 
 def login_usuario(user, password):
     try:
-        response = supabase.table("usuarios").select("id, nombre, email, genero, role, status, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
+        # CONSULTA CORREGIDA A 'rol' Y 'estatus'
+        response = supabase.table("usuarios").select("id, nombre, email, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
         if response.data:
             user_data = response.data[0]
             if user_data.get("estatus") in ["Suspendido", "Bloqueado", "Inactivo"]:
-                st.error(f"🔒 Acceso denegado: Su cuenta se encuentra actualmente con estatus '{user_data['status']}'. Los roles técnicos requieren autorización expresa del Administrador.")
+                st.error(f"🔒 Acceso denegado: Estatus '{user_data['estatus']}'.")
                 return False
                 
-            st.session_state.autenticado = True
-            st.session_state.usuario_id = user_data["id"]
-            st.session_state.nombre_nadador = user_data["nombre"]
-            st.session_state.usuario_email = user_data.get("email", "")
-            st.session_state.genero = user_data.get("genero", "F")
-            st.session_state.rol = user_data.get("rol", "Nadador")
-            st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
-            
-            cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
-            st.session_state.categoria_atleta = cat
-            st.session_state.edad_comp_atleta = ed_c
-            
-            st.session_state.nadador_seleccionado_id = user_data["id"]
-            st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
-            st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
-            st.session_state.nadador_seleccionado_categoria = cat
+            st.session_state.update({
+                "autenticado": True,
+                "usuario_id": user_data["id"],
+                "nombre_nadador": user_data["nombre"],
+                "rol": user_data.get("rol", "Nadador"),
+                "fecha_nacimiento": user_data.get("fecha_nacimiento")
+            })
             return True
         return False
     except Exception as e:
-        st.error(f"Error en Login: {e}")
+        st.error(f"Error: {e}")
         return False
 
 if not st.session_state.autenticado:
