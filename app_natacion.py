@@ -676,7 +676,7 @@ else:
         limite_filas_por_bloque = 16
         total_filas = len(df_table_render)
         
-        def外_tabla_nativo(instancia_tabla):
+        def dar_formato_tabla_nativo(instancia_tabla):
             instancia_tabla.auto_set_font_size(False)
             instancia_tabla.set_fontsize(8.5)
             instancia_tabla.scale(1.0, 1.3)
@@ -691,7 +691,7 @@ else:
             ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
             ax_table.axis('off')
             mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=[0.15, 0.15, 0.70])
-            外_tabla_nativo(mpl_table)
+            dar_formato_tabla_nativo(mpl_table)
         else:
             if total_filas > 32: df_table_render = df_table_render.iloc[:32]
             df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
@@ -700,12 +700,12 @@ else:
             ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
             ax_table1.axis('off')
             mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
-            外_tabla_nativo(mpl_table1)
+            dar_formato_tabla_nativo(mpl_table1)
             
             ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
             ax_table2.axis('off')
             mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
-            外_tabla_nativo(mpl_table2)
+            dar_formato_tabla_nativo(mpl_table2)
 
     st.pyplot(fig)
 
