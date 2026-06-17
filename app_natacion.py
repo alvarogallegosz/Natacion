@@ -118,7 +118,7 @@ def login_usuario(user, password):
         response = supabase.table("usuarios").select("id, nombre, email, genero, role, status, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
         if response.data:
             user_data = response.data[0]
-            if user_data.get("status") in ["Suspendido", "Bloqueado", "Inactivo"]:
+            if user_data.get("estatus") in ["Suspendido", "Bloqueado", "Inactivo"]:
                 st.error(f"🔒 Acceso denegado: Su cuenta se encuentra actualmente con estatus '{user_data['status']}'. Los roles técnicos requieren autorización expresa del Administrador.")
                 return False
                 
@@ -127,7 +127,7 @@ def login_usuario(user, password):
             st.session_state.nombre_nadador = user_data["nombre"]
             st.session_state.usuario_email = user_data.get("email", "")
             st.session_state.genero = user_data.get("genero", "F")
-            st.session_state.rol = user_data.get("role", "Nadador")
+            st.session_state.rol = user_data.get("rol", "Nadador")
             st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
             
             cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
@@ -195,8 +195,8 @@ if not st.session_state.autenticado:
                                     "usuario": nuevo_usuario, 
                                     "email": nuevo_email,
                                     "contrasena": nueva_contrasena, 
-                                    "role": nuevo_rol, 
-                                    "status": estatus_inicial,
+                                    "rol": nuevo_rol, 
+                                    "estatus": estatus_inicial,
                                     "genero": nuevo_genero if es_nadador_reg else None,
                                     "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
                                 }
@@ -234,7 +234,7 @@ if not st.session_state.autenticado:
                             verificacion = supabase.table("usuarios").select("id, status").eq("usuario", rec_usuario).eq("email", rec_email).execute()
                             if verificacion.data:
                                 user_info = verificacion.data[0]
-                                if user_info.get("status") in ["Suspendido", "Bloqueado"]:
+                                if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
                                     st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
                                 else:
                                     supabase.table("usuarios").update({"contrasena": nueva_clave}).eq("id", user_info["id"]).execute()
@@ -263,7 +263,7 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     if not modo_manual_online:
         try:
-            resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("role", "Nadador").eq("status", "Activo").execute()
+            resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
             if resp_atletas.data:
                 df_atl = pd.DataFrame(resp_atletas.data)
                 dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
@@ -343,7 +343,7 @@ if modo_equipo and not modo_manual_online:
     tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
     
     try:
-        resp_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("role", "Nadador").eq("status", "Activo").execute()
+        resp_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         atletas_preload = resp_preload.data if resp_preload.data else []
         
         if filtro_genero == "Femenino (F)":
@@ -468,7 +468,7 @@ with c3:
 # -------------------------------------------------------------
 if modo_equipo and not modo_manual_online:
     try:
-        resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("role", "Nadador").eq("status", "Activo").execute()
+        resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         atletas_lista = resp_todos.data if resp_todos.data else []
         
         if filtro_genero == "Femenino (F)":
@@ -821,7 +821,7 @@ with tab_admin:
     if st.session_state.rol == "Administrador":
         st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")
         try:
-            resp_usuarios = supabase.table("usuarios").select("id, nombre, usuario, email, role, genero, status, fecha_nacimiento").execute()
+            resp_usuarios = supabase.table("usuarios").select("id, nombre, usuario, email, rol, genero, status, fecha_nacimiento").execute()
             if resp_usuarios.data:
                 df_usr = pd.DataFrame(resp_usuarios.data)
                 st.dataframe(df_usr, use_container_width=True)
@@ -834,9 +834,9 @@ with tab_admin:
                 
                 c_rol, c_est, c_gen = st.columns(3)
                 with c_rol:
-                    new_role = st.selectbox("Rol Institucional:", options=["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(fila_edit["role"]))
+                    new_role = st.selectbox("Rol Institucional:", options=["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(fila_edit["rol"]))
                 with c_est:
-                    new_status = st.selectbox("Estado Operativo:", options=["Activo", "Inactivo", "Suspendido", "Bloqueado"], index=["Activo", "Inactivo", "Suspendido", "Bloqueado"].index(fila_edit["status"]))
+                    new_status = st.selectbox("Estado Operativo:", options=["Activo", "Inactivo", "Suspendido", "Bloqueado"], index=["Activo", "Inactivo", "Suspendido", "Bloqueado"].index(fila_edit["estatus"]))
                 
                 es_tecnico = new_role in ["Entrenador", "Administrador"]
                 
@@ -857,12 +857,12 @@ with tab_admin:
                 new_f_nac = st.date_input("Corregir Fecha Nacimiento:", value=f_nac_inicial, disabled=es_tecnico)
                 
                 if st.button("⚠️ Forzar Cambios de Perfil"):
-                    status_previo_db = fila_edit["status"]
+                    status_previo_db = fila_edit["estatus"]
                     correo_usuario_afectado = fila_edit["email"]
                     
                     payload_enmienda_admin = {
-                        "role": new_role,
-                        "status": new_status,
+                        "rol": new_role,
+                        "estatus": new_status,
                         "fecha_nacimiento": None if es_tecnico else new_f_nac.strftime("%Y-%m-%d"),
                         "genero": None if es_tecnico else new_genero
                     }
