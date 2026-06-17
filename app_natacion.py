@@ -206,7 +206,7 @@ if not st.session_state.autenticado:
                                 if estatus_inicial == "Inactivo":
                                     st.warning(f"⚠️ Registro Recibido: Su cuenta como **{nuevo_rol}** se ha creado con estatus 'Inactivo' por seguridad. Se ha enviado una solicitud de autorización al Administrador global.")
                                     enviar_correo_sistema(
-                                        destinatario=st.secrets.get("ADMIN_EMAIL", "admin_gallego@natacion.com"),
+                                        destinatario=st.secrets.get("ADMIN_EMAIL", "alvarogallegosz@gmail.com"),
                                         asunto="SOLICITUD: Alta de Cuenta de Personal Técnico",
                                         cuerpo=f"El usuario {nuevo_nombre} ({nuevo_email}) ha solicitado registrarse con el rol de '{nuevo_rol}'. Por favor, revise su perfil en la Consola Global y cambie su estatus a 'Activo' para permitirle el ingreso."
                                     )
