@@ -102,13 +102,12 @@ if not st.session_state.autenticado:
     with pest_login:
         with st.form("login_form"):
             email_log = st.text_input("Correo electrónico:")
-            # 'password' aquí es requerido por Streamlit para ocultar caracteres visualmente
             pass_log = st.text_input("Contraseña:", type="password") 
             btn_login = st.form_submit_button("Ingresar")
             
             if btn_login:
                 try:
-                    # Sincronizado exactamente con las columnas reales de tu BD en español (email, contrasena)
+                    # Sincronizado con tus columnas reales en español (email, contrasena)
                     res = supabase.table("usuarios").select("*").eq("email", email_log).eq("contrasena", pass_log).execute()
                     if res.data:
                         user = res.data[0]
@@ -117,8 +116,7 @@ if not st.session_state.autenticado:
                             st.error("🔒 Acceso Bloqueado: Su cuenta está inactiva. Los roles de Entrenador o Administrador requieren autorización expresa del Administrador del club.")
                         else:
                             st.session_state.autenticado = True
-                            # Sincronizado con tu columna 'rol'
-                            st.session_state.usuario_rol = user["rol"]
+                            st.session_state.usuario_rol = user["rol"] # Tu columna 'rol'
                             st.session_state.usuario_email = user["email"]
                             st.session_state.nadador_seleccionado_id = user["id"] if user["rol"] == "Nadador" else None
                             st.session_state.nadador_seleccionado_nombre = user["nombre"] if user["rol"] == "Nadador" else ""
@@ -143,10 +141,9 @@ if not st.session_state.autenticado:
                 if not reg_nombre or not reg_email or not reg_pass:
                     st.error("Por favor, rellene todos los campos del formulario.")
                 else:
-                    # GOBERNANZA: Nadadores activos de inmediato; personal técnico nace Inactivo
                     status_inicial = "Activo" if reg_rol == "Nadador" else "Inactivo"
                     
-                    # Estructura del payload ajustada 100% en español
+                    # Estructura del payload 100% en español
                     payload_nuevo_user = {
                         "nombre": reg_nombre,
                         "email": reg_email,
@@ -175,7 +172,7 @@ else:
     # ==============================================================================
     # 4. BARRA LATERAL (ENTORNO OPERATIVO CONFIGURABLE)
     # ==============================================================================
-    st.sidebar.title("Configuración Técnica")
+    st.sidebar.title("Configuración Técnico")
     st.sidebar.markdown(f"**Usuario:** `{st.session_state.usuario_email}`")
     st.sidebar.markdown(f"**Rol Operativo:** `{st.session_state.usuario_rol}`")
     
@@ -196,7 +193,6 @@ else:
     ]
     estilo_seleccionado = st.sidebar.selectbox("Seleccione la Prueba de Análisis:", lista_estilos)
     
-    # NUEVA CASILLA ONLINE (Invertida y desactivada por defecto)
     modo_online = st.sidebar.checkbox("Activar modo On Line manual", value=False)
     
     st.sidebar.markdown("---")
@@ -204,7 +200,6 @@ else:
     k_manual = st.sidebar.slider("Rapidez de deriva manual (k):", min_value=0.05, max_value=0.80, value=0.22, step=0.01)
     edad_consulta = st.sidebar.slider("Edad de Proyección Dinámica:", min_value=8.0, max_value=25.0, value=15.0, step=0.1)
     
-    # Lógica de navegación de atletas según privilegios de rol
     modo_equipo = False
     if st.session_state.usuario_rol in ["Entrenador", "Administrador"]:
         st.sidebar.markdown("---")
@@ -246,17 +241,15 @@ else:
     tabs_sistema = st.tabs(pestañas_validas)
     
     # ------------------------------------------------------------------------------
-    # 5.1 PESTAÑA PRINCIPAL: CANVAS GRÁFICO (REESTRUCTURACIÓN DE MODOS)
+    # 5.1 PESTAÑA PRINCIPAL: CANVAS GRÁFICO
     # ------------------------------------------------------------------------------
     with tabs_sistema[0]:
         
-        # RAMAL MODO ONLINE MANUAL (ANÓNIMO, AISLADO Y SIN DATOS DE BD)
         if modo_online:
             st.title("📊 Planificación y control de resultados de competencia")
             st.subheader(f"Prueba: {estilo_seleccionado} (Modo Online Manual de Cortesía)")
             st.info("💡 Módulo de Verificación Online Activo: Gráficos y tablas vinculados a la Base de Datos están ocultos.")
             
-            # Formulario flotante de hitos numéricos para la simulación libre
             c_on1, c_on2, c_on3 = st.columns(3)
             with c_on1:
                 t0_on = st.number_input("Tiempo Inicial T0 (seg):", min_value=10.0, max_value=200.0, value=38.50, step=0.01)
@@ -273,7 +266,6 @@ else:
             curva_y = calcular_curva_atleta(t0_on, edad0_on, tpeak_on, k_calculado_on, edades_x)
             tiempo_interp_on = float(np.interp(edad_consulta, edades_x, curva_y))
             
-            # FIGURA AISLADA EXCLUSIVA PARA EL MODO MANUAL ONLINE
             fig, ax = plt.subplots(figsize=(10, 5.5))
             ax.plot(edades_x, curva_y, label=f"Proyección Teórica (k: {k_calculado_on:.4f})", color="blue", linewidth=2.5)
             ax.scatter([edad0_on], [t0_on], color="gray", s=100, zorder=5, label=f"T0 Debut: {t0_on:.2f}s")
@@ -308,7 +300,8 @@ else:
             st.title("📊 Planificación y control de resultados de competencia")
             st.subheader(f"Atleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {cat_atleta} ({edad_actual:.2f} años)")
 
-            res_marcas = supabase.table("marcas").select("*").eq("usuario_id", st.session_state.nadador_seleccionado_id).eq("estilo", estilo_seleccionado).order("edad_decimal").execute()
+            # CORRECCIÓN DE LA LÍNEA 311: Cambiado 'usuario_id' por 'id_usuario' según tu esquema real
+            res_marcas = supabase.table("marcas").select("*").eq("id_usuario", st.session_state.nadador_seleccionado_id).eq("estilo", estilo_seleccionado).order("edad_decimal").execute()
             df_procesado = pd.DataFrame(res_marcas.data) if res_marcas.data else pd.DataFrame()
 
             fig, ax = plt.subplots(figsize=(10, 5.5))
@@ -323,128 +316,4 @@ else:
                 
                 tpeak_db = tpb_db * 0.85; edad_peak_db = 19.0
                 k_solucion_db = resolver_k_individual(t0_db, edad0_db, tpb_db, edad_pb_db, tpeak_db)
-                curva_y_db = calcular_curva_atleta(t0_db, edad0_db, tpeak_db, k_solucion_db, edades_x)
-                tiempo_interp_db = float(np.interp(edad_consulta, edades_x, curva_y_db))
-                
-                ax.plot(edades_x, curva_y_db, label=f"Curva de Proyección Real (k: {k_solucion_db:.4f})", color="blue", linewidth=2.5)
-                ax.scatter(df_procesado["edad_decimal"], df_procesado["tiempo_segundos"], color="red", alpha=0.7, s=40, zorder=4, label="Marcas Históricas en BD")
-                ax.scatter([edad0_db], [t0_db], color="gray", s=100, zorder=5, label=f"Debut T0: {t0_db:.2f}s")
-                ax.scatter([edad_pb_db], [tpb_db], color="gold", marker="*", s=150, zorder=5, label=f"Mejor Marca Personal PB: {tpb_db:.2f}s")
-                ax.scatter([edad_consulta], [tiempo_interp_db], color="darkred", marker="o", s=100, zorder=6, label=f"Consulta {edad_consulta}a: {tiempo_interp_db:.2f}s")
-                
-                if "Pre" not in cat_atleta:
-                    res_umb = supabase.table("umbrales").select("*").eq("categoria", cat_atleta).eq("genero", genero_atleta).execute()
-                    if res_umb.data:
-                        umb = res_umb.data[0]
-                        if umb.get("panam_a"): ax.axhline(umb["panam_a"], color="purple", linestyle="--", alpha=0.6, label=f"Marca PANAM: {umb['panam_a']}s")
-                        if umb.get("wa_b"): ax.axhline(umb["wa_b"], color="orange", linestyle="--", alpha=0.6, label=f"World Aquatics B: {umb['wa_b']}s")
-                        if umb.get("wa_a"): ax.axhline(umb["wa_a"], color="green", linestyle="--", alpha=0.6, label=f"World Aquatics A: {umb['wa_a']}s")
-
-                ax.set_title(f"Curva de Rendimiento Asintótica: {st.session_state.nadador_seleccionado_nombre} - {estilo_seleccionado}", fontsize=11, fontweight="bold")
-                st.pyplot(fig)
-                
-                c_m1, c_m2, c_m3 = st.columns(3)
-                c_m1.metric(label=f"Proyección Estimada para {edad_consulta} años:", value=f"{tiempo_interp_db:.2f} s")
-                c_m2.metric(label="Récord Personal Registrado (PB):", value=f"{tpb_db:.2f} s")
-                c_m3.metric(label="Coeficiente de Progresión (k Solucionado):", value=f"{k_solucion_db:.4f}")
-            else:
-                ax.text(0.5, 0.5, "Sin registros históricos archivados para esta prueba.", transform=ax.transAxes, ha="center", va="center", color="darkgray")
-                st.pyplot(fig)
-
-        # OCULTAMIENTO COMPLETO DE COMPONENTES DE BASE DE DATOS EN MODO ONLINE
-        st.markdown("---")
-        if modo_online:
-            st.info("💡 Modo Online Activo: Tablas y paneles de registro en Base de Datos han sido deshabilitados de la pantalla.")
-        else:
-            c_tbl, c_frm = st.columns([3, 2])
-            with c_tbl:
-                st.subheader("📋 Historial Cronológico Registrado en Base de Datos")
-                if not df_procesado.empty:
-                    df_grid = df_procesado[["fecha", "edad_decimal", "tiempo_segundos", "evento"]].copy()
-                    df_grid.columns = ["Fecha del Evento", "Edad Decimal", "Tiempo Oficial (seg)", "Nombre del Campeonato / Chequeo"]
-                    st.dataframe(df_grid, use_container_width=True, hide_index=True)
-                else:
-                    st.caption("No se encuentran marcas oficiales archivadas en Supabase.")
-                    
-            with c_frm:
-                st.subheader("📥 Registrar Nueva Marca Oficial")
-                with st.form("form_nueva_marca"):
-                    ins_fecha = st.date_input("Fecha Oficial de la Competencia:", value=datetime.date.today())
-                    ins_tiempo = st.number_input("Tiempo Registrado (segundos):", min_value=10.0, max_value=250.0, value=28.53, step=0.01)
-                    ins_evento = st.text_input("Nombre de la Competencia o Chequeo Interno:")
-                    btn_save_marca = st.form_submit_button("💾 Guardar Marca en el Historial del Club")
-                    
-                    if btn_save_marca:
-                        if not ins_evento:
-                            st.error("Error: Debe indicar obligatoriamente el nombre del evento oficial.")
-                        else:
-                            edad_decimal_calculada = (ins_fecha - nacimiento_date).days / 365.25
-                            payload_marca_oficial = {
-                                "usuario_id": st.session_state.nadador_seleccionado_id,
-                                "estilo": estilo_seleccionado,
-                                "fecha": ins_fecha.strftime("%Y-%m-%d"),
-                                "edad_decimal": round(edad_decimal_calculada, 2),
-                                "tiempo_segundos": ins_tiempo,
-                                "evento": ins_evento
-                            }
-                            res_save = supabase.table("marcas").insert(payload_marca_oficial).execute()
-                            if res_save.data:
-                                st.success("Marca archivada correctamente en Supabase.")
-                                st.rerun()
-
-    # ------------------------------------------------------------------------------
-    # 5.3 PESTAÑA EXCLUSIVA DE ADMINISTRADOR: CONSOLA GLOBAL DE GOBERNANZA
-    # ------------------------------------------------------------------------------
-    if st.session_state.usuario_rol == "Administrador" and len(tabs_sistema) > 1:
-        with tabs_sistema[1]:
-            st.subheader("🛡️ Consola Global de Administración y Gobierno de Accesos")
-            
-            res_users_all = supabase.table("usuarios").select("*").execute()
-            if res_users_all.data:
-                df_u_all = pd.DataFrame(res_users_all.data)
-                # Muestra la tabla usando tus nombres reales de columnas en español
-                st.dataframe(df_u_all[["id", "nombre", "email", "rol", "genero", "fecha_nacimiento", "estatus"]].rename(columns={"nombre": "Nombre", "email": "Correo", "rol": "Rol de Acceso", "estatus": "Estado"}), use_container_width=True, hide_index=True)
-                
-                st.markdown("---")
-                st.subheader("Modificación Forzada de Privilegios")
-                
-                select_user_edit = st.selectbox("Seleccione el Usuario a Regularizar:", df_u_all["nombre"].tolist())
-                fila_edit = df_u_all[df_u_all["nombre"] == select_user_edit].iloc[0]
-                
-                col_adm1, col_adm2, col_adm3 = st.columns(3)
-                with col_adm1:
-                    new_role = st.selectbox("Cambiar Rol Técnico:", ["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(fila_edit["rol"]))
-                with col_adm2:
-                    new_status = st.selectbox("Modificar Estado de Acceso:", ["Activo", "Inactivo"], index=["Activo", "Inactivo"].index(fila_edit["estatus"]))
-                with col_adm3:
-                    new_f_nac = st.date_input("Corregir Fecha de Nacimiento:", value=datetime.datetime.strptime(fila_edit["fecha_nacimiento"], "%Y-%m-%d").date())
-                    
-                btn_commit_admin = st.button("⚠️ Forzar Cambios de Perfil en Supabase")
-                
-                if btn_commit_admin:
-                    status_previo_db = fila_edit["estatus"]
-                    correo_usuario_afectado = fila_edit["email"]
-                    
-                    # Guardamos los datos respetando tus columnas en español
-                    payload_enmienda_admin = {
-                        "rol": new_role,
-                        "estatus": new_status,
-                        "fecha_nacimiento": new_f_nac.strftime("%Y-%m-%d")
-                    }
-                    
-                    supabase.table("usuarios").update(payload_enmienda_admin).eq("id", fila_edit["id"]).execute()
-                    st.success(f"Enmienda consolidada en Supabase para {select_user_edit}.")
-                    
-                    # DISPARADOR AUTOMÁTICO DE AUDITORÍA CRUZADA POR CAMBIO DE ESTADO
-                    if status_previo_db != new_status:
-                        enviar_correo_sistema(
-                            destinatario=correo_usuario_afectado,
-                            asunto="Notificación Oficial: Modificación de Estado de Cuenta",
-                            cuerpo=f"Estimado {select_user_edit}, le informamos que la Dirección Técnico ha cambiado el estado de su cuenta de acceso a la plataforma de natación a: '{new_status}'."
-                        )
-                        enviar_correo_sistema(
-                            destinatario=st.session_state.usuario_email,
-                            asunto="LOG DE AUDITORÍA: Cambio de Estado Procesado",
-                            cuerpo=f"Seguridad: Se alteró el estado de ingreso de '{correo_usuario_afectado}'. Transición: {status_previo_db} -> {new_status}."
-                        )
-                    st.rerun()
+                cur
