@@ -260,7 +260,19 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
+# Análisis Colectivo (Definición temprana para el título dinámico)
+modo_equipo = False
+if st.session_state.rol in ["Entrenador", "Administrador"]:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("👥 Análisis Colectivo")
+    modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
+
+# TÍTULO DINÁMICO CONDICIONADO DE LA CONSULTA
+if modo_equipo:
+    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: Comparativo")
+else:
+    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
+
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
 # Ajuste por prueba
@@ -291,13 +303,6 @@ if not es_preinfantil:
 
 # Adaptar modelo a Base de datos
 sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
-
-# Análisis Colectivo
-modo_equipo = False
-if st.session_state.rol in ["Entrenador", "Administrador"]:
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("👥 Análisis Colectivo")
-    modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
 
 # Filtros de segmentación por equipos
 tipo_filtro = "Todos los Atletas"
@@ -526,12 +531,12 @@ if modo_equipo:
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
-                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, # Arriba de la línea
+                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
                         {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
                         {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
                         {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
                         {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
-                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   # Debajo de la línea
+                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
                     ]
                     for r in referencias:
                         if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
@@ -604,12 +609,12 @@ else:
     x_texto = lim_x_min + 0.1
     if not es_preinfantil:
         referencias = [
-            {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, # Arriba de la línea
+            {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
             {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
             {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
             {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
             {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
-            {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   # Debajo de la línea
+            {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
         ]
         for r in referencias:
             if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
