@@ -107,16 +107,14 @@ if not st.session_state.autenticado:
             
             if btn_login:
                 try:
-                    # Sincronizado con tus columnas reales en español (email, contrasena)
                     res = supabase.table("usuarios").select("*").eq("email", email_log).eq("contrasena", pass_log).execute()
                     if res.data:
                         user = res.data[0]
-                        # Validando usando la columna en español 'estatus'
                         if user.get("estatus") == "Inactivo":
                             st.error("🔒 Acceso Bloqueado: Su cuenta está inactiva. Los roles de Entrenador o Administrador requieren autorización expresa del Administrador del club.")
                         else:
                             st.session_state.autenticado = True
-                            st.session_state.usuario_rol = user["rol"] # Tu columna 'rol'
+                            st.session_state.usuario_rol = user["rol"]
                             st.session_state.usuario_email = user["email"]
                             st.session_state.nadador_seleccionado_id = user["id"] if user["rol"] == "Nadador" else None
                             st.session_state.nadador_seleccionado_nombre = user["nombre"] if user["rol"] == "Nadador" else ""
@@ -143,7 +141,6 @@ if not st.session_state.autenticado:
                 else:
                     status_inicial = "Activo" if reg_rol == "Nadador" else "Inactivo"
                     
-                    # Estructura del payload 100% en español
                     payload_nuevo_user = {
                         "nombre": reg_nombre,
                         "email": reg_email,
@@ -205,7 +202,6 @@ else:
         st.sidebar.markdown("---")
         st.sidebar.markdown("### 👥 Panel de Dirección de Atletas")
         
-        # Consulta modificada para buscar con 'rol' y 'estatus' en español
         res_atletas = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         if res_atletas.data:
             df_atl = pd.DataFrame(res_atletas.data)
@@ -241,7 +237,7 @@ else:
     tabs_sistema = st.tabs(pestañas_validas)
     
     # ------------------------------------------------------------------------------
-    # 5.1 PESTAÑA PRINCIPAL: CANVAS GRÁFICO
+    # 5.1 PESTAÑA PRINCIPAL: CANVAS GRÁFICO (CÁLCULO DINÁMICO DE EDAD DEBUT)
     # ------------------------------------------------------------------------------
     with tabs_sistema[0]:
         
@@ -285,24 +281,42 @@ else:
             cm2.metric(label="Factor de Curvatura Biológica (k Calculado):", value=f"{k_calculado_on:.4f}")
             df_procesado = pd.DataFrame()
 
-        # RAMAL CONECTADO COMPLETO CON BASE DE DATOS (MODO PREDETERMINADO)
+        # RAMAL CONECTADO COMPLETO CON BASE DE DATOS
         else:
-            res_bio = supabase.table("usuarios").select("fecha_nacimiento, genero").eq("id", st.session_state.nadador_seleccionado_id).execute()
-            if res_bio.data:
-                bio = res_bio.data[0]
-                genero_atleta = bio["genero"]
-                cat_atleta = calcular_categoria_fevera(bio["fecha_nacimiento"])
-                nacimiento_date = datetime.datetime.strptime(bio["fecha_nacimiento"], "%Y-%m-%d").date()
-                edad_actual = (datetime.date.today() - nacimiento_date).days / 365.25
+            if not st.session_state.get("nadador_seleccionado_id"):
+                st.info("👋 Bienvenido al panel técnico. Por favor, seleccione un atleta en la barra lateral izquierda para visualizar su historial y proyecciones.")
+                df_procesado = pd.DataFrame()
             else:
-                genero_atleta = "F"; cat_atleta = "Juvenil A"; edad_actual = 14.5
+                try:
+                    res_bio = supabase.table("usuarios").select("fecha_nacimiento, genero").eq("id", st.session_state.nadador_seleccionado_id).execute()
+                    if res_bio.data:
+                        bio = res_bio.data[0]
+                        genero_atleta = bio["genero"]
+                        cat_atleta = calcular_categoria_fevera(bio["fecha_nacimiento"])
+                        nacimiento_date = datetime.datetime.strptime(bio["fecha_nacimiento"], "%Y-%m-%d").date()
+                        edad_actual = (datetime.date.today() - nacimiento_date).days / 365.25
+                    else:
+                        genero_atleta = "F"; cat_atleta = "Juvenil A"; edad_actual = 14.5
 
-            st.title("📊 Planificación y control de resultados de competencia")
-            st.subheader(f"Atleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {cat_atleta} ({edad_actual:.2f} años)")
+                    st.title("📊 Planificación y control de resultados de competencia")
+                    st.subheader(f"Atleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {cat_atleta} ({edad_actual:.2f} años)")
 
-            # CORRECCIÓN DE LA LÍNEA 311: Cambiado 'usuario_id' por 'id_usuario' según tu esquema real
-            res_marcas = supabase.table("marcas").select("*").eq("id_usuario", st.session_state.nadador_seleccionado_id).eq("estilo", estilo_seleccionado).order("edad_decimal").execute()
-            df_procesado = pd.DataFrame(res_marcas.data) if res_marcas.data else pd.DataFrame()
+                    # ORDENAMIENTO POR FECHA CRONOLÓGICA (Garantiza que no falle por falta de 'edad_decimal')
+                    res_marcas = supabase.table("marcas").select("*").eq("id_usuario", st.session_state.nadador_seleccionado_id).eq("estilo", estilo_seleccionado).order("fecha").execute()
+                    
+                    if res_marcas.data:
+                        df_procesado = pd.DataFrame(res_marcas.data)
+                        
+                        # CÁLCULO VECTORIAL DINÁMICO DE LA EDAD DECIMAL EN PYTHON
+                        df_procesado["fecha_dt"] = pd.to_datetime(df_procesado["fecha"])
+                        nacimiento_dt = pd.to_datetime(nacimiento_date)
+                        df_procesado["edad_decimal"] = (df_procesado["fecha_dt"] - nacimiento_dt).dt.days / 365.25
+                    else:
+                        df_procesado = pd.DataFrame()
+                
+                except Exception as error_db:
+                    st.error(f"❌ Error de consistencia en la consulta de marcas: {error_db}")
+                    df_procesado = pd.DataFrame()
 
             fig, ax = plt.subplots(figsize=(10, 5.5))
             edades_x = np.linspace(8.0, 24.0, 300)
@@ -341,49 +355,50 @@ else:
                 c_m2.metric(label="Récord Personal Registrado (PB):", value=f"{tpb_db:.2f} s")
                 c_m3.metric(label="Coeficiente de Progresión (k Solucionado):", value=f"{k_solucion_db:.4f}")
             else:
-                ax.text(0.5, 0.5, "Sin registros históricos archivados para esta prueba.", transform=ax.transAxes, ha="center", va="center", color="darkgray")
-                st.pyplot(fig)
+                if st.session_state.get("nadador_seleccionado_id"):
+                    ax.text(0.5, 0.5, "Sin registros históricos archivados para esta prueba.", transform=ax.transAxes, ha="center", va="center", color="darkgray")
+                    st.pyplot(fig)
 
         st.markdown("---")
         if modo_online:
             st.info("💡 Modo Online Activo: Tablas y paneles de registro en Base de Datos han sido deshabilitados de la pantalla.")
         else:
-            c_tbl, c_frm = st.columns([3, 2])
-            with c_tbl:
-                st.subheader("📋 Historial Cronológico Registrado en Base de Datos")
-                if not df_procesado.empty:
-                    df_grid = df_procesado[["fecha", "edad_decimal", "tiempo_segundos", "evento"]].copy()
-                    df_grid.columns = ["Fecha del Evento", "Edad Decimal", "Tiempo Oficial (seg)", "Nombre del Campeonato / Chequeo"]
-                    st.dataframe(df_grid, use_container_width=True, hide_index=True)
-                else:
-                    st.caption("No se encuentran marcas oficiales archivadas en Supabase.")
-                    
-            with c_frm:
-                st.subheader("📥 Registrar Nueva Marca Oficial")
-                with st.form("form_nueva_marca"):
-                    ins_fecha = st.date_input("Fecha Oficial de la Competencia:", value=datetime.date.today())
-                    ins_tiempo = st.number_input("Tiempo Registrado (segundos):", min_value=10.0, max_value=250.0, value=28.53, step=0.01)
-                    ins_evento = st.text_input("Nombre de la Competencia o Chequeo Interno:")
-                    btn_save_marca = st.form_submit_button("💾 Guardar Marca en el Historial del Club")
-                    
-                    if btn_save_marca:
-                        if not ins_evento:
-                            st.error("Error: Debe indicar obligatoriamente el nombre del evento oficial.")
-                        else:
-                            edad_decimal_calculada = (ins_fecha - nacimiento_date).days / 365.25
-                            # Ajustado el payload para usar exactamente 'id_usuario' según tu tabla
-                            payload_marca_oficial = {
-                                "id_usuario": st.session_state.nadador_seleccionado_id,
-                                "estilo": estilo_seleccionado,
-                                "fecha": ins_fecha.strftime("%Y-%m-%d"),
-                                "edad_decimal": round(edad_decimal_calculada, 2),
-                                "tiempo_segundos": ins_tiempo,
-                                "evento": ins_evento
-                            }
-                            res_save = supabase.table("marcas").insert(payload_marca_oficial).execute()
-                            if res_save.data:
-                                st.success("Marca archivada correctamente en Supabase.")
-                                st.rerun()
+            if st.session_state.get("nadador_seleccionado_id"):
+                c_tbl, c_frm = st.columns([3, 2])
+                with c_tbl:
+                    st.subheader("📋 Historial Cronológico Registrado en Base de Datos")
+                    if not df_procesado.empty:
+                        df_grid = df_procesado[["fecha", "edad_decimal", "tiempo_segundos", "evento"]].copy()
+                        df_grid["edad_decimal"] = df_grid["edad_decimal"].round(2)
+                        df_grid.columns = ["Fecha del Evento", "Edad Decimal Calculada", "Tiempo Oficial (seg)", "Nombre del Campeonato / Chequeo"]
+                        st.dataframe(df_grid, use_container_width=True, hide_index=True)
+                    else:
+                        st.caption("No se encuentran marcas oficiales archivadas en Supabase.")
+                        
+                with c_frm:
+                    st.subheader("📥 Registrar Nueva Marca Oficial")
+                    with st.form("form_nueva_marca"):
+                        ins_fecha = st.date_input("Fecha Oficial de la Competencia:", value=datetime.date.today())
+                        ins_tiempo = st.number_input("Tiempo Registrado (segundos):", min_value=10.0, max_value=250.0, value=28.53, step=0.01)
+                        ins_evento = st.text_input("Nombre de la Competencia o Chequeo Interno:")
+                        btn_save_marca = st.form_submit_button("💾 Guardar Marca en el Historial del Club")
+                        
+                        if btn_save_marca:
+                            if not ins_evento:
+                                st.error("Error: Debe indicar obligatoriamente el nombre del evento oficial.")
+                            else:
+                                # REMOVIDO TOTALMENTE EL CAMPO edad_decimal DEL PAYLOAD DE INSERCIÓN
+                                payload_marca_oficial = {
+                                    "id_usuario": st.session_state.nadador_seleccionado_id,
+                                    "estilo": estilo_seleccionado,
+                                    "fecha": ins_fecha.strftime("%Y-%m-%d"),
+                                    "tiempo_segundos": ins_tiempo,
+                                    "evento": ins_evento
+                                }
+                                res_save = supabase.table("marcas").insert(payload_marca_oficial).execute()
+                                if res_save.data:
+                                    st.success("Marca archivada correctamente en Supabase.")
+                                    st.rerun()
 
     # ------------------------------------------------------------------------------
     # 5.3 PESTAÑA EXCLUSIVA DE ADMINISTRADOR: CONSOLA GLOBAL DE GOBERNANZA
@@ -395,7 +410,6 @@ else:
             res_users_all = supabase.table("usuarios").select("*").execute()
             if res_users_all.data:
                 df_u_all = pd.DataFrame(res_users_all.data)
-                # Corregidas las columnas internas de la tabla a español nativo
                 st.dataframe(df_u_all[["id", "nombre", "email", "rol", "genero", "fecha_nacimiento", "estatus"]].rename(columns={"nombre": "Nombre", "email": "Correo", "rol": "Rol de Acceso", "estatus": "Estado"}), use_container_width=True, hide_index=True)
                 
                 st.markdown("---")
@@ -418,7 +432,6 @@ else:
                     status_previo_db = fila_edit["estatus"]
                     correo_usuario_afectado = fila_edit["email"]
                     
-                    # Corregido payload de actualización a tus campos nativos en español
                     payload_enmienda_admin = {
                         "rol": new_role,
                         "estatus": new_status,
