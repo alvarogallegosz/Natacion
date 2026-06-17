@@ -102,13 +102,13 @@ if not st.session_state.autenticado:
     with pest_login:
         with st.form("login_form"):
             email_log = st.text_input("Correo electrónico:")
-            pass_log = st.text_input("Contraseña:", type="password")
+            pass_log = st.text_input("Contraseña:", type="contrasena")
             btn_login = st.form_submit_button("Ingresar")
             
             if btn_login:
                 try:
                     # Sincronizado exactamente con los nombres de tus campos en la base de datos
-                    res = supabase.table("usuarios").select("*").eq("email", email_log).eq("password", pass_log).execute()
+                    res = supabase.table("usuarios").select("*").eq("email", email_log).eq("contrasena", pass_log).execute()
                     if res.data:
                         user = res.data[0]
                         # Corrección de campo: 'status' en lugar de 'estatus'
@@ -148,7 +148,7 @@ if not st.session_state.autenticado:
                     payload_nuevo_user = {
                         "nombre": reg_nombre,
                         "email": reg_email,
-                        "password": reg_pass,
+                        "contrasena": reg_pass,
                         "role": reg_rol,
                         "genero": reg_genero,
                         "fecha_nacimiento": reg_fecha_nac.strftime("%Y-%m-%d"),
