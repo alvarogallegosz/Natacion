@@ -397,13 +397,13 @@ tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 # Inicialización fija del lienzo Carta Vertical (8.5 x 11 pulgadas)
 fig = plt.figure(figsize=(8.5, 11.0))
 
-# Usamos GridSpec para dar un margen superior generoso al título y separar el gráfico de la tabla
+# Usamos GridSpec para mantener la estructura vertical limpia y separada
 gs = fig.add_gridspec(2, 1, height_ratios=[1.2, 1.0], left=0.15, right=0.88, top=0.88, bottom=0.08, hspace=0.35)
 
 ax = fig.add_subplot(gs[0])
 
-# Renderizado de curvas
-ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
+# CORRECCIÓN: Línea proyectada punteada y más delgada
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linestyle=":", linewidth=1.2, label="Proyección Fisiológica")
 
 if len(df_procesado) > 0:
     ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
@@ -423,13 +423,19 @@ ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 offset_y = (T0 - T_target) * 0.03
 estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-ax.text(t_pb, T_pb + offset_y, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+# CORRECCIÓN: P Start y PB Actual alineados a la derecha del punto (ha="left" con un pequeño offset en x)
+ax.text(t0 + 0.15, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+
 ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
-ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
+
+# CORRECCIÓN: Meta Peak Target va arriba del punto (va="bottom", ha="center")
+ax.text(t_peak, T_target + offset_y, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
-ax.set_ylim(T_target - (T_target * 0.05), T0 + (T0 * 0.05))
+
+# CORRECCIÓN: Límite inferior del eje Y fijado siempre un 5% por debajo del Récord Mundial (m_wr)
+ax.set_ylim(m_wr * 0.95, T0 + (T0 * 0.05))
 
 if not es_preinfantil:
     referencias = [
@@ -440,34 +446,39 @@ if not es_preinfantil:
         {"val": m_wa_a, "lbl": "WA A", "col": "#883963"},            
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50"}
     ]
-    x_texto = (t_peak + 0.05) # Colocamos las etiquetas a la derecha de la gráfica, fuera del embotellamiento
     
-    # Ordenamos de menor a mayor tiempo para calcular la separación vertical exacta
+    # CORRECCIÓN: Ubicados siempre en el sector inferior izquierdo
+    x_texto = t0 - 0.4
+    
     ref_filtradas = sorted([r for r in referencias if r["val"] > 0], key=lambda x: x["val"])
     ultimo_y = -999.0
     
     for r in ref_filtradas:
         ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-        y_pos = r["val"]
-        # Si está muy cerca de la etiqueta anterior (menos del 2.5% del rango), la desplazamos un poco
-        if (y_pos - ultimo_y) < (T0 * 0.025):
-            y_pos = ultimo_y + (T0 * 0.025)
         
-        ax.text(x_texto, y_pos, f"─ {r['lbl']}\n   {r['val']:.2f}s", color=r["col"], fontsize=7.5, va="center", ha="left")
-        ultimo_y = y_pos
+        # Determinar si va arriba o abajo según la cercanía para que no se superpongan
+        if abs(r["val"] - ultimo_y) < (m_wr * 0.025):
+            va_ajustada = "top"
+            desplazamiento_y = - (m_wr * 0.008)
+        else:
+            va_ajustada = "bottom"
+            desplazamiento_y = (m_wr * 0.008)
+            
+        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7.5, va=va_ajustada, ha="left")
+        ultimo_y = r["val"]
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-    ax.text((t_peak + 0.05), m_wr, f"─ WR Base\n   {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
+    ax.text((t0 - 0.4), m_wr + (m_wr * 0.008), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="bottom", ha="left")
 
-# Añadimos un salto de línea inicial al título para alejarlo del borde superior de la hoja
-ax.set_title(f"\nCurva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=12)
-ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="bold")
-ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="bold")
+# CORRECCIÓN: Se elimina la negrita (fontweight="normal") de títulos y ejes
+ax.set_title(f"\nCurva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="normal", pad=12)
+ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="normal")
+ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="normal")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# 2. RENDERIZADO DE TABLAS BAJO EL GRÁFICO (REDISEÑADO)
+# 2. RENDERIZADO DE TABLAS BAJO EL GRÁFICO
 if len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -496,7 +507,7 @@ if len(df_procesado) > 0:
             colLabels=df_table_render.columns,
             cellLoc='center',
             loc='upper center',
-            colWidths=[0.15, 0.15, 0.70] # Ancho de columnas expandido para evitar que se pisen los textos
+            colWidths=[0.15, 0.15, 0.70]
         )
         estilizar_tabla_nativo(mpl_table)
         
@@ -507,7 +518,6 @@ if len(df_procesado) > 0:
         df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
         df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
         
-        # Tabla Izquierda
         mpl_table1 = ax_table.table(
             cellText=df_bloque_izq.values,
             colLabels=df_bloque_izq.columns,
@@ -517,7 +527,6 @@ if len(df_procesado) > 0:
         )
         estilizar_tabla_nativo(mpl_table1)
         
-        # Tabla Derecha
         mpl_table2 = ax_table.table(
             cellText=df_bloque_der.values,
             colLabels=df_bloque_der.columns,
