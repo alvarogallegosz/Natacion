@@ -227,7 +227,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # -------------------------------------------------------------
-# CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS (CORREGIDO)
+# CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS
 # -------------------------------------------------------------
 st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:** `{st.session_state.rol}`")
 if st.sidebar.button("🚪 Salir del Sistema"):
@@ -246,10 +246,8 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
             
             st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
-            st.session_state.nadador_seleccionado_nombre = depth_row = atleta_row["nombre"]
+            st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
             st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
-            # CORRECCIÓN DE SESIÓN: Sincronizamos la fecha de nacimiento del atleta seleccionado en tiempo real
-            st.session_state.fecha_nacimiento = atleta_row["fecha_nacimiento"] 
             
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
@@ -348,24 +346,15 @@ T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# MOTOR MATEMÁTICO ASINTÓTICO OPTIMIZADO
-if t_peak > t0 and t_pb > t0 and T0 > T_target:
+# MOTOR MATEMÁTICO ASINTÓTICO
+if t_peak > t0 and t_pb > t0:
     tau = (t_pb - t0) / (t_peak - t0)
     D = T_pb - T_target
     def ecuacion_k(k_val):
         ter_exp = (np.exp(-k_val * tau) - np.exp(-k_val)) / (1 - np.exp(-k_val))
         return (T_target + (T0 - T_target) * ter_exp) - T_pb
-    
-    try:
-        k_opt, infodict, ier, mesg = fsolve(ecuacion_k, 1.0, full_output=True)
-        if ier == 1:
-            k = float(k_opt[0])
-        else:
-            k = 0.05  # Valor de contingencia si fsolve no converge perfectamente
-            st.sidebar.warning("⚠️ Ajuste fisiológico aproximado (curva en estabilización).")
-    except Exception:
-        k = 0.05
-        st.sidebar.warning("⚠️ Datos base inconsistentes para el modelo asintótico.")
+    k_opt, _, _, _ = fsolve(ecuacion_k, 1.0, full_output=True)
+    k = k_opt[0]
 else:
     k, D = 0.0, 0.0
 
@@ -397,10 +386,10 @@ tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 # Inicialización fija del lienzo Carta Vertical (8.5 x 11 pulgadas)
 fig = plt.figure(figsize=(8.5, 11.0))
 
-# NUEVAS COORDENADAS (Restauradas al diseño original para mantener proporciones perfectas)
+# COORDENADAS ORIGINALES RESTAURADAS PARA EL DISEÑO CARTA
 ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 
-# REQUERIMIENTO: Línea proyectada punteada y más delgada (color original)
+# REQUERIMIENTO: Línea proyectada punteada y más delgada
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linestyle=":", linewidth=1.2, label="Proyección Fisiológica")
 
 if len(df_procesado) > 0:
@@ -421,18 +410,18 @@ ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 offset_y = (T0 - T_target) * 0.025
 estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-# REQUERIMIENTO: P Start y PB Actual alineados a la derecha del punto (ha="left")
+# REQUERIMIENTO: P Start y PB Actual alineados a la derecha del punto
 ax.text(t0 + 0.12, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
 ax.text(t_pb + 0.12, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
 
 ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
-# REQUERIMIENTO: Meta Peak Target alineado arriba del punto (va="bottom", ha="center")
+# REQUERIMIENTO: Meta Peak Target va arriba del punto
 ax.text(t_peak, T_target + offset_y, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
 
-# REQUERIMIENTO: Límite inferior del eje Y fijado siempre 5% por debajo del Récord Mundial (m_wr)
+# REQUERIMIENTO: Límite inferior fijado siempre 5% por debajo del Récord Mundial (m_wr)
 ax.set_ylim(m_wr * 0.95, T0 + (T0 * 0.03))
 
 if not es_preinfantil:
@@ -445,29 +434,33 @@ if not es_preinfantil:
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50"}
     ]
     
-    # REQUERIMIENTO: Siempre ubicados en el sector inferior izquierdo del gráfico
+    # REQUERIMIENTO: Ubicados siempre en el sector izquierdo
     x_texto = (t0 - 0.5) + 0.05
     
-    # Ordenamos por valor para evaluar proximidades reales en el eje Y
-    ref_filtradas = sorted([r for r in referencias if r["val"] > 0], key=lambda x: x["val"])
-    ultimo_y_renderizado = -999.0
+    # CORRECCIÓN DE LA SUPERPOSICIÓN: Filtramos y ordenamos de ARRIBA hacia ABAJO (Tiempos mayores a menores)
+    ref_filtradas = sorted([r for r in referencias if r["val"] > 0], key=lambda x: x["val"], reverse=True)
     
-    for r in ref_filtradas:
+    # Alternancia inteligente basada en la proximidad real del eje Y
+    for i, r in enumerate(ref_filtradas):
         ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
         
-        # REQUERIMIENTO: Ubicar dinámicamente arriba o abajo según cercanía para evitar superposición
-        if abs(r["val"] - ultimo_y_renderizado) < (m_wr * 0.028):
+        # El World Record siempre va obligatoriamente por debajo de su línea
+        if r["lbl"] == "World Record":
             va_ajustada = "top"
-            desplazamiento_y = - (m_wr * 0.007)
+            desplazamiento_y = - (m_wr * 0.008)
         else:
-            va_ajustada = "bottom"
-            desplazamiento_y = (m_wr * 0.007)
+            # Si hay una línea previa arriba y está muy cerca, esta la tiramos hacia abajo
+            if i > 0 and abs(ref_filtradas[i-1]["val"] - r["val"]) < (m_wr * 0.035):
+                va_ajustada = "top"
+                desplazamiento_y = - (m_wr * 0.008)
+            else:
+                va_ajustada = "bottom"
+                desplazamiento_y = (m_wr * 0.008)
             
         ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
-        ultimo_y_renderizado = r["val"]
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-    ax.text((t0 - 0.5) + 0.05, m_wr + (m_wr * 0.007), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="bottom", ha="left")
+    ax.text((t0 - 0.5) + 0.05, m_wr - (m_wr * 0.008), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="top", ha="left")
 
 # REQUERIMIENTO: Se elimina la negrita (fontweight="normal") en título y etiquetas de ejes
 ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="normal", pad=10)
@@ -477,7 +470,7 @@ ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewid
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO (Estructura original intacta)
+# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO
 if len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -638,34 +631,12 @@ with tab_entrenador:
                 if db_m_wr is not None: up_data["m_wr"] = u_wr
                 
                 if up_data:
-                    try:
-                        # Verificación explícita segura para evitar fallos de claves únicas compuestos
-                        chequeo_existencia = supabase.table("marcas_referencia")\
-                            .select("prueba")\
-                            .eq("prueba", titulo_grafico)\
-                            .eq("genero", st.session_state.nadador_seleccionado_genero)\
-                            .eq("categoria", u_cat).execute()
-                            
-                        if chequeo_existencia.data:
-                            # Si ya existe, ejecutamos un update preciso
-                            supabase.table("marcas_referencia").update(up_data)\
-                                .eq("prueba", titulo_grafico)\
-                                .eq("genero", st.session_state.nadador_seleccionado_genero)\
-                                .eq("categoria", u_cat).execute()
-                        else:
-                            # Si es nuevo, insertamos la estructura completa
-                            nuevo_registro_ref = {
-                                "prueba": titulo_grafico,
-                                "genero": st.session_state.nadador_seleccionado_genero,
-                                "categoria": u_cat,
-                                **up_data
-                            }
-                            supabase.table("marcas_referencia").insert(nuevo_registro_ref).execute()
-                            
-                        st.success(f"Tiempos de referencia actualizados para {u_cat}.")
-                        st.rerun()
-                    except Exception as err_ref:
-                        st.error(f"Error al sincronizar tiempos de referencia: {err_ref}")
+                    supabase.table("marcas_referencia").upsert({
+                        "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
+                        "categoria": u_cat, **up_data
+                    }, on_conflict="prueba,genero,categoria").execute()
+                    st.success(f"Tiempos de referencia actualizados para {u_cat}.")
+                    st.rerun()
     else:
         st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
 
@@ -731,9 +702,9 @@ if len(df_procesado) > 0:
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
     with c_exp1:
-        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
+        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime=\"text/csv\")
     with c_exp2:
-        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
+        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime=\"text/plain\")
     with c_exp3:
         st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
         
