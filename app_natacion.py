@@ -389,7 +389,7 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# LIENZO CONTROLADO: REDISTRIBUCIÓN AUTOMÁTICA TAMAÑO CARTA
+# LIENZO AJUSTADO: CORRECCIÓN DE MARGENES Y REASIGNACIÓN VERTICAL
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
@@ -397,12 +397,10 @@ tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 # Inicialización fija del lienzo Carta Vertical (8.5 x 11 pulgadas)
 fig = plt.figure(figsize=(8.5, 11.0))
 
-# Usamos GridSpec para mantener la estructura vertical limpia y separada
-gs = fig.add_gridspec(2, 1, height_ratios=[1.2, 1.0], left=0.15, right=0.88, top=0.88, bottom=0.08, hspace=0.35)
+# NUEVAS COORDENADAS (Restauradas al diseño original para mantener proporciones perfectas)
+ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 
-ax = fig.add_subplot(gs[0])
-
-# CORRECCIÓN: Línea proyectada punteada y más delgada
+# REQUERIMIENTO: Línea proyectada punteada y más delgada (color original)
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linestyle=":", linewidth=1.2, label="Proyección Fisiológica")
 
 if len(df_procesado) > 0:
@@ -420,22 +418,22 @@ ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
 ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
 ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-offset_y = (T0 - T_target) * 0.03
+offset_y = (T0 - T_target) * 0.025
 estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-# CORRECCIÓN: P Start y PB Actual alineados a la derecha del punto (ha="left" con un pequeño offset en x)
-ax.text(t0 + 0.15, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
-ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+# REQUERIMIENTO: P Start y PB Actual alineados a la derecha del punto (ha="left")
+ax.text(t0 + 0.12, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+ax.text(t_pb + 0.12, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
 
 ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
-# CORRECCIÓN: Meta Peak Target va arriba del punto (va="bottom", ha="center")
+# REQUERIMIENTO: Meta Peak Target alineado arriba del punto (va="bottom", ha="center")
 ax.text(t_peak, T_target + offset_y, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
 ax.set_xlim(t0 - 0.5, t_peak + 1.0)
 
-# CORRECCIÓN: Límite inferior del eje Y fijado siempre un 5% por debajo del Récord Mundial (m_wr)
-ax.set_ylim(m_wr * 0.95, T0 + (T0 * 0.05))
+# REQUERIMIENTO: Límite inferior del eje Y fijado siempre 5% por debajo del Récord Mundial (m_wr)
+ax.set_ylim(m_wr * 0.95, T0 + (T0 * 0.03))
 
 if not es_preinfantil:
     referencias = [
@@ -447,38 +445,39 @@ if not es_preinfantil:
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50"}
     ]
     
-    # CORRECCIÓN: Ubicados siempre en el sector inferior izquierdo
-    x_texto = t0 - 0.4
+    # REQUERIMIENTO: Siempre ubicados en el sector inferior izquierdo del gráfico
+    x_texto = (t0 - 0.5) + 0.05
     
+    # Ordenamos por valor para evaluar proximidades reales en el eje Y
     ref_filtradas = sorted([r for r in referencias if r["val"] > 0], key=lambda x: x["val"])
-    ultimo_y = -999.0
+    ultimo_y_renderizado = -999.0
     
     for r in ref_filtradas:
         ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
         
-        # Determinar si va arriba o abajo según la cercanía para que no se superpongan
-        if abs(r["val"] - ultimo_y) < (m_wr * 0.025):
+        # REQUERIMIENTO: Ubicar dinámicamente arriba o abajo según cercanía para evitar superposición
+        if abs(r["val"] - ultimo_y_renderizado) < (m_wr * 0.028):
             va_ajustada = "top"
-            desplazamiento_y = - (m_wr * 0.008)
+            desplazamiento_y = - (m_wr * 0.007)
         else:
             va_ajustada = "bottom"
-            desplazamiento_y = (m_wr * 0.008)
+            desplazamiento_y = (m_wr * 0.007)
             
-        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7.5, va=va_ajustada, ha="left")
-        ultimo_y = r["val"]
+        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
+        ultimo_y_renderizado = r["val"]
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-    ax.text((t0 - 0.4), m_wr + (m_wr * 0.008), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="bottom", ha="left")
+    ax.text((t0 - 0.5) + 0.05, m_wr + (m_wr * 0.007), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="bottom", ha="left")
 
-# CORRECCIÓN: Se elimina la negrita (fontweight="normal") de títulos y ejes
-ax.set_title(f"\nCurva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="normal", pad=12)
+# REQUERIMIENTO: Se elimina la negrita (fontweight="normal") en título y etiquetas de ejes
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="normal", pad=10)
 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="normal")
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="normal")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# 2. RENDERIZADO DE TABLAS BAJO EL GRÁFICO
+# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO (Estructura original intacta)
 if len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -487,13 +486,10 @@ if len(df_procesado) > 0:
     limite_filas_por_bloque = 16
     total_filas = len(df_table_render)
     
-    ax_table = fig.add_subplot(gs[1])
-    ax_table.axis('off')
-    
-    def estilizar_tabla_nativo(instancia_tabla):
+    def Skinner_estilo(instancia_tabla):
         instancia_tabla.auto_set_font_size(False)
-        instancia_tabla.set_fontsize(8.0)
-        instancia_tabla.scale(1.0, 1.2)
+        instancia_tabla.set_fontsize(8.5)
+        instancia_tabla.scale(1.0, 1.3)
         for (row, col), cell in instancia_tabla.get_celld().items():
             if row == 0:
                 cell.set_text_props(fontweight='bold', color='white')
@@ -502,6 +498,9 @@ if len(df_procesado) > 0:
                 cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
     if total_filas <= limite_filas_por_bloque:
+        ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
+        ax_table.axis('off')
+        
         mpl_table = ax_table.table(
             cellText=df_table_render.values,
             colLabels=df_table_render.columns,
@@ -509,7 +508,7 @@ if len(df_procesado) > 0:
             loc='upper center',
             colWidths=[0.15, 0.15, 0.70]
         )
-        estilizar_tabla_nativo(mpl_table)
+        Skinner_estilo(mpl_table)
         
     else:
         if total_filas > 32:
@@ -518,23 +517,27 @@ if len(df_procesado) > 0:
         df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
         df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
         
-        mpl_table1 = ax_table.table(
+        ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
+        ax_table1.axis('off')
+        mpl_table1 = ax_table1.table(
             cellText=df_bloque_izq.values,
             colLabels=df_bloque_izq.columns,
             cellLoc='center',
-            loc='upper left',
-            colWidths=[0.12, 0.12, 0.35]
+            loc='upper center',
+            colWidths=[0.18, 0.18, 0.64]
         )
-        estilizar_tabla_nativo(mpl_table1)
+        Skinner_estilo(mpl_table1)
         
-        mpl_table2 = ax_table.table(
+        ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
+        ax_table2.axis('off')
+        mpl_table2 = ax_table2.table(
             cellText=df_bloque_der.values,
             colLabels=df_bloque_der.columns,
             cellLoc='center',
-            loc='upper right',
-            colWidths=[0.12, 0.12, 0.35]
+            loc='upper center',
+            colWidths=[0.18, 0.18, 0.64]
         )
-        estilizar_tabla_nativo(mpl_table2)
+        Skinner_estilo(mpl_table2)
 
 st.pyplot(fig)
 
