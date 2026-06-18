@@ -457,7 +457,7 @@ if not es_preinfantil:
                 va_ajustada = "bottom"
                 desplazamiento_y = (m_wr * 0.008)
             
-        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=6, fontweight="normal", va=va_ajustada, ha="left"), fontsize=8, va=va_ajustada, ha="left")
+        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=6, fontweight="normal", va=va_ajustada, ha="left")
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr - (m_wr * 0.008), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="top", ha="left")
