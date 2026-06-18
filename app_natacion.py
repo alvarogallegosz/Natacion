@@ -103,11 +103,13 @@ if "autenticado" not in st.session_state:
 
 def login_usuario(user, password):
     try:
-        # CONSULTA CORREGIDA A 'rol' Y 'estatus'
-        response = supabase.table("usuarios").select("id, nombre, email, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
-        if response.data:
-            user_data = response.data[0]
-            if user_data.get("estatus") in ["Suspendido", "Bloqueado", "Inactivo"]:
+        # Asegúrate de que el select y las llaves usen los términos en español
+response = supabase.table("usuarios").select("id, nombre, email, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
+if response.data:
+    user_data = response.data[0]
+    if user_data.get("estatus") in ["Suspendido", "Bloqueado", "Inactivo"]: # <-- CAMBIADO
+        # ...
+    st.session_state.rol = user_data.get("rol", "Nadador") # <-- CAMBIADO
                 st.error(f"🔒 Acceso denegado: Estatus '{user_data['estatus']}'.")
                 return False
                 
@@ -801,7 +803,7 @@ with tab_admin:
     if st.session_state.rol == "Administrador":
         st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")
         try:
-            resp_usuarios = supabase.table("usuarios").select("id, nombre, usuario, email, rol, genero, status, fecha_nacimiento").execute()
+            resp_usuarios = supabase.table("usuarios").select("id, nombre, usuario, email, rol, genero, estatus, fecha_nacimiento").execute()
             if resp_usuarios.data:
                 df_usr = pd.DataFrame(resp_usuarios.data)
                 st.dataframe(df_usr, use_container_width=True)
@@ -841,11 +843,11 @@ with tab_admin:
                     correo_usuario_afectado = fila_edit["email"]
                     
                     payload_enmienda_admin = {
-                        "rol": new_role,
-                        "estatus": new_status,
-                        "fecha_nacimiento": None if es_tecnico else new_f_nac.strftime("%Y-%m-%d"),
-                        "genero": None if es_tecnico else new_genero
-                    }
+    "rol": new_role,       # <-- CAMBIADO
+    "estatus": new_status, # <-- CAMBIADO
+    "fecha_nacimiento": None if es_tecnico else new_f_nac.strftime("%Y-%m-%d"),
+    "genero": None if es_tecnico else new_genero
+}
                     
                     supabase.table("usuarios").update(payload_enmienda_admin).eq("id", fila_edit["id"]).execute()
                     st.success(f"Enmienda consolidada en Supabase para {select_user_edit}.")
