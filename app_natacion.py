@@ -54,7 +54,6 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
     from email.mime.text import MIMEText
     
     try:
-        # Configuración de credenciales desde Streamlit Secrets de forma opcional
         remite = st.secrets.get("EMAIL_REMITE", "alertas@clubgallego.com")
         password = st.secrets.get("EMAIL_PASSWORD", "tu_password_aqui")
         smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
@@ -73,7 +72,7 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
         st.sidebar.warning(f"Aviso de auditoría local (Correo pendiente de credenciales): {email_err}")
 
 def calcular_categoria_competencia(fecha_nac_str):
-    if not fecha_nac_str:
+    if not fecha_nac_str or pd.isna(fecha_nac_str) or str(fecha_nac_str).strip().lower() in ['none', 'nan', '']:
         return "Desconocida", 0
     try:
         fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
@@ -105,7 +104,7 @@ def calcular_categoria_competencia(fecha_nac_str):
     return cat, edad_competencia
 
 def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
-    if not fecha_nacimiento_str or not fecha_marca:
+    if not fecha_nacimiento_str or not fecha_marca or pd.isna(fecha_nacimiento_str):
         return None
     try:
         if isinstance(fecha_nacimiento_str, str):
@@ -210,7 +209,6 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
-                                # Gobernanza de ingreso: Nadador ingresa Activo, roles técnicos ingresan Inactivos hasta aprobación
                                 estatus_inicial = "Activo" if es_nadador_reg else "Inactivo"
                                 
                                 nuevo_registro = {
@@ -225,7 +223,6 @@ if not st.session_state.autenticado:
                                 }
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
                                 
-                                # Enviar correo informativo en caso de requerir activación de cuenta técnica
                                 if not es_nadador_reg:
                                     cuerpo_adm = f"Alerta de Auditoría:\n\nEl usuario '{nuevo_nombre}' ha solicitado una cuenta de {nuevo_rol}.\nSu estatus actual es INACTIVO hasta que un Administrador valide su acceso en el panel global."
                                     enviar_correo_alerta(nuevo_email, "Solicitud de Activación de Cuenta Técnica", cuerpo_adm)
@@ -431,21 +428,17 @@ tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
 fig = plt.figure(figsize=(8.5, 11.0))
 
-# Se ajusta dinámicamente el tamaño del gráfico si no se va a pintar la tabla en la parte inferior
 if sincronizar_db and len(df_procesado) > 0:
     ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 else:
     ax = fig.add_axes([0.14, 0.25, 0.72, 0.60])
 
-# Renderizado de curvas base
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
-# Remoción estricta de datos históricos reales en el gráfico en modo de visualización manual
 if sincronizar_db and len(df_procesado) > 0:
     ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
     ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
-# Hitos y marcadores permanentes
 ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
 ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
 ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
@@ -487,7 +480,6 @@ else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
 
-# Ocultación de nombres en el gráfico si se encuentra en modo manual
 if sincronizar_db:
     ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
 else:
@@ -499,7 +491,6 @@ ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewid
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# RENDERIZADO DE TABLAS COMPLETA (Solo visible en modo conectado BD con registros válidos)
 if sincronizar_db and len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -691,17 +682,27 @@ with tab_admin:
                     nuevo_rol_user = st.selectbox("Rol:", options=opciones_rol, index=obtener_index_seguro(opciones_rol, user_actual["rol"]))
                 
                 with c_est:
-                    # Se incluye explícitamente el estatus 'Inactivo' de forma segura
                     opciones_estatus = ["Activo", "Inactivo", "Suspendido", "Bloqueado"]
                     nuevo_est_user = st.selectbox("Estatus:", options=opciones_estatus, index=obtener_index_seguro(opciones_estatus, user_actual["estatus"]))
                 
                 campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
                 
                 with c_gen:
-                    gen_inicial = user_actual["genero"] if user_actual["genero"] in ["F", "M"] else "F"
+                    # BLINDAJE CONTRA VALORES NULL/NaN EN GÉNERO
+                    val_gen = user_actual["genero"]
+                    gen_inicial = val_gen if (not pd.isna(val_gen) and val_gen in ["F", "M"]) else "F"
                     nuevo_gen_user = st.selectbox("Género:", options=["F", "M"], index=["F", "M"].index(gen_inicial), disabled=campos_deshabilitados)
                 
-                f_nac_inicial = datetime.date.fromisoformat(str(user_actual["fecha_nacimiento"])) if user_actual["fecha_nacimiento"] else datetime.date.today()
+                # BLINDAJE DEFENSIVO CONTRA CADENAS 'nan' O NULL EN FECHA DE NACIMIENTO
+                val_fnac = user_actual["fecha_nacimiento"]
+                if pd.isna(val_fnac) or str(val_fnac).strip().lower() in ['none', 'nan', '']:
+                    f_nac_inicial = datetime.date.today()
+                else:
+                    try:
+                        f_nac_inicial = datetime.date.fromisoformat(str(val_fnac))
+                    except ValueError:
+                        f_nac_inicial = datetime.date.today()
+                
                 nueva_f_nac_admin = st.date_input("Corregir Fecha Nacimiento:", value=f_nac_inicial, disabled=campos_deshabilitados)
                 
                 if st.button("⚠️ Forzar Cambios de Perfil"):
@@ -715,12 +716,10 @@ with tab_admin:
                         
                     supabase.table("usuarios").update(datos_update).eq("id", int(id_mod)).execute()
                     
-                    # Verificación y auditoría de envío de correos por cambio de estatus
                     if user_actual["estatus"] != nuevo_est_user:
                         asunto_correo = "Notificación de Auditoría: Cambio de Estatus de Acceso"
                         cuerpo_correo = f"Estimado(a) {user_actual['nombre']},\n\nLe notificamos que el estatus de su perfil en la plataforma ha sido actualizado.\nEstatus previo: {user_actual['estatus']}\nNuevo estatus activo: {nuevo_est_user}\n\nSi tiene dudas, responda a esta dirección."
                         
-                        # Alertas paralelas al afectado y al administrador
                         enviar_correo_alerta(user_actual["email"], asunto_correo, cuerpo_correo)
                         enviar_correo_alerta(st.secrets.get("EMAIL_REMITE", "admin@clubgallego.com"), f"Auditoría: Estatus Modificado - ID {id_mod}", cuerpo_correo)
                         st.toast("📧 Correos de auditoría de estatus enviados correctamente.")
@@ -733,7 +732,7 @@ with tab_admin:
         st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-# CENTRO DE EXPORTACIÓN (Actualizado con Margenes Precisos)
+# CENTRO DE EXPORTACIÓN
 # -------------------------------------------------------------
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
