@@ -36,61 +36,10 @@ except Exception as e:
     st.stop()
 
 # -------------------------------------------------------------
-# FUNCIONES AUXILIARES: SEGURIDAD, CORREOS Y BIOMETRÍA
+# LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
 # -------------------------------------------------------------
-def obtener_index_seguro(lista, valor):
-    """Devuelve el índice de un valor en una lista de forma segura para evitar caídas en st.selectbox."""
-    try:
-        return lista.index(valor)
-    except ValueError:
-        return 0
-
-def enviar_correo_alerta(destinatario, asunto, cuerpo):
-    """
-    Función optimizada para el envío automatizado de auditorías y alertas por correo electrónico.
-    Detecta de forma dinámica el puerto (465 SSL / 587 TLS) para evitar bloqueos del servidor.
-    """
-    import smtplib
-    from email.mime.text import MIMEText
-    
-    remite = st.secrets.get("EMAIL_REMITE", "")
-    password = st.secrets.get("EMAIL_PASSWORD", "")
-    smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
-    
-    try:
-        smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
-    except ValueError:
-        smtp_puerto = 465
-    
-    if not remite or not password:
-        st.sidebar.info(f"📋 Auditoría Interna (Simulada): '{asunto}' destinado a {destinatario}")
-        return False
-
-    try:
-        msg = MIMEText(cuerpo)
-        msg['Subject'] = asunto
-        msg['From'] = remite
-        msg['To'] = destinatario
-        
-        if smtp_puerto == 465:
-            with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto, timeout=10) as server:
-                server.login(remite, password)
-                server.sendmail(remite, [destinatario], msg.as_string())
-        else:
-            with smtplib.SMTP(smtp_servidor, smtp_puerto, timeout=10) as server:
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
-                server.login(remite, password)
-                server.sendmail(remite, [destinatario], msg.as_string())
-                
-        return True
-    except Exception as email_err:
-        st.sidebar.error(f"⚠️ Error crítico de correo: {email_err}")
-        return False
-
 def calcular_categoria_competencia(fecha_nac_str):
-    if not fecha_nac_str or pd.isna(fecha_nac_str) or str(fecha_nac_str).strip().lower() in ['none', 'nan', '']:
+    if not fecha_nac_str:
         return "Desconocida", 0
     try:
         fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
@@ -121,8 +70,11 @@ def calcular_categoria_competencia(fecha_nac_str):
         
     return cat, edad_competencia
 
+# -------------------------------------------------------------
+# FUNCIÓN AUXILIAR: CALCULAR EDAD DECIMAL EXACTA
+# -------------------------------------------------------------
 def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
-    if not fecha_nacimiento_str or not fecha_marca or pd.isna(fecha_nacimiento_str):
+    if not fecha_nacimiento_str or not fecha_marca:
         return None
     try:
         if isinstance(fecha_nacimiento_str, str):
@@ -158,8 +110,8 @@ def login_usuario(user, password):
         response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
         if response.data:
             user_data = response.data[0]
-            if user_data.get("estatus", "Activo") in ["Inactivo", "Suspendido", "Bloqueado"]:
-                st.error(f"❌ Cuenta con condición de {user_data['estatus']}. Contacte a la dirección técnica o espere aprobación administrativa.")
+            if user_data.get("estatus", "Activo") in ["Suspendido", "Bloqueado"]:
+                st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
                 return False
                 
             st.session_state.autenticado = True
@@ -198,7 +150,7 @@ if not st.session_state.autenticado:
                         st.success("Acceso autorizado.")
                         st.rerun()
                     else:
-                        st.error("Credenciales incorrectas o cuenta inactiva por validación.")
+                        st.error("Credenciales incorrectas. Verifique sus datos o use la pestaña de recuperación.")
                         
         with tab_registro:
             st.markdown("### 📝 Registro de Nuevas Cuentas")
@@ -227,36 +179,18 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
-                                estatus_inicial = "Activo" if es_nadador_reg else "Inactivo"
-                                
                                 nuevo_registro = {
                                     "nombre": nuevo_nombre, 
                                     "usuario": nuevo_usuario, 
                                     "email": nuevo_email,
                                     "contrasena": nueva_contrasena, 
                                     "rol": nuevo_rol, 
-                                    "estatus": estatus_inicial,
+                                    "estatus": "Activo",
                                     "genero": nuevo_genero if es_nadador_reg else None,
                                     "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
                                 }
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
-                                
-                                if not es_nadador_reg:
-                                    correo_administrador_global = st.secrets.get("EMAIL_ADMIN", nuevo_email)
-                                    cuerpo_adm = (
-                                        f"🚨 ALERTA DE AUDITORÍA - SOLICITUD DE CUENTA TÉCNICA 🚨\n\n"
-                                        f"Se ha registrado una nueva cuenta con perfil de acceso elevado:\n"
-                                        f"• Nombre Completo: {nuevo_nombre}\n"
-                                        f"• Nombre de Usuario (Alias): {nuevo_usuario}\n"
-                                        f"• Correo Electrónico: {nuevo_email}\n"
-                                        f"• Rol Solicitado: {nuevo_rol}\n\n"
-                                        f"🔐 MEDIDA DE SEGURIDAD AUTOMÁTICA:\n"
-                                        f"La cuenta ha sido creada con estatus INACTIVO..."
-                                    )
-                                    enviar_correo_alerta(correo_administrador_global, "🚨 Alerta de Auditoría: Solicitud de Registro Técnico Pendiente", cuerpo_adm)
-                                    st.info(f"¡Registro procesado! Al ser un rol de **{nuevo_rol}**, su estatus se ha fijado como **Inactivo** por seguridad.")
-                                else:
-                                    st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión de forma regular.")
+                                st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
                         except Exception as reg_err:
                             st.error(f"Error en registro: {reg_err}")
                     else:
@@ -300,19 +234,16 @@ if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-modo_equipo = False
-df_todos_los_atletas = pd.DataFrame()
-
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
         resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         if resp_atletas.data:
-            df_todos_los_atletas = pd.DataFrame(resp_atletas.data)
-            dict_atletas = dict(zip(df_todos_los_atletas["id"], df_todos_los_atletas["nombre"]))
+            df_atl = pd.DataFrame(resp_atletas.data)
+            dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
             
             sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
-            atleta_row = df_todos_los_atletas[df_todos_los_atletas["id"] == sel_id].iloc[0]
+            atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
             
             st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
             st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
@@ -320,8 +251,6 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
-            
-            modo_equipo = st.sidebar.checkbox("👥 Activar Comparativa de Equipo", value=False)
     except Exception as e:
         st.sidebar.error("Error cargando nómina de atletas.")
 else:
@@ -330,14 +259,7 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-modo_online_manual = st.sidebar.checkbox("⏱️ Activar modo On Line manual", value=False)
-sincronizar_db = not modo_online_manual
-
-if sincronizar_db:
-    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
-else:
-    st.markdown(f"### 🏊‍♂️ Planificación y simulación de resultados (Modo de Visualización Online)")
-
+st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
 # -------------------------------------------------------------
@@ -367,7 +289,8 @@ if not es_preinfantil:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# EXTRACCIÓN DEL ATLETA PRINCIPAL
+sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
+
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -423,33 +346,31 @@ T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# MOTOR MATEMÁTICO ASINTÓTICO INDIVIDUAL
-def resolver_k_individual(t0_val, T0_val, t_pb_val, T_pb_val, t_peak_val, T_target_val):
-    if t_peak_val > t0_val and t_pb_val > t0_val:
-        tau_val = (t_pb_val - t0_val) / (t_peak_val - t0_val)
-        def ecuacion_k(k_val):
-            ter_exp = (np.exp(-k_val * tau_val) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-            return (T_target_val + (T0_val - T_target_val) * ter_exp) - T_pb_val
-        k_opt, _, _, _ = fsolve(ecuacion_k, 1.0, full_output=True)
-        return k_opt[0]
-    return 0.0
+# MOTOR MATEMÁTICO ASINTÓTICO
+if t_peak > t0 and t_pb > t0:
+    tau = (t_pb - t0) / (t_peak - t0)
+    D = T_pb - T_target
+    def ecuacion_k(k_val):
+        ter_exp = (np.exp(-k_val * tau) - np.exp(-k_val)) / (1 - np.exp(-k_val))
+        return (T_target + (T0 - T_target) * ter_exp) - T_pb
+    k_opt, _, _, _ = fsolve(ecuacion_k, 1.0, full_output=True)
+    k = k_opt[0]
+else:
+    k, D = 0.0, 0.0
 
-def calcular_curva_atleta(t_array, t0_val, T0_val, t_pb_val, T_pb_val, t_peak_val, T_target_val, k_val, h_val):
+def calcular_tiempo_proyectado(t_array):
     tiempos = []
-    D_val = T_pb_val - T_target_val
     for t in t_array:
-        if t < t_pb_val:
-            tau_t = (t - t0_val) / (t_peak_val - t0_val)
-            ter_exp = (np.exp(-k_val * tau_t) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-            T_t = T_target_val + (T0_val - T_target_val) * ter_exp
+        if t < t_pb:
+            tau_t = (t - t0) / (t_peak - t0)
+            ter_exp = (np.exp(-k * tau_t) - np.exp(-k)) / (1 - np.exp(-k))
+            T_t = T_target + (T0 - T_target) * ter_exp
         else:
-            T_t = T_pb_val - D_val * (1 - np.exp(-h_val * (t - t_pb_val)))
+            T_t = T_pb - D * (1 - np.exp(-h * (t - t_pb)))
         tiempos.append(T_t)
     return np.array(tiempos)
 
-k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-D = T_pb - T_target
-T_intermedia_val = float(calcular_curva_atleta([t_intermedia], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
+T_intermedia_val = float(calcular_tiempo_proyectado([t_intermedia])[0])
 
 c1, c2, c3 = st.columns(3)
 with c1: st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k:.4f}")
@@ -457,56 +378,25 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# LIENZO DE RENDERIZACIÓN GRÁFICA
+# LIENZO AJUSTADO: CORRECCIÓN DE MARGENES Y REASIGNACIÓN VERTICAL
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
-tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 
+# Inicialización fija del lienzo Carta Vertical (8.5 x 11 pulgadas)
 fig = plt.figure(figsize=(8.5, 11.0))
-if sincronizar_db and len(df_procesado) > 0:
-    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
-else:
-    ax = fig.add_axes([0.14, 0.25, 0.72, 0.60])
 
-# LÓGICA DE PROYECCIÓN COMPARTIDA DE EQUIPO (DENTRO DEL GRÁFICO)
-if sincronizar_db and modo_equipo and not df_todos_los_atletas.empty:
-    for _, row_atl in df_todos_los_atletas.iterrows():
-        id_compa = int(row_atl["id"])
-        if id_compa == st.session_state.nadador_seleccionado_id:
-            continue  # Evitar duplicar el principal
-            
-        try:
-            resp_comp = supabase.table("marcas_historicas").select("edad, tiempo").eq("prueba", titulo_grafico).eq("usuario_id", id_compa).order("edad", desc=False).execute()
-            if resp_comp.data and len(resp_comp.data) >= 1:
-                df_c = pd.DataFrame(resp_comp.data)
-                c_t0, c_T0 = float(df_c.iloc[0]["edad"]), float(df_c.iloc[0]["tiempo"])
-                
-                # Buscar PB de control para el compañero
-                if len(df_c) == 1:
-                    c_t_pb, c_T_pb = c_t0, c_T0
-                else:
-                    idx_min = df_c["tiempo"].idxmin()
-                    if (len(df_c) - 1 - idx_min) >= 2:
-                        c_t_pb, c_T_pb = float(df_c.iloc[-1]["edad"]), float(df_c.iloc[-1]["tiempo"])
-                    else:
-                        c_t_pb, c_T_pb = float(df_c.iloc[idx_min]["edad"]), float(df_c.iloc[idx_min]["tiempo"])
-                
-                k_c = resolver_k_individual(c_t0, c_T0, c_t_pb, c_T_pb, t_peak, T_target)
-                edades_c = np.linspace(c_t0, t_peak, 200)
-                tiempos_c = calcular_curva_atleta(edades_c, c_t0, c_T0, c_t_pb, c_T_pb, t_peak, T_target, k_c, h)
-                
-                # Renderizar curva atenuada del miembro del equipo
-                ax.plot(edades_c, tiempos_c, linestyle=":", linewidth=1.0, alpha=0.4, label=f"Eq: {row_atl['nombre']}")
-        except Exception:
-            pass
+# NUEVAS COORDENADAS: [left, bottom, width, height]
+ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 
-# Curva principal del nadador seleccionado
-ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=2.0, label=f"Proyección: {st.session_state.nadador_seleccionado_nombre}")
+# Renderizado de curvas
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
-if sincronizar_db and len(df_procesado) > 0:
+if len(df_procesado) > 0:
     ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
     ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
+# Hitos y marcadores
 ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
 ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
 ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
@@ -542,20 +432,22 @@ if not es_preinfantil:
         if r["val"] > 0:
             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
             va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
+            # CORRECCIÓN AQUÍ: Se cambió "center" por 0.0 para evitar la suma de Float + String
             desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
 
+ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="bold")
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="bold")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# TABLAS ABAJO DEL LIENZO
-if sincronizar_db and len(df_procesado) > 0:
+# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO
+if len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
     df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
@@ -577,6 +469,7 @@ if sincronizar_db and len(df_procesado) > 0:
     if total_filas <= limite_filas_por_bloque:
         ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
         ax_table.axis('off')
+        
         mpl_table = ax_table.table(
             cellText=df_table_render.values,
             colLabels=df_table_render.columns,
@@ -585,9 +478,11 @@ if sincronizar_db and len(df_procesado) > 0:
             colWidths=[0.15, 0.15, 0.70]
         )
         estilizar_tabla_nativo(mpl_table)
+        
     else:
         if total_filas > 32:
             df_table_render = df_table_render.iloc[:32]
+            
         df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
         df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
         
@@ -622,58 +517,55 @@ st.markdown("---")
 tab_marcas, tab_entrenador, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos por Categoría (Entrenador)", "🛡️ Consola Global (Admin)"])
 
 with tab_marcas:
-    if not sincronizar_db:
-        st.info("ℹ️ El panel de ingreso de datos históricos y eliminación no se encuentra disponible en la versión de simulación online.")
-    else:
-        col_ins, col_vistas = st.columns([1, 2])
-        with col_ins:
-            st.markdown("**Ingresar Nueva Marca**")
-            with st.form("form_insertar_marca", clear_on_submit=True):
-                ins_fecha_evento = st.date_input("Fecha de la Competencia:", value=datetime.date.today())
-                ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
-                ins_nota = st.text_input("Evento / Fecha:")
-                
-                if st.form_submit_button("💾 Guardar Registro"):
-                    if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
-                        try:
-                            id_atleta = st.session_state.nadador_seleccionado_id
-                            fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
-                            
-                            if st.session_state.rol in ["Entrenador", "Administrador"]:
-                                atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
-                                if atleta_query.data:
-                                    fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
-                            
-                            if not fecha_nacimiento_atleta:
-                                st.error("❌ El atleta no posee fecha de nacimiento en su perfil.")
-                            else:
-                                edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
-                                if edad_calculada is None:
-                                    st.error("❌ Error al procesar la fecha de nacimiento.")
-                                else:
-                                    nueva_m = {
-                                        "prueba": titulo_grafico, 
-                                        "edad": float(edad_calculada), 
-                                        "tiempo": float(ins_tiempo),
-                                        "nota": ins_nota, 
-                                        "usuario_id": id_atleta
-                                    }
-                                    supabase.table("marcas_historicas").insert(nueva_m).execute()
-                                    st.success(f"Marca guardada. Edad calculada automáticamente: {edad_calculada} años.")
-                                    st.rerun()
-                        except Exception as e:
-                            st.error(f"Error al guardar el registro: {e}")
+    col_ins, col_vistas = st.columns([1, 2])
+    with col_ins:
+        st.markdown("**Ingresar Nueva Marca**")
+        with st.form("form_insertar_marca", clear_on_submit=True):
+            ins_fecha_evento = st.date_input("Fecha de la Competencia:", value=datetime.date.today())
+            ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
+            ins_nota = st.text_input("Evento / Fecha:")
+            
+            if st.form_submit_button("💾 Guardar Registro"):
+                if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
+                    try:
+                        id_atleta = st.session_state.nadador_seleccionado_id
+                        fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
                         
-        with col_vistas:
-            st.markdown("**Historial Cronológico de Tiempos**")
-            if len(df_procesado) > 0:
-                if st.session_state.rol in ["Entrenador", "Administrador"]:
-                    id_del = st.selectbox("Eliminar registro (ID):", options=df_procesado["id"].tolist())
-                    if st.button("🗑️ Eliminar Fila"):
-                        supabase.table("marcas_historicas").delete().eq("id", int(id_del)).execute()
-                        st.warning("Registro removido.")
-                        st.rerun()
-                st.dataframe(df_procesado.drop(columns=["id"]), use_container_width=True)
+                        if st.session_state.rol in ["Entrenador", "Administrador"]:
+                            atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
+                            if atleta_query.data:
+                                fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
+                        
+                        if not fecha_nacimiento_atleta:
+                            st.error("❌ El atleta no posee fecha de nacimiento en su perfil.")
+                        else:
+                            edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
+                            if edad_calculada is None:
+                                st.error("❌ Error al procesar la fecha de nacimiento.")
+                            else:
+                                nueva_m = {
+                                    "prueba": titulo_grafico, 
+                                    "edad": float(edad_calculada), 
+                                    "tiempo": float(ins_tiempo),
+                                    "nota": ins_nota, 
+                                    "usuario_id": id_atleta
+                                }
+                                supabase.table("marcas_historicas").insert(nueva_m).execute()
+                                st.success(f"Marca guardada. Edad calculada automáticamente: {edad_calculada} años.")
+                                st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar el registro: {e}")
+                    
+    with col_vistas:
+        st.markdown("**Historial Cronológico de Tiempos**")
+        if len(df_procesado) > 0:
+            if st.session_state.rol in ["Entrenador", "Administrador"]:
+                id_del = st.selectbox("Eliminar registro (ID):", options=df_procesado["id"].tolist())
+                if st.button("🗑️ Eliminar Fila"):
+                    supabase.table("marcas_historicas").delete().eq("id", int(id_del)).execute()
+                    st.warning("Registro removido.")
+                    st.rerun()
+            st.dataframe(df_procesado.drop(columns=["id"]), use_container_width=True)
 
 with tab_entrenador:
     if st.session_state.rol in ["Entrenador", "Administrador"]:
@@ -719,7 +611,7 @@ with tab_entrenador:
                         "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
                         "categoria": u_cat, **up_data
                     }, on_conflict="prueba,genero,categoria").execute()
-                    st.success(f"Tiempos de referencia actualizados.")
+                    st.success(f"Tiempos de referencia actualizados para {u_cat}.")
                     st.rerun()
     else:
         st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
@@ -735,35 +627,21 @@ with tab_admin:
                 
                 st.markdown("**Editar Perfil de Usuario**")
                 c_sel, c_rol, c_est, c_gen = st.columns(4)
-                
                 with c_sel:
                     id_mod = st.selectbox("ID Usuario:", options=df_usr["id"].tolist())
                     user_actual = df_usr[df_usr["id"] == id_mod].iloc[0]
-                
                 with c_rol:
-                    opciones_rol = ["Nadador", "Entrenador", "Administrador"]
-                    nuevo_rol_user = st.selectbox("Rol:", options=opciones_rol, index=obtener_index_seguro(opciones_rol, user_actual["rol"]))
-                
+                    nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(user_actual["rol"]))
                 with c_est:
-                    opciones_estatus = ["Activo", "Inactivo", "Suspendido", "Bloqueado"]
-                    nuevo_est_user = st.selectbox("Estatus:", options=opciones_estatus, index=obtener_index_seguro(opciones_estatus, user_actual["estatus"]))
+                    nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Suspendido", "Bloqueado"], index=["Activo", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
                 
                 campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
                 
                 with c_gen:
-                    val_gen = user_actual["genero"]
-                    gen_inicial = val_gen if (not pd.isna(val_gen) and val_gen in ["F", "M"]) else "F"
+                    gen_inicial = user_actual["genero"] if user_actual["genero"] in ["F", "M"] else "F"
                     nuevo_gen_user = st.selectbox("Género:", options=["F", "M"], index=["F", "M"].index(gen_inicial), disabled=campos_deshabilitados)
                 
-                val_fnac = user_actual["fecha_nacimiento"]
-                if pd.isna(val_fnac) or str(val_fnac).strip().lower() in ['none', 'nan', '']:
-                    f_nac_inicial = datetime.date.today()
-                else:
-                    try:
-                        f_nac_inicial = datetime.date.fromisoformat(str(val_fnac))
-                    except ValueError:
-                        f_nac_inicial = datetime.date.today()
-                
+                f_nac_inicial = datetime.date.fromisoformat(str(user_actual["fecha_nacimiento"])) if user_actual["fecha_nacimiento"] else datetime.date.today()
                 nueva_f_nac_admin = st.date_input("Corregir Fecha Nacimiento:", value=f_nac_inicial, disabled=campos_deshabilitados)
                 
                 if st.button("⚠️ Forzar Cambios de Perfil"):
@@ -776,15 +654,6 @@ with tab_admin:
                         datos_update["fecha_nacimiento"] = nueva_f_nac_admin.isoformat()
                         
                     supabase.table("usuarios").update(datos_update).eq("id", int(id_mod)).execute()
-                    
-                    if user_actual["estatus"] != nuevo_est_user:
-                        correo_admin = st.secrets.get("EMAIL_ADMIN", "admin@clubgallego.com")
-                        asunto_correo = "Notificación de Auditoría: Cambio de Estatus de Acceso"
-                        cuerpo_correo = f"Estimado(a) {user_actual['nombre']},\n\nLe notificamos que el estatus de su perfil ha sido actualizado a {nuevo_est_user}."
-                        enviar_correo_alerta(user_actual["email"], asunto_correo, cuerpo_correo)
-                        enviar_correo_alerta(correo_admin, f"Auditoría Interna: Estatus Modificado - ID {id_mod}", cuerpo_correo)
-                        st.toast("📧 Correos de auditoría de estatus enviados correctamente.")
-                        
                     st.success("Cambios aplicados con éxito.")
                     st.rerun()
         except Exception as e:
@@ -793,13 +662,13 @@ with tab_admin:
         st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-# CENTRO DE EXPORTACIÓN
+# CENTRO DE EXPORTACIÓN (Actualizado con Margenes Precisos)
 # -------------------------------------------------------------
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
 
-if len(df_procesado) > 0 or not sincronizar_db:
-    export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore") if len(df_procesado) > 0 else pd.DataFrame()
+if len(df_procesado) > 0:
+    export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
     csv_data = export_df.to_csv(index=False).encode('utf-8')
     txt_string = export_df.to_string(index=False)
     
@@ -809,12 +678,12 @@ if len(df_procesado) > 0 or not sincronizar_db:
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
     with c_exp1:
-        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}.csv", mime="text/csv", disabled=not sincronizar_db)
+        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
     with c_exp2:
-        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}.txt", mime="text/plain", disabled=not sincronizar_db)
+        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
     with c_exp3:
-        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}.png", mime="image/png")
+        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
         
-    st.caption("💡 *Nota de Impresión:* La imagen generada respeta estrictamente los márgenes de formato Carta vertical.")
+    st.caption("💡 *Nota de Impresión:* La imagen generada respeta estrictamente los márgenes de 1.5 cm laterales, 2.5 cm superior y 1.5 cm inferior al imprimirse en formato Carta vertical.")
 else:
     st.info("No hay datos históricos disponibles para exportar en esta prueba todavía.")
