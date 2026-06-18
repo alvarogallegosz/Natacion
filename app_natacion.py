@@ -53,18 +53,15 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
     import smtplib
     from email.mime.text import MIMEText
     
-    # Extraer variables de configuración segura desde Streamlit Secrets
     remite = st.secrets.get("EMAIL_REMITE", "")
     password = st.secrets.get("EMAIL_PASSWORD", "")
     smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
     
-    # Forzar que el puerto sea un entero de forma segura
     try:
         smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
     except ValueError:
         smtp_puerto = 465
     
-    # Si no hay credenciales reales en los Secrets, opera en modo simulación por consola lateral
     if not remite or not password:
         st.sidebar.info(f"📋 Auditoría Interna (Simulada): '{asunto}' destinado a {destinatario}")
         return False
@@ -75,24 +72,20 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
         msg['From'] = remite
         msg['To'] = destinatario
         
-        # LÓGICA ADAPTATIVA SEGÚN EL PUERTO CONFIGURADO
         if smtp_puerto == 465:
-            # Conexión SSL directa (Puerto tradicional seguro)
             with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto, timeout=10) as server:
                 server.login(remite, password)
                 server.sendmail(remite, [destinatario], msg.as_string())
         else:
-            # Conexión TLS / STARTTLS (Puerto 587 o alternativos)
             with smtplib.SMTP(smtp_servidor, smtp_puerto, timeout=10) as server:
                 server.ehlo()
-                server.starttls()  # Eleva la conexión a un entorno cifrado seguro
+                server.starttls()
                 server.ehlo()
                 server.login(remite, password)
                 server.sendmail(remite, [destinatario], msg.as_string())
                 
         return True
     except Exception as email_err:
-        # Esto te mostrará el error exacto en la barra lateral si el servidor de correos lo rechaza
         st.sidebar.error(f"⚠️ Error crítico de correo: {email_err}")
         return False
 
@@ -249,9 +242,7 @@ if not st.session_state.autenticado:
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
                                 
                                 if not es_nadador_reg:
-                                    # TEXTO Y DESTINO DE CORREO TOTALMENTE PARAMETRIZADOS
                                     correo_administrador_global = st.secrets.get("EMAIL_ADMIN", nuevo_email)
-                                    
                                     cuerpo_adm = (
                                         f"🚨 ALERTA DE AUDITORÍA - SOLICITUD DE CUENTA TÉCNICA 🚨\n\n"
                                         f"Se ha registrado una nueva cuenta con perfil de acceso elevado:\n"
@@ -260,12 +251,10 @@ if not st.session_state.autenticado:
                                         f"• Correo Electrónico: {nuevo_email}\n"
                                         f"• Rol Solicitado: {nuevo_rol}\n\n"
                                         f"🔐 MEDIDA DE SEGURIDAD AUTOMÁTICA:\n"
-                                        f"La cuenta ha sido creada con estatus INACTIVO. El usuario no podrá acceder al "
-                                        f"sistema hasta que un Administrador valide su identidad y fuerce su estatus a 'Activo' "
-                                        f"desde el panel de control global de la aplicación."
+                                        f"La cuenta ha sido creada con estatus INACTIVO..."
                                     )
                                     enviar_correo_alerta(correo_administrador_global, "🚨 Alerta de Auditoría: Solicitud de Registro Técnico Pendiente", cuerpo_adm)
-                                    st.info(f"¡Registro procesado! Al ser un rol de **{nuevo_rol}**, su estatus se ha fijado como **Inactivo** por seguridad. Se ha remitido una notificación al Administrador Principal para su verificación formal.")
+                                    st.info(f"¡Registro procesado! Al ser un rol de **{nuevo_rol}**, su estatus se ha fijado como **Inactivo** por seguridad.")
                                 else:
                                     st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión de forma regular.")
                         except Exception as reg_err:
@@ -311,16 +300,19 @@ if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
+modo_equipo = False
+df_todos_los_atletas = pd.DataFrame()
+
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
         resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         if resp_atletas.data:
-            df_atl = pd.DataFrame(resp_atletas.data)
-            dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
+            df_todos_los_atletas = pd.DataFrame(resp_atletas.data)
+            dict_atletas = dict(zip(df_todos_los_atletas["id"], df_todos_los_atletas["nombre"]))
             
             sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
-            atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
+            atleta_row = df_todos_los_atletas[df_todos_los_atletas["id"] == sel_id].iloc[0]
             
             st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
             st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
@@ -329,7 +321,6 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
             
-            # CASILLA DE CONTROL REINCORPORADA DE FORMA SEGURA PARA ROLES TÉCNICOS
             modo_equipo = st.sidebar.checkbox("👥 Activar Comparativa de Equipo", value=False)
     except Exception as e:
         st.sidebar.error("Error cargando nómina de atletas.")
@@ -339,7 +330,6 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# CASILLA RE-ESTRUCTURADA: APAGADA POR DEFECTO PARA LEER LA BASE DE DATOS DIRECTAMENTE
 modo_online_manual = st.sidebar.checkbox("⏱️ Activar modo On Line manual", value=False)
 sincronizar_db = not modo_online_manual
 
@@ -377,6 +367,7 @@ if not es_preinfantil:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
+# EXTRACCIÓN DEL ATLETA PRINCIPAL
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -432,31 +423,33 @@ T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# MOTOR MATEMÁTICO ASINTÓTICO
-if t_peak > t0 and t_pb > t0:
-    tau = (t_pb - t0) / (t_peak - t0)
-    D = T_pb - T_target
-    def ecuacion_k(k_val):
-        ter_exp = (np.exp(-k_val * tau) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-        return (T_target + (T0 - T_target) * ter_exp) - T_pb
-    k_opt, _, _, _ = fsolve(ecuacion_k, 1.0, full_output=True)
-    k = k_opt[0]
-else:
-    k, D = 0.0, 0.0
+# MOTOR MATEMÁTICO ASINTÓTICO INDIVIDUAL
+def resolver_k_individual(t0_val, T0_val, t_pb_val, T_pb_val, t_peak_val, T_target_val):
+    if t_peak_val > t0_val and t_pb_val > t0_val:
+        tau_val = (t_pb_val - t0_val) / (t_peak_val - t0_val)
+        def ecuacion_k(k_val):
+            ter_exp = (np.exp(-k_val * tau_val) - np.exp(-k_val)) / (1 - np.exp(-k_val))
+            return (T_target_val + (T0_val - T_target_val) * ter_exp) - T_pb_val
+        k_opt, _, _, _ = fsolve(ecuacion_k, 1.0, full_output=True)
+        return k_opt[0]
+    return 0.0
 
-def calcular_tiempo_proyectado(t_array):
+def calcular_curva_atleta(t_array, t0_val, T0_val, t_pb_val, T_pb_val, t_peak_val, T_target_val, k_val, h_val):
     tiempos = []
+    D_val = T_pb_val - T_target_val
     for t in t_array:
-        if t < t_pb:
-            tau_t = (t - t0) / (t_peak - t0)
-            ter_exp = (np.exp(-k * tau_t) - np.exp(-k)) / (1 - np.exp(-k))
-            T_t = T_target + (T0 - T_target) * ter_exp
+        if t < t_pb_val:
+            tau_t = (t - t0_val) / (t_peak_val - t0_val)
+            ter_exp = (np.exp(-k_val * tau_t) - np.exp(-k_val)) / (1 - np.exp(-k_val))
+            T_t = T_target_val + (T0_val - T_target_val) * ter_exp
         else:
-            T_t = T_pb - D * (1 - np.exp(-h * (t - t_pb)))
+            T_t = T_pb_val - D_val * (1 - np.exp(-h_val * (t - t_pb_val)))
         tiempos.append(T_t)
     return np.array(tiempos)
 
-T_intermedia_val = float(calcular_tiempo_proyectado([t_intermedia])[0])
+k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+D = T_pb - T_target
+T_intermedia_val = float(calcular_curva_atleta([t_intermedia], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
 
 c1, c2, c3 = st.columns(3)
 with c1: st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k:.4f}")
@@ -467,16 +460,48 @@ with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"
 # LIENZO DE RENDERIZACIÓN GRÁFICA
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
-tiempos_curva = calcular_tiempo_proyectado(edades_curva)
+tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
 
 fig = plt.figure(figsize=(8.5, 11.0))
-
 if sincronizar_db and len(df_procesado) > 0:
     ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 else:
     ax = fig.add_axes([0.14, 0.25, 0.72, 0.60])
 
-ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
+# LÓGICA DE PROYECCIÓN COMPARTIDA DE EQUIPO (DENTRO DEL GRÁFICO)
+if sincronizar_db and modo_equipo and not df_todos_los_atletas.empty:
+    for _, row_atl in df_todos_los_atletas.iterrows():
+        id_compa = int(row_atl["id"])
+        if id_compa == st.session_state.nadador_seleccionado_id:
+            continue  # Evitar duplicar el principal
+            
+        try:
+            resp_comp = supabase.table("marcas_historicas").select("edad, tiempo").eq("prueba", titulo_grafico).eq("usuario_id", id_compa).order("edad", desc=False).execute()
+            if resp_comp.data and len(resp_comp.data) >= 1:
+                df_c = pd.DataFrame(resp_comp.data)
+                c_t0, c_T0 = float(df_c.iloc[0]["edad"]), float(df_c.iloc[0]["tiempo"])
+                
+                # Buscar PB de control para el compañero
+                if len(df_c) == 1:
+                    c_t_pb, c_T_pb = c_t0, c_T0
+                else:
+                    idx_min = df_c["tiempo"].idxmin()
+                    if (len(df_c) - 1 - idx_min) >= 2:
+                        c_t_pb, c_T_pb = float(df_c.iloc[-1]["edad"]), float(df_c.iloc[-1]["tiempo"])
+                    else:
+                        c_t_pb, c_T_pb = float(df_c.iloc[idx_min]["edad"]), float(df_c.iloc[idx_min]["tiempo"])
+                
+                k_c = resolver_k_individual(c_t0, c_T0, c_t_pb, c_T_pb, t_peak, T_target)
+                edades_c = np.linspace(c_t0, t_peak, 200)
+                tiempos_c = calcular_curva_atleta(edades_c, c_t0, c_T0, c_t_pb, c_T_pb, t_peak, T_target, k_c, h)
+                
+                # Renderizar curva atenuada del miembro del equipo
+                ax.plot(edades_c, tiempos_c, linestyle=":", linewidth=1.0, alpha=0.4, label=f"Eq: {row_atl['nombre']}")
+        except Exception:
+            pass
+
+# Curva principal del nadador seleccionado
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=2.0, label=f"Proyección: {st.session_state.nadador_seleccionado_nombre}")
 
 if sincronizar_db and len(df_procesado) > 0:
     ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
@@ -523,17 +548,13 @@ else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
 
-if sincronizar_db:
-    ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
-else:
-    ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nCategoría de Referencia: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="bold", pad=10)
-
 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="bold")
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="bold")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
+# TABLAS ABAJO DEL LIENZO
 if sincronizar_db and len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -567,7 +588,6 @@ if sincronizar_db and len(df_procesado) > 0:
     else:
         if total_filas > 32:
             df_table_render = df_table_render.iloc[:32]
-            
         df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
         df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
         
@@ -699,7 +719,7 @@ with tab_entrenador:
                         "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
                         "categoria": u_cat, **up_data
                     }, on_conflict="prueba,genero,categoria").execute()
-                    st.success(f"Tiempos de referencia actualizados para {u_cat}.")
+                    st.success(f"Tiempos de referencia actualizados.")
                     st.rerun()
     else:
         st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
@@ -759,18 +779,8 @@ with tab_admin:
                     
                     if user_actual["estatus"] != nuevo_est_user:
                         correo_admin = st.secrets.get("EMAIL_ADMIN", "admin@clubgallego.com")
-                        
                         asunto_correo = "Notificación de Auditoría: Cambio de Estatus de Acceso"
-                        cuerpo_correo = (
-                            f"Estimado(a) {user_actual['nombre']},\n\n"
-                            f"Le notificamos que el estatus de su perfil en nuestra plataforma de rendimiento ha sido actualizado "
-                            f"por el cuerpo de administración global.\n\n"
-                            f"• Estatus anterior: {user_actual['estatus']}\n"
-                            f"• Nuevo estatus activo: {nuevo_est_user}\n\n"
-                            f"Si considera que esto es un error o necesita asistencia técnica, responda directamente a esta dirección de correo."
-                        )
-                        
-                        # Se envía al usuario afectado y una copia de respaldo a ti
+                        cuerpo_correo = f"Estimado(a) {user_actual['nombre']},\n\nLe notificamos que el estatus de su perfil ha sido actualizado a {nuevo_est_user}."
                         enviar_correo_alerta(user_actual["email"], asunto_correo, cuerpo_correo)
                         enviar_correo_alerta(correo_admin, f"Auditoría Interna: Estatus Modificado - ID {id_mod}", cuerpo_correo)
                         st.toast("📧 Correos de auditoría de estatus enviados correctamente.")
@@ -805,6 +815,6 @@ if len(df_procesado) > 0 or not sincronizar_db:
     with c_exp3:
         st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}.png", mime="image/png")
         
-    st.caption("💡 *Nota de Impresión:* La imagen generada respeta estrictamente los márgenes de 1.5 cm laterales, 2.5 cm superior y 1.5 cm inferior al imprimirse en formato Carta vertical.")
+    st.caption("💡 *Nota de Impresión:* La imagen generada respeta estrictamente los márgenes de formato Carta vertical.")
 else:
     st.info("No hay datos históricos disponibles para exportar en esta prueba todavía.")
