@@ -47,8 +47,8 @@ def obtener_index_seguro(lista, valor):
 
 def enviar_correo_alerta(destinatario, asunto, cuerpo):
     """
-    Función para el envío automatizado de auditorías y alertas por correo electrónico.
-    Conecta de forma segura utilizando las credenciales almacenadas en st.secrets.
+    Función optimizada para el envío automatizado de auditorías y alertas por correo electrónico.
+    Detecta de forma dinámica el puerto (465 SSL / 587 TLS) para evitar bloqueos del servidor.
     """
     import smtplib
     from email.mime.text import MIMEText
@@ -57,13 +57,15 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
     remite = st.secrets.get("EMAIL_REMITE", "")
     password = st.secrets.get("EMAIL_PASSWORD", "")
     smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
-    try:
-	smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
-    except ValueError:
-	smtp_puerto = 465
     
+    # Forzar que el puerto sea un entero de forma segura
+    try:
+        smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
+    except ValueError:
+        smtp_puerto = 465
+    
+    # Si no hay credenciales reales en los Secrets, opera en modo simulación por consola lateral
     if not remite or not password:
-        # Modo pasivo si el usuario no ha configurado credenciales de correo reales en los Secrets
         st.sidebar.info(f"📋 Auditoría Interna (Simulada): '{asunto}' destinado a {destinatario}")
         return False
 
@@ -73,12 +75,13 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
         msg['From'] = remite
         msg['To'] = destinatario
         
-	# LÓGICA ADAPTATIVA SEGÚN EL PUERTO CONFIGURADO
+        # LÓGICA ADAPTATIVA SEGÚN EL PUERTO CONFIGURADO
         if smtp_puerto == 465:
-       	    with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto, timeout=10) as server:
-            	server.login(remite, password)
-            	server.sendmail(remite, [destinatario], msg.as_string())
-	else:
+            # Conexión SSL directa (Puerto tradicional seguro)
+            with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto, timeout=10) as server:
+                server.login(remite, password)
+                server.sendmail(remite, [destinatario], msg.as_string())
+        else:
             # Conexión TLS / STARTTLS (Puerto 587 o alternativos)
             with smtplib.SMTP(smtp_servidor, smtp_puerto, timeout=10) as server:
                 server.ehlo()
@@ -86,10 +89,11 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
                 server.ehlo()
                 server.login(remite, password)
                 server.sendmail(remite, [destinatario], msg.as_string())
-        
-	return True
+                
+        return True
     except Exception as email_err:
-        st.sidebar.warning(f"⚠️ No se pudo despachar el correo de auditoría: {email_err}")
+        # Esto te mostrará el error exacto en la barra lateral si el servidor de correos lo rechaza
+        st.sidebar.error(f"⚠️ Error crítico de correo: {email_err}")
         return False
 
 def calcular_categoria_competencia(fecha_nac_str):
