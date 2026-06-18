@@ -289,7 +289,8 @@ if not es_preinfantil:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
+modo_manual_cortesia = st.sidebar.checkbox("🎛️ Activar modo On Line manual", value=False)
+sincronizar_db = not modo_manual_cortesia
 
 try:
     response = supabase.table("marcas_historicas") \
