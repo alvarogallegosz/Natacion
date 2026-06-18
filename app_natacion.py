@@ -328,6 +328,9 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
+            
+            # CASILLA DE CONTROL REINCORPORADA DE FORMA SEGURA PARA ROLES TÉCNICOS
+            modo_equipo = st.sidebar.checkbox("👥 Activar Comparativa de Equipo", value=False)
     except Exception as e:
         st.sidebar.error("Error cargando nómina de atletas.")
 else:
@@ -796,9 +799,9 @@ if len(df_procesado) > 0 or not sincronizar_db:
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
     with c_exp1:
-        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}.csv", mime="text/csv", disabled=not sincronizar_db)
+        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}.csv", mime=\"text/csv\", disabled=not sincronizar_db)
     with c_exp2:
-        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}.txt", mime="text/plain", disabled=not sincronizar_db)
+        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}.txt", mime=\"text/plain\", disabled=not sincronizar_db)
     with c_exp3:
         st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}.png", mime="image/png")
         
