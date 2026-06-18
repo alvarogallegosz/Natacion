@@ -387,13 +387,17 @@ tiempos_curva = calcular_tiempo_proyectado(edades_curva)
 # Inicialización fija del lienzo Carta Vertical (8.5 x 11 pulgadas)
 fig = plt.figure(figsize=(8.5, 11.0))
 
-# COORDENADAS ORIGINALES RESTAURADAS PARA EL DISEÑO CARTA
-ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+# Si es modo manual, expandimos el eje vertical del gráfico ya que no habrá tablas abajo
+if modo_manual_cortesia:
+    ax = fig.add_axes([0.14, 0.25, 0.72, 0.60])
+else:
+    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
 
 # REQUERIMIENTO: Línea proyectada punteada y más delgada
 ax.plot(edades_curva, tiempos_curva, color="#007A87", linestyle=":", linewidth=1.2, label="Proyección Fisiológica")
 
-if len(df_procesado) > 0:
+# Solo graficar historial real si NO es modo manual de cortesía
+if not modo_manual_cortesia and len(df_procesado) > 0:
     ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
     ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
@@ -435,22 +439,16 @@ if not es_preinfantil:
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50"}
     ]
     
-    # REQUERIMIENTO: Ubicados siempre en el sector izquierdo
     x_texto = (t0 - 0.5) + 0.05
-    
-    # CORRECCIÓN DE LA SUPERPOSICIÓN: Filtramos y ordenamos de ARRIBA hacia ABAJO (Tiempos mayores a menores)
     ref_filtradas = sorted([r for r in referencias if r["val"] > 0], key=lambda x: x["val"], reverse=True)
     
-    # Alternancia inteligente basada en la proximidad real del eje Y
     for i, r in enumerate(ref_filtradas):
         ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
         
-        # El World Record siempre va obligatoriamente por debajo de su línea
         if r["lbl"] == "World Record":
             va_ajustada = "top"
             desplazamiento_y = - (m_wr * 0.008)
         else:
-            # Si hay una línea previa arriba y está muy cerca, esta la tiramos hacia abajo
             if i > 0 and abs(ref_filtradas[i-1]["val"] - r["val"]) < (m_wr * 0.035):
                 va_ajustada = "top"
                 desplazamiento_y = - (m_wr * 0.008)
@@ -463,16 +461,21 @@ else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr - (m_wr * 0.008), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="top", ha="left")
 
-# REQUERIMIENTO: Se elimina la negrita (fontweight="normal") en título y etiquetas de ejes
-ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=11, fontweight="normal", pad=10)
+# REQUERIMIENTO: Ocultar nombre del nadador si es modo manual
+if modo_manual_cortesia:
+    titulo_dinamico = f"Curva de Proyección Fisiológica Asintótica - {titulo_grafico}\nModo: Simulador de Cortesía Manual (Anónimo)"
+else:
+    titulo_dinamico = f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}"
+
+ax.set_title(titulo_dinamico, fontsize=11, fontweight="normal", pad=10)
 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5, fontweight="normal")
 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5, fontweight="normal")
 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
 ax.set_axisbelow(True) 
 ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO
-if len(df_procesado) > 0:
+# 2. RENDERIZADO DE TABLAS AMPLIADAS BAJO EL GRÁFICO (Solo si NO es modo manual)
+if not modo_manual_cortesia and len(df_procesado) > 0:
     df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
     df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
     df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
@@ -494,15 +497,23 @@ if len(df_procesado) > 0:
     if total_filas <= limite_filas_por_bloque:
         ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
         ax_table.axis('off')
-        
-        mpl_table = ax_table.table(
-            cellText=df_table_render.values,
-            colLabels=df_table_render.columns,
-            cellLoc='center',
-            loc='upper center',
-            colWidths=[0.15, 0.15, 0.70]
-        )
+        mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=[0.15, 0.15, 0.70])
         Skinner_estilo(mpl_table)
+    else:
+        if total_filas > 32:
+            df_table_render = df_table_render.iloc[:32]
+        df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
+        df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
+        
+        ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
+        ax_table1.axis('off')
+        mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
+        Skinner_estilo(mpl_table1)
+        
+        ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
+        ax_table2.axis('off')
+        mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
+        Skinner_estilo(mpl_table2)
         
     else:
         if total_filas > 32:
@@ -536,10 +547,11 @@ if len(df_procesado) > 0:
 st.pyplot(fig)
 
 # -------------------------------------------------------------
-# MÓDULOS DE GESTIÓN SEGÚN ROL
+# MÓDULOS DE GESTIÓN SEGÚN ROL (Solo visibles si NO es modo manual)
 # -------------------------------------------------------------
-st.markdown("---")
-tab_marcas, tab_entrenador, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos por Categoría (Entrenador)", "🛡️ Consola Global (Admin)"])
+if not modo_manual_cortesia:
+    st.markdown("---")
+    tab_marcas, tab_entrenador, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos por Categoría (Entrenador)", "🛡️ Consola Global (Admin)"])
 
 with tab_marcas:
     col_ins, col_vistas = st.columns([1, 2])
@@ -687,26 +699,31 @@ with tab_admin:
         st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-# CENTRO DE EXPORTACIÓN (Actualizado con Margenes Precisos)
+# CENTRO DE EXPORTACIÓN (Se mantiene fuera de la condición para que puedan bajar el gráfico limpio)
 # -------------------------------------------------------------
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
 
-if len(df_procesado) > 0:
-    export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
-    csv_data = export_df.to_csv(index=False).encode('utf-8')
-    txt_string = export_df.to_string(index=False)
-    
+if modo_manual_cortesia or len(df_procesado) > 0:
     img_buffer = io.BytesIO()
     fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
     img_buffer.seek(0)
     
-    c_exp1, c_exp2, c_exp3 = st.columns(3)
-    with c_exp1:
-        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
-    with c_exp2:
-        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
-    with c_exp3:
-        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
+    if modo_manual_cortesia:
+        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"simulacion_manual_{titulo_grafico}.png", mime="image/png")
+    else:
+        export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
+        csv_data = export_df.to_csv(index=False).encode('utf-8')
+        txt_string = export_df.to_string(index=False)
+        
+        c_exp1, c_exp2, c_exp3 = st.columns(3)
+        with c_exp1:
+            st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
+        with c_exp2:
+            st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
+        with c_exp3:
+            st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
+        
+    st.caption("💡 *Nota de Impresión:* La imagen generada respeta estrictamente los márgenes de 1.5 cm laterales, 2.5 cm superior y 1.5 cm inferior al imprimirse en formato Carta vertical.")
 else:
     st.info("No hay datos históricos disponibles para exportar en esta prueba todavía.")
