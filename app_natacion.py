@@ -227,7 +227,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # -------------------------------------------------------------
-# CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS
+# CONSOLA LATERAL: SELECCIÓN GLOBAL DE ATLETAS (CORREGIDO)
 # -------------------------------------------------------------
 st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:** `{st.session_state.rol}`")
 if st.sidebar.button("🚪 Salir del Sistema"):
@@ -246,8 +246,10 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
             
             st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
-            st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
+            st.session_state.nadador_seleccionado_nombre = depth_row = atleta_row["nombre"]
             st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
+            # CORRECCIÓN DE SESIÓN: Sincronizamos la fecha de nacimiento del atleta seleccionado en tiempo real
+            st.session_state.fecha_nacimiento = atleta_row["fecha_nacimiento"] 
             
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
@@ -346,15 +348,24 @@ T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# MOTOR MATEMÁTICO ASINTÓTICO
-if t_peak > t0 and t_pb > t0:
+# MOTOR MATEMÁTICO ASINTÓTICO OPTIMIZADO
+if t_peak > t0 and t_pb > t0 and T0 > T_target:
     tau = (t_pb - t0) / (t_peak - t0)
     D = T_pb - T_target
     def ecuacion_k(k_val):
         ter_exp = (np.exp(-k_val * tau) - np.exp(-k_val)) / (1 - np.exp(-k_val))
         return (T_target + (T0 - T_target) * ter_exp) - T_pb
-    k_opt, _, _, _ = fsolve(ecuacion_k, 1.0, full_output=True)
-    k = k_opt[0]
+    
+    try:
+        k_opt, infodict, ier, mesg = fsolve(ecuacion_k, 1.0, full_output=True)
+        if ier == 1:
+            k = float(k_opt[0])
+        else:
+            k = 0.05  # Valor de contingencia si fsolve no converge perfectamente
+            st.sidebar.warning("⚠️ Ajuste fisiológico aproximado (curva en estabilización).")
+    except Exception:
+        k = 0.05
+        st.sidebar.warning("⚠️ Datos base inconsistentes para el modelo asintótico.")
 else:
     k, D = 0.0, 0.0
 
@@ -428,13 +439,23 @@ if not es_preinfantil:
         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "pos": "center"}
     ]
     x_texto = (t0 - 0.5) + 0.05
-    for r in referencias:
-        if r["val"] > 0:
-            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-            va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
-            # CORRECCIÓN AQUÍ: Se cambió "center" por 0.0 para evitar la suma de Float + String
-            desplazamiento_y = 0.08 if r["pos"] == "top" else (-0.08 if r["pos"] == "bottom" else 0.0)
-            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
+    
+    # Ordenar referencias válidas por tiempo para aplicar un espaciado inteligente
+    ref_filtradas = sorted([r for r in referencias if r["val"] > 0], key=lambda x: x["val"])
+    ultimo_y_renderizado = -999.0
+    
+    for r in ref_filtradas:
+        ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+        va_ajustada = "bottom" if r["pos"] == "top" else ("top" if r["pos"] == "bottom" else "center")
+        
+        # Evitar solapamiento si dos marcas están a menos de un 1.5% de distancia en el eje Y
+        y_pos_texto = r["val"]
+        if abs(y_pos_texto - ultimo_y_renderizado) < (val_T0 * 0.015):
+            y_pos_texto += (val_T0 * 0.012) # Desplaza ligeramente hacia arriba el texto conflictivo
+            
+        desplazamiento_y = 0.0
+        ax.text(x_texto, y_pos_texto + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=8, va=va_ajustada, ha="left")
+        ultimo_y_renderizado = y_pos_texto
 else:
     ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
     ax.text((t0 - 0.5) + 0.05, m_wr, f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=8, va="center", ha="left")
@@ -607,12 +628,34 @@ with tab_entrenador:
                 if db_m_wr is not None: up_data["m_wr"] = u_wr
                 
                 if up_data:
-                    supabase.table("marcas_referencia").upsert({
-                        "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
-                        "categoria": u_cat, **up_data
-                    }, on_conflict="prueba,genero,categoria").execute()
-                    st.success(f"Tiempos de referencia actualizados para {u_cat}.")
-                    st.rerun()
+                    try:
+                        # Verificación explícita segura para evitar fallos de claves únicas compuestos
+                        chequeo_existencia = supabase.table("marcas_referencia")\
+                            .select("prueba")\
+                            .eq("prueba", titulo_grafico)\
+                            .eq("genero", st.session_state.nadador_seleccionado_genero)\
+                            .eq("categoria", u_cat).execute()
+                            
+                        if chequeo_existencia.data:
+                            # Si ya existe, ejecutamos un update preciso
+                            supabase.table("marcas_referencia").update(up_data)\
+                                .eq("prueba", titulo_grafico)\
+                                .eq("genero", st.session_state.nadador_seleccionado_genero)\
+                                .eq("categoria", u_cat).execute()
+                        else:
+                            # Si es nuevo, insertamos la estructura completa
+                            nuevo_registro_ref = {
+                                "prueba": titulo_grafico,
+                                "genero": st.session_state.nadador_seleccionado_genero,
+                                "categoria": u_cat,
+                                **up_data
+                            }
+                            supabase.table("marcas_referencia").insert(nuevo_registro_ref).execute()
+                            
+                        st.success(f"Tiempos de referencia actualizados para {u_cat}.")
+                        st.rerun()
+                    except Exception as err_ref:
+                        st.error(f"Error al sincronizar tiempos de referencia: {err_ref}")
     else:
         st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
 
