@@ -799,9 +799,9 @@ if len(df_procesado) > 0 or not sincronizar_db:
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
     with c_exp1:
-        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}.csv", mime=\"text/csv\", disabled=not sincronizar_db)
+        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}.csv", mime="text/csv", disabled=not sincronizar_db)
     with c_exp2:
-        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}.txt", mime=\"text/plain\", disabled=not sincronizar_db)
+        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}.txt", mime="text/plain", disabled=not sincronizar_db)
     with c_exp3:
         st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"reporte_carta_{titulo_grafico}.png", mime="image/png")
         
