@@ -54,12 +54,15 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
     from email.mime.text import MIMEText
     
     # Extraer variables de configuración segura desde Streamlit Secrets
-    remite = st.secrets.get("EMAIL_REMITE", "alertas@clubgallego.com")
+    remite = st.secrets.get("EMAIL_REMITE", "")
     password = st.secrets.get("EMAIL_PASSWORD", "")
     smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
-    smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
+    try:
+	smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
+    except ValueError:
+	smtp_puerto = 465
     
-    if not password:
+    if not remite or not password:
         # Modo pasivo si el usuario no ha configurado credenciales de correo reales en los Secrets
         st.sidebar.info(f"📋 Auditoría Interna (Simulada): '{asunto}' destinado a {destinatario}")
         return False
@@ -70,10 +73,21 @@ def enviar_correo_alerta(destinatario, asunto, cuerpo):
         msg['From'] = remite
         msg['To'] = destinatario
         
-        with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto) as server:
-            server.login(remite, password)
-            server.sendmail(remite, [destinatario], msg.as_string())
-        return True
+	# LÓGICA ADAPTATIVA SEGÚN EL PUERTO CONFIGURADO
+        if smtp_puerto == 465:
+       	    with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto, timeout=10) as server:
+            	server.login(remite, password)
+            	server.sendmail(remite, [destinatario], msg.as_string())
+	else:
+            # Conexión TLS / STARTTLS (Puerto 587 o alternativos)
+            with smtplib.SMTP(smtp_servidor, smtp_puerto, timeout=10) as server:
+                server.ehlo()
+                server.starttls()  # Eleva la conexión a un entorno cifrado seguro
+                server.ehlo()
+                server.login(remite, password)
+                server.sendmail(remite, [destinatario], msg.as_string())
+        
+	return True
     except Exception as email_err:
         st.sidebar.warning(f"⚠️ No se pudo despachar el correo de auditoría: {email_err}")
         return False
