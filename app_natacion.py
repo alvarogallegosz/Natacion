@@ -47,29 +47,36 @@ def obtener_index_seguro(lista, valor):
 
 def enviar_correo_alerta(destinatario, asunto, cuerpo):
     """
-    Función base para el envío automatizado de auditorías y alertas por correo.
-    Utiliza smtplib estándar conectado a las credenciales seguras.
+    Función para el envío automatizado de auditorías y alertas por correo electrónico.
+    Conecta de forma segura utilizando las credenciales almacenadas en st.secrets.
     """
     import smtplib
     from email.mime.text import MIMEText
     
+    # Extraer variables de configuración segura desde Streamlit Secrets
+    remite = st.secrets.get("EMAIL_REMITE", "alertas@clubgallego.com")
+    password = st.secrets.get("EMAIL_PASSWORD", "")
+    smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
+    smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
+    
+    if not password:
+        # Modo pasivo si el usuario no ha configurado credenciales de correo reales en los Secrets
+        st.sidebar.info(f"📋 Auditoría Interna (Simulada): '{asunto}' destinado a {destinatario}")
+        return False
+
     try:
-        remite = st.secrets.get("EMAIL_REMITE", "alertas@clubgallego.com")
-        password = st.secrets.get("EMAIL_PASSWORD", "tu_password_aqui")
-        smtp_servidor = st.secrets.get("EMAIL_SMTP_SERVER", "smtp.gmail.com")
-        smtp_puerto = int(st.secrets.get("EMAIL_SMTP_PORT", 465))
-        
         msg = MIMEText(cuerpo)
         msg['Subject'] = asunto
         msg['From'] = remite
         msg['To'] = destinatario
         
-        # Descomentar el bloque inferior cuando se configuren credenciales reales en Secrets
-        # with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto) as server:
-        #     server.login(remite, password)
-        #     server.sendmail(remite, [destinatario], msg.as_string())
+        with smtplib.SMTP_SSL(smtp_servidor, smtp_puerto) as server:
+            server.login(remite, password)
+            server.sendmail(remite, [destinatario], msg.as_string())
+        return True
     except Exception as email_err:
-        st.sidebar.warning(f"Aviso de auditoría local (Correo pendiente de credenciales): {email_err}")
+        st.sidebar.warning(f"⚠️ No se pudo despachar el correo de auditoría: {email_err}")
+        return False
 
 def calcular_categoria_competencia(fecha_nac_str):
     if not fecha_nac_str or pd.isna(fecha_nac_str) or str(fecha_nac_str).strip().lower() in ['none', 'nan', '']:
@@ -224,9 +231,23 @@ if not st.session_state.autenticado:
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
                                 
                                 if not es_nadador_reg:
-                                    cuerpo_adm = f"Alerta de Auditoría:\n\nEl usuario '{nuevo_nombre}' ha solicitado una cuenta de {nuevo_rol}.\nSu estatus actual es INACTIVO hasta que un Administrador valide su acceso en el panel global."
-                                    enviar_correo_alerta(nuevo_email, "Solicitud de Activación de Cuenta Técnica", cuerpo_adm)
-                                    st.info(f"¡Registro procesado! Al ser un rol de **{nuevo_rol}**, su estatus se ha fijado como **Inactivo** por seguridad. Se ha remitido un correo al administrador para su validación formal.")
+                                    # TEXTO Y DESTINO DE CORREO TOTALMENTE PARAMETRIZADOS
+                                    correo_administrador_global = st.secrets.get("EMAIL_ADMIN", nuevo_email)
+                                    
+                                    cuerpo_adm = (
+                                        f"🚨 ALERTA DE AUDITORÍA - SOLICITUD DE CUENTA TÉCNICA 🚨\n\n"
+                                        f"Se ha registrado una nueva cuenta con perfil de acceso elevado:\n"
+                                        f"• Nombre Completo: {nuevo_nombre}\n"
+                                        f"• Nombre de Usuario (Alias): {nuevo_usuario}\n"
+                                        f"• Correo Electrónico: {nuevo_email}\n"
+                                        f"• Rol Solicitado: {nuevo_rol}\n\n"
+                                        f"🔐 MEDIDA DE SEGURIDAD AUTOMÁTICA:\n"
+                                        f"La cuenta ha sido creada con estatus INACTIVO. El usuario no podrá acceder al "
+                                        f"sistema hasta que un Administrador valide su identidad y fuerce su estatus a 'Activo' "
+                                        f"desde el panel de control global de la aplicación."
+                                    )
+                                    enviar_correo_alerta(correo_administrador_global, "🚨 Alerta de Auditoría: Solicitud de Registro Técnico Pendiente", cuerpo_adm)
+                                    st.info(f"¡Registro procesado! Al ser un rol de **{nuevo_rol}**, su estatus se ha fijado como **Inactivo** por seguridad. Se ha remitido una notificación al Administrador Principal para su verificación formal.")
                                 else:
                                     st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión de forma regular.")
                         except Exception as reg_err:
@@ -297,8 +318,9 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# Sincronización del modo Online / BD manual
-sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
+# CASILLA RE-ESTRUCTURADA: APAGADA POR DEFECTO PARA LEER LA BASE DE DATOS DIRECTAMENTE
+modo_online_manual = st.sidebar.checkbox("⏱️ Activar modo On Line manual", value=False)
+sincronizar_db = not modo_online_manual
 
 if sincronizar_db:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
@@ -421,7 +443,7 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{D:.2f} s"
 with c3: st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
-# LIENZO AJUSTADO: MODO ONLINE VS BD MODERADO
+# LIENZO DE RENDERIZACIÓN GRÁFICA
 # -------------------------------------------------------------
 edades_curva = np.linspace(t0, t_peak, 500)
 tiempos_curva = calcular_tiempo_proyectado(edades_curva)
@@ -688,12 +710,10 @@ with tab_admin:
                 campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
                 
                 with c_gen:
-                    # BLINDAJE CONTRA VALORES NULL/NaN EN GÉNERO
                     val_gen = user_actual["genero"]
                     gen_inicial = val_gen if (not pd.isna(val_gen) and val_gen in ["F", "M"]) else "F"
                     nuevo_gen_user = st.selectbox("Género:", options=["F", "M"], index=["F", "M"].index(gen_inicial), disabled=campos_deshabilitados)
                 
-                # BLINDAJE DEFENSIVO CONTRA CADENAS 'nan' O NULL EN FECHA DE NACIMIENTO
                 val_fnac = user_actual["fecha_nacimiento"]
                 if pd.isna(val_fnac) or str(val_fnac).strip().lower() in ['none', 'nan', '']:
                     f_nac_inicial = datetime.date.today()
@@ -717,11 +737,21 @@ with tab_admin:
                     supabase.table("usuarios").update(datos_update).eq("id", int(id_mod)).execute()
                     
                     if user_actual["estatus"] != nuevo_est_user:
-                        asunto_correo = "Notificación de Auditoría: Cambio de Estatus de Acceso"
-                        cuerpo_correo = f"Estimado(a) {user_actual['nombre']},\n\nLe notificamos que el estatus de su perfil en la plataforma ha sido actualizado.\nEstatus previo: {user_actual['estatus']}\nNuevo estatus activo: {nuevo_est_user}\n\nSi tiene dudas, responda a esta dirección."
+                        correo_admin = st.secrets.get("EMAIL_ADMIN", "admin@clubgallego.com")
                         
+                        asunto_correo = "Notificación de Auditoría: Cambio de Estatus de Acceso"
+                        cuerpo_correo = (
+                            f"Estimado(a) {user_actual['nombre']},\n\n"
+                            f"Le notificamos que el estatus de su perfil en nuestra plataforma de rendimiento ha sido actualizado "
+                            f"por el cuerpo de administración global.\n\n"
+                            f"• Estatus anterior: {user_actual['estatus']}\n"
+                            f"• Nuevo estatus activo: {nuevo_est_user}\n\n"
+                            f"Si considera que esto es un error o necesita asistencia técnica, responda directamente a esta dirección de correo."
+                        )
+                        
+                        # Se envía al usuario afectado y una copia de respaldo a ti
                         enviar_correo_alerta(user_actual["email"], asunto_correo, cuerpo_correo)
-                        enviar_correo_alerta(st.secrets.get("EMAIL_REMITE", "admin@clubgallego.com"), f"Auditoría: Estatus Modificado - ID {id_mod}", cuerpo_correo)
+                        enviar_correo_alerta(correo_admin, f"Auditoría Interna: Estatus Modificado - ID {id_mod}", cuerpo_correo)
                         st.toast("📧 Correos de auditoría de estatus enviados correctamente.")
                         
                     st.success("Cambios aplicados con éxito.")
