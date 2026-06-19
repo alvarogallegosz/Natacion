@@ -8,11 +8,36 @@ import io
 import hashlib
 from supabase import create_client, Client
 
+# --- NUEVOS IMPORTS PARA EL ENVÍO DE CORREOS ---
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 # -------------------------------------------------------------
 # FUNCIÓN DE ENCRIPTACIÓN DE CONTRASEÑAS
 # -------------------------------------------------------------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+# -------------------------------------------------------------
+# FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
+# -------------------------------------------------------------
+def enviar_email(asunto, cuerpo, destinatario):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = st.secrets["EMAIL_REMITE"]
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo, 'plain'))
+
+        # Usando SMTP_SSL para el puerto 465
+        with smtplib.SMTP_SSL(st.secrets["EMAIL_SMTP_SERVER"], int(st.secrets["EMAIL_SMTP_PORT"])) as server:
+            server.login(st.secrets["EMAIL_REMITE"], st.secrets["EMAIL_PASSWORD"])
+            server.sendmail(st.secrets["EMAIL_REMITE"], destinatario, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"Error al enviar email: {e}")
+        return False
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador de proyección de rendimiento para natación", layout="wide")
@@ -118,11 +143,16 @@ if "autenticado" not in st.session_state:
 
 def login_usuario(user, password):
     try:
-        # Se encripta la contraseña ingresada para compararla con la base de datos
         hashed_pw = hash_password(password)
         response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", hashed_pw).execute()
         if response.data:
             user_data = response.data[0]
+            
+            # --- INTEGRACIÓN: VALIDACIÓN DE ESTATUS PENDIENTE ---
+            if user_data.get("estatus") == "Pendiente":
+                st.error("⚠️ Tu cuenta está en proceso de revisión por la administración. Aún no puedes ingresar.")
+                return False
+                
             if user_data.get("estatus", "Activo") in ["Suspendido", "Bloqueado"]:
                 st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
                 return False
@@ -155,6 +185,7 @@ if not st.session_state.autenticado:
         tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
         
         with tab_login:
+            st.caption("Nota: Los nombres de usuario y contraseñas distinguen mayúsculas/minúsculas.")
             with st.form("form_login"):
                 usuario_input = st.text_input("Usuario o Correo:")
                 contrasena_input = st.text_input("Contraseña:", type="password")
@@ -163,10 +194,11 @@ if not st.session_state.autenticado:
                         st.success("Acceso autorizado.")
                         st.rerun()
                     else:
-                        st.error("Credenciales incorrectas. Verifique sus datos o use la pestaña de recuperación.")
+                        st.error("Credenciales incorrectas o cuenta en revisión. Verifique sus datos.")
                         
         with tab_registro:
             st.markdown("### 📝 Registro de Nuevas Cuentas")
+            st.caption("Nota: Los nombres de usuario y contraseñas distinguen mayúsculas/minúsculas.")
             nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Entrenador", "Administrador"], key="reg_rol_selector")
             es_nadador_reg = (nuevo_rol == "Nadador")
             
@@ -192,18 +224,27 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
+                                # --- INTEGRACIÓN: DETERMINAR ESTATUS Y DISPARAR CORREOS ---
+                                status_inicial = "Pendiente" if nuevo_rol in ["Entrenador", "Administrador"] else "Activo"
+                                
                                 nuevo_registro = {
                                     "nombre": nuevo_nombre, 
                                     "usuario": nuevo_usuario, 
                                     "email": nuevo_email,
-                                    "contrasena": hash_password(nueva_contrasena), # Contraseña encriptada
+                                    "contrasena": hash_password(nueva_contrasena),
                                     "rol": nuevo_rol, 
-                                    "estatus": "Activo",
+                                    "estatus": status_inicial,
                                     "genero": nuevo_genero if es_nadador_reg else None,
                                     "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
                                 }
                                 supabase.table("usuarios").insert(nuevo_registro).execute()
-                                st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
+                                
+                                if status_inicial == "Pendiente":
+                                    enviar_email("Cuenta en Revisión", f"Hola {nuevo_nombre}, tu cuenta de {nuevo_rol} ha sido registrada. Esta pendiente de revision por el administrador.", nuevo_email)
+                                    enviar_email("Nuevo Registro Pendiente", f"El usuario {nuevo_nombre} ({nuevo_rol}) se ha registrado. Email: {nuevo_email}. Favor revisar en consola admin.", st.secrets["EMAIL_ADMIN"])
+                                    st.success(f"¡Registro exitoso como **{nuevo_rol}**! Tu cuenta debe ser aprobada por el administrador.")
+                                else:
+                                    st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
                         except Exception as reg_err:
                             st.error(f"Error en registro: {reg_err}")
                     else:
@@ -230,7 +271,6 @@ if not st.session_state.autenticado:
                                 if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
                                     st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
                                 else:
-                                    # Se guarda la nueva contraseña encriptada
                                     supabase.table("usuarios").update({"contrasena": hash_password(nueva_clave)}).eq("id", user_info["id"]).execute()
                                     st.success("✅ Contraseña actualizada correctamente.")
                             else:
@@ -318,7 +358,6 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
 spc()
 st.sidebar.subheader("📊 Ajustes por prueba")
 
-# Lista completa de pruebas
 lista_pruebas = [
     '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre', 
     '50 Espalda', '100 Espalda', '200 Espalda', 
@@ -328,8 +367,6 @@ lista_pruebas = [
 ]
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
 
-# Reservamos visualmente el espacio para los sliders justo debajo del selectbox
-# Así evitamos errores porque "t_intermedia" necesita que t0 y t_peak ya estén calculados.
 contenedor_sliders = st.sidebar.container()
 
 m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
@@ -357,7 +394,6 @@ spc()
 st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
-# Carga de datos históricos
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -415,10 +451,6 @@ T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_va
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=inputs_bloqueados)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=inputs_bloqueados)
 
-# -------------------------------------------------------------
-# INYECCIÓN DE SLIDERS EN EL CONTENEDOR SUPERIOR
-# -------------------------------------------------------------
-# Ahora que ya existen t0 y t_peak, los insertamos en el espacio que reservamos arriba.
 with contenedor_sliders:
     spc()
     st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
@@ -429,7 +461,6 @@ if not modo_equipo and st.session_state.rol == "Nadador":
     st.sidebar.markdown("---")
     st.sidebar.caption("📅 *Plan de control de proyección a 3 meses hasta los 18 años requerido para cumplir normativas de rendimiento.*")
 
-# TÍTULO DINÁMICO CONDICIONADO DE LA CONSULTA
 if modo_equipo:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: Comparativo")
 elif simulacion_externa:
@@ -439,7 +470,6 @@ else:
 
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
-# MOTOR MATEMÁTICO ASINTÓTICO
 def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
     if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
         tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
@@ -843,7 +873,7 @@ else:
                     with c_rol:
                         nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(user_actual["rol"]))
                     with c_est:
-                        nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Suspendido", "Bloqueado"], index=["Activo", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
+                        nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Pendiente", "Suspendido", "Bloqueado"], index=["Activo", "Pendiente", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
                     
                     campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
                     
@@ -855,6 +885,15 @@ else:
                     nueva_f_nac_admin = st.date_input("Corregir Fecha Nacimiento:", value=f_nac_inicial, disabled=campos_deshabilitados)
                     
                     if st.button("⚠️ Forzar Cambios de Perfil"):
+                        
+                        # --- INTEGRACIÓN: DISPARADOR DE CORREO DE ACTIVACIÓN ---
+                        if user_actual.get("estatus") == "Pendiente" and nuevo_est_user == "Activo":
+                            enviar_email(
+                                "¡Tu cuenta ha sido activada!", 
+                                f"Hola {user_actual['nombre']}, tu cuenta ya está activa y puedes acceder al sistema.", 
+                                user_actual["email"]
+                            )
+
                         datos_update = {"rol": nuevo_rol_user, "estatus": nuevo_est_user}
                         if campos_deshabilitados:
                             datos_update["genero"] = None
