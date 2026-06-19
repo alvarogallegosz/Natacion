@@ -15,6 +15,10 @@ st.markdown(
     <style>
     div[data-testid="stMetricValue"] { font-size: 22px !important; }
     div[data-testid="stMetricLabel"] { font-size: 13px !important; }
+    /* Reducción de tamaño en títulos de la barra lateral para evitar saltos de línea */
+    section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3, section[data-testid="stSidebar"] .css-10trblm, section[data-testid="stSidebar"] h4 {
+        font-size: 13.5px !important;
+    }
     @media print {
         .no-print { display: none !important; }
         .print-only { display: block !important; }
@@ -23,6 +27,10 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# Estilo compacto para los separadores en la barra lateral (reducidos a la mitad)
+def spc():
+    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------
 # CONEXIÓN SEGURA CON SUPABASE
@@ -234,9 +242,9 @@ if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-# Panel de navegación de atletas (reducido el margen vertical)
+# Panel de navegación de atletas
 if st.session_state.rol in ["Entrenador", "Administrador"]:
-    st.sidebar.markdown("<br>", unsafe_allow_html=True)
+    spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
         resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
@@ -261,7 +269,7 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# Análisis Colectivo y Filtros (Restaurados y reubicados con menor espaciado)
+# Análisis Colectivo y Filtros
 modo_equipo = False
 tipo_filtro = "Todos los Atletas"
 filtro_genero = "Todos"
@@ -269,14 +277,14 @@ cat_sel = None
 ids_sel = []
 
 if st.session_state.rol in ["Entrenador", "Administrador"]:
-    st.sidebar.markdown("<br>", unsafe_allow_html=True)
+    spc()
     st.sidebar.subheader("👥 Análisis Colectivo")
     modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
     
     if modo_equipo:
-        st.sidebar.markdown("<br>", unsafe_allow_html=True)
+        spc()
         st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
-        filtro_genero = st.sidebar.radio("Segmentar obligatoriamente por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
+        filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
         tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
         
         try:
@@ -300,8 +308,8 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
         except Exception as e:
             st.sidebar.error("Error cargando los filtros secundarios.")
 
-# Ajuste por prueba (reducido el margen vertical)
-st.sidebar.markdown("<br>", unsafe_allow_html=True)
+# Ajuste por prueba
+spc()
 st.sidebar.subheader("📊 Ajustes por prueba")
 lista_pruebas = ['50 Libre', '100 Libre', '200 Libre', '50 Espalda', '100 Espalda', '200 Espalda', '50 Mariposa', '100 Mariposa', '200 Mariposa', '50 Pecho', '100 Pecho', '200 Pecho', '200 Combinado', '400 Combinado']
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
@@ -326,9 +334,10 @@ if not es_preinfantil:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# Adaptar modelo a Base de datos
-st.sidebar.markdown("<br>", unsafe_allow_html=True)
-sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
+# LÓGICA DE SIMULACIÓN EXTERNA (Inactivo predeterminado)
+spc()
+st.sidebar.subheader("🚨 Simulación de Escenarios")
+simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 # Carga de datos históricos base para el cálculo de límites
 try:
@@ -371,26 +380,32 @@ except Exception:
     df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
     db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
 
-val_t0 = db_t0 if (sincronizar_db and db_t0 is not None) else 10.0
-val_T0 = db_T0 if (sincronizar_db and db_T0 is not None) else float(round(m_wr * 1.8, 2))
-val_t_pb = db_t_pb if (sincronizar_db and db_t_pb is not None) else 12.0
-val_T_pb = db_T_pb if (sincronizar_db and db_T_pb is not None) else float(round(m_wr * 1.3, 2))
+# Si la simulación está activa, los campos de la base de datos se liberan para personalización manual (desvinculados de DB)
+val_t0 = db_t0 if (not simulacion_externa and db_t0 is not None) else 10.0
+val_T0 = db_T0 if (not simulacion_externa and db_T0 is not None) else float(round(m_wr * 1.8, 2))
+val_t_pb = db_t_pb if (not simulacion_externa and db_t_pb is not None) else 12.0
+val_T_pb = db_T_pb if (not simulacion_externa and db_T_pb is not None) else float(round(m_wr * 1.3, 2))
 val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
 # Celdas de configuración lateral
-st.sidebar.markdown("<br>", unsafe_allow_html=True)
+spc()
 st.sidebar.subheader("📐 Parámetros de Límites y PB")
-t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=sincronizar_db)
-T0 = st.sidebar.number_input("2. Tiempo Inicial (T0):", min_value=1.0, value=val_T0, step=0.1, disabled=sincronizar_db)
+t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=simulacion_externa)
+T0 = st.sidebar.number_input("2. Tiempo Inicial (T0):", min_value=1.0, value=val_T0, step=0.1, disabled=simulacion_externa)
 t_peak = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, value=23.0)
 T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_value=1.0, value=val_T_target)
-t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=sincronizar_db)
-T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=sincronizar_db)
+t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=simulacion_externa)
+T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=simulacion_externa)
 
-st.sidebar.markdown("<br>", unsafe_allow_html=True)
+spc()
 st.sidebar.subheader("⏱️ Rapidez de Deriva e Intervalo")
 h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
 t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
+
+# Proyecto cada 3 meses para el atleta hasta los 18 años (contexto general de control)
+if not modo_equipo and st.session_state.rol == "Nadador":
+    st.sidebar.markdown("---")
+    st.sidebar.caption("📅 *Plan de control de proyección a 3 meses hasta los 18 años requerido para cumplir normativas de rendimiento.*")
 
 # TÍTULO DINÁMICO CONDICIONADO DE LA CONSULTA
 if modo_equipo:
