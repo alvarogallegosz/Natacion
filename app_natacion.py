@@ -380,8 +380,7 @@ except Exception:
     df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
     db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
 
-# Si el modo simulación externa está INACTIVO (Modo BD = True), los inputs se bloquean (disabled=True) porque dependen de la BD.
-# Si está ACTIVO (Modo Simulación = True), los inputs se liberan (disabled=False) para configuración manual del usuario.
+# Si el modo simulación externa está INACTIVO (Modo BD = True), los inputs se bloquean.
 inputs_bloqueados = not simulacion_externa
 
 val_t0 = db_t0 if (db_t0 is not None) else 10.0
@@ -413,6 +412,8 @@ if not modo_equipo and st.session_state.rol == "Nadador":
 # TÍTULO DINÁMICO CONDICIONADO DE LA CONSULTA
 if modo_equipo:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: Comparativo")
+elif simulacion_externa:
+    st.markdown(f"### 🧪 Simulación de Escenarios: {titulo_grafico}")
 else:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 
@@ -581,7 +582,7 @@ if modo_equipo:
 
 else:
     # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL
+    # LIENZO INDIVIDUAL Y SIMULACIÓN
     # -------------------------------------------------------------
     edades_curva = np.linspace(t0, t_peak, 500)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -592,7 +593,9 @@ else:
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
-    if len(df_procesado) > 0:
+    
+    # Ocultar evolución real si estamos simulando externamente
+    if not simulacion_externa and len(df_procesado) > 0:
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
         ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
         todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
@@ -645,14 +648,20 @@ else:
         ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
         ax.text(x_texto, m_wr - ((lim_y_superior - lim_y_inferior) * 0.006), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7, va="top", ha="left")
 
-    ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, pad=10)
+    # Título dinámico
+    if simulacion_externa:
+        ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
+    else:
+        ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, pad=10)
+
     ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
     ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
     ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
     ax.set_axisbelow(True) 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-    if len(df_procesado) > 0:
+    # Ocultar tabla inferior de datos si estamos simulando externamente
+    if not simulacion_externa and len(df_procesado) > 0:
         df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
         df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
         df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
