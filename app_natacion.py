@@ -5,7 +5,14 @@ from scipy.optimize import fsolve
 import pandas as pd
 import datetime
 import io
+import hashlib
 from supabase import create_client, Client
+
+# -------------------------------------------------------------
+# FUNCIÓN DE ENCRIPTACIÓN DE CONTRASEÑAS
+# -------------------------------------------------------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador de proyección de rendimiento para natación", layout="wide")
@@ -28,7 +35,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Estilo compacto para los separadores en la barra lateral (reducidos a la mitad)
 def spc():
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
@@ -78,9 +84,6 @@ def calcular_categoria_competencia(fecha_nac_str):
         
     return cat, edad_competencia
 
-# -------------------------------------------------------------
-# FUNCIÓN AUXILIAR: CALCULAR EDAD DECIMAL EXACTA
-# -------------------------------------------------------------
 def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
     if not fecha_nacimiento_str or not fecha_marca:
         return None
@@ -115,7 +118,9 @@ if "autenticado" not in st.session_state:
 
 def login_usuario(user, password):
     try:
-        response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
+        # Se encripta la contraseña ingresada para compararla con la base de datos
+        hashed_pw = hash_password(password)
+        response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", hashed_pw).execute()
         if response.data:
             user_data = response.data[0]
             if user_data.get("estatus", "Activo") in ["Suspendido", "Bloqueado"]:
@@ -181,7 +186,7 @@ if not st.session_state.autenticado:
                     nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
                     
                 if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
-                    if nuevo_nombre and nuevo_usuario and nueva_contrasena and nueva_email:
+                    if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
                         try:
                             chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()
                             if chequeo.data:
@@ -191,7 +196,7 @@ if not st.session_state.autenticado:
                                     "nombre": nuevo_nombre, 
                                     "usuario": nuevo_usuario, 
                                     "email": nuevo_email,
-                                    "contrasena": nueva_contrasena, 
+                                    "contrasena": hash_password(nueva_contrasena), # Contraseña encriptada
                                     "rol": nuevo_rol, 
                                     "estatus": "Activo",
                                     "genero": nuevo_genero if es_nadador_reg else None,
@@ -225,7 +230,8 @@ if not st.session_state.autenticado:
                                 if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
                                     st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
                                 else:
-                                    supabase.table("usuarios").update({"contrasena": nueva_clave}).eq("id", user_info["id"]).execute()
+                                    # Se guarda la nueva contraseña encriptada
+                                    supabase.table("usuarios").update({"contrasena": hash_password(nueva_clave)}).eq("id", user_info["id"]).execute()
                                     st.success("✅ Contraseña actualizada correctamente.")
                             else:
                                 st.error("❌ Los datos proporcionados no coinciden.")
@@ -242,7 +248,6 @@ if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-# Panel de navegación de atletas
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
@@ -269,7 +274,6 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# Análisis Colectivo y Filtros
 modo_equipo = False
 tipo_filtro = "Todos los Atletas"
 filtro_genero = "Todos"
@@ -308,11 +312,25 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
         except Exception as e:
             st.sidebar.error("Error cargando los filtros secundarios.")
 
-# Ajuste por prueba
+# -------------------------------------------------------------
+# AJUSTE POR PRUEBA Y SLIDERS RESERVADOS
+# -------------------------------------------------------------
 spc()
 st.sidebar.subheader("📊 Ajustes por prueba")
-lista_pruebas = ['50 Libre', '100 Libre', '200 Libre', '50 Espalda', '100 Espalda', '200 Espalda', '50 Mariposa', '100 Mariposa', '200 Mariposa', '50 Pecho', '100 Pecho', '200 Pecho', '200 Combinado', '400 Combinado']
+
+# Lista completa de pruebas
+lista_pruebas = [
+    '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre', 
+    '50 Espalda', '100 Espalda', '200 Espalda', 
+    '50 Mariposa', '100 Mariposa', '200 Mariposa', 
+    '50 Pecho', '100 Pecho', '200 Pecho', 
+    '200 Combinado', '400 Combinado'
+]
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
+
+# Reservamos visualmente el espacio para los sliders justo debajo del selectbox
+# Así evitamos errores porque "t_intermedia" necesita que t0 y t_peak ya estén calculados.
+contenedor_sliders = st.sidebar.container()
 
 m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
 es_preinfantil = st.session_state.nadador_seleccionado_categoria.startswith("Preinfantil")
@@ -334,12 +352,12 @@ if not es_preinfantil:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# LÓGICA DE SIMULACIÓN EXTERNA (Inactivo predeterminado - Modo Base de Datos)
+# LÓGICA DE SIMULACIÓN EXTERNA
 spc()
 st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
-# Carga de datos históricos base para el cálculo de límites
+# Carga de datos históricos
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -380,7 +398,6 @@ except Exception:
     df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
     db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
 
-# Si el modo simulación externa está INACTIVO (Modo BD = True), los inputs se bloquean.
 inputs_bloqueados = not simulacion_externa
 
 val_t0 = db_t0 if (db_t0 is not None) else 10.0
@@ -389,7 +406,6 @@ val_t_pb = db_t_pb if (db_t_pb is not None) else 12.0
 val_T_pb = db_T_pb if (db_T_pb is not None) else float(round(m_wr * 1.3, 2))
 val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
-# Celdas de configuración lateral
 spc()
 st.sidebar.subheader("📐 Parámetros de Límites y PB")
 t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=inputs_bloqueados)
@@ -399,12 +415,16 @@ T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_va
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=inputs_bloqueados)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=inputs_bloqueados)
 
-spc()
-st.sidebar.subheader("⏱️ Rapidez de Deriva e Intervalo")
-h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
-t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
+# -------------------------------------------------------------
+# INYECCIÓN DE SLIDERS EN EL CONTENEDOR SUPERIOR
+# -------------------------------------------------------------
+# Ahora que ya existen t0 y t_peak, los insertamos en el espacio que reservamos arriba.
+with contenedor_sliders:
+    spc()
+    st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
+    h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
+    t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# Proyecto cada 3 meses para el atleta hasta los 18 años (contexto general de control)
 if not modo_equipo and st.session_state.rol == "Nadador":
     st.sidebar.markdown("---")
     st.sidebar.caption("📅 *Plan de control de proyección a 3 meses hasta los 18 años requerido para cumplir normativas de rendimiento.*")
@@ -547,7 +567,6 @@ if modo_equipo:
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
-                # Renderizado de marcas mínimas (Modo Equipo)
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
@@ -594,7 +613,6 @@ else:
 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     
-    # Ocultar evolución real si estamos simulando externamente
     if not simulacion_externa and len(df_procesado) > 0:
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
         ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
@@ -622,13 +640,11 @@ else:
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-    # --- RENDERIZADO DE ETIQUETAS CON REUBICACIÓN LATERAL DEL PB ---
     ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
     ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
     ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
     ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
-    # Renderizado de marcas mínimas (Individual)
     x_texto = lim_x_min + 0.1
     if not es_preinfantil:
         referencias = [
@@ -648,7 +664,6 @@ else:
         ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
         ax.text(x_texto, m_wr - ((lim_y_superior - lim_y_inferior) * 0.006), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7, va="top", ha="left")
 
-    # Título dinámico
     if simulacion_externa:
         ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
     else:
@@ -660,7 +675,6 @@ else:
     ax.set_axisbelow(True) 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-    # Ocultar tabla inferior de datos si estamos simulando externamente
     if not simulacion_externa and len(df_procesado) > 0:
         df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
         df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -703,7 +717,7 @@ else:
     st.pyplot(fig)
 
 # -------------------------------------------------------------
-# MÓDULOS DE GESTIÓN SEGÚN ROL (Oculto en simulación externa)
+# MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
 st.markdown("---")
 
