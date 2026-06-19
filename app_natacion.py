@@ -550,11 +550,28 @@ with tab_marcas:
         st.markdown("**Historial Cronológico de Tiempos**")
         if len(df_procesado) > 0:
             if st.session_state.rol in ["Entrenador", "Administrador"]:
-                id_del = st.selectbox("Eliminar registro (ID):", options=df_procesado["id"].tolist())
-                if st.button("🗑️ Eliminar Fila"):
-                    supabase.table("marcas_historicas").delete().eq("id", int(id_del)).execute()
-                    st.warning("Registro removido.")
-                    st.rerun()
+                # Generamos una lista de opciones formateadas y descriptivas para el selector de eliminación
+                opciones_eliminar = []
+                for _, fila in df_procesado.iterrows():
+                    desc = f"ID: {fila['id']} ({fila['Tiempo']} - {fila['Edad']} - {fila['Evento / Fecha']})"
+                    opciones_eliminar.append((fila['id'], desc))
+                
+                # El selectbox muestra la descripción amigable, pero retorna el ID real de la base de datos
+                id_del = st.selectbox(
+                    "Eliminar registro erróneo:", 
+                    options=[op[0] for op in opciones_eliminar], 
+                    format_func=lambda x: next(op[1] for op in opciones_eliminar if op[0] == x)
+                )
+                
+                if st.button("🗑️ Eliminar Fila Seleccionada"):
+                    try:
+                        supabase.table("marcas_historicas").delete().eq("id", int(id_del)).execute()
+                        st.warning(f"✅ Registro con ID {id_del} removido exitosamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al eliminar: {e}")
+                        
+            # Mostramos la tabla al usuario ocultando el ID para mantener la estética limpia
             st.dataframe(df_procesado.drop(columns=["id"]), use_container_width=True)
 
 with tab_entrenador:
