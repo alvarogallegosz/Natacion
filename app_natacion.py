@@ -5,7 +5,6 @@ from scipy.optimize import fsolve
 import pandas as pd
 import datetime
 import io
-import hashlib
 from supabase import create_client, Client
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
@@ -26,7 +25,7 @@ st.markdown(
 )
 
 # -------------------------------------------------------------
-# CONEXIÓN SEGURA CON SUPABASE Y HASHING DE CONTRASEÑAS
+# CONEXIÓN SEGURA CON SUPABASE
 # -------------------------------------------------------------
 try:
     url: str = st.secrets["SUPABASE_URL"]
@@ -35,10 +34,6 @@ try:
 except Exception as e:
     st.error("Faltan las credenciales de Supabase en los Secrets de la aplicación.")
     st.stop()
-
-def hash_password(password: str) -> str:
-    """Aplica el algoritmo SHA-256 para contraseñas seguras."""
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 # -------------------------------------------------------------
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
@@ -94,7 +89,7 @@ def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
         return None
 
 # -------------------------------------------------------------
-# CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN (Con Hashing)
+# CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
 # -------------------------------------------------------------
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
@@ -112,18 +107,7 @@ if "autenticado" not in st.session_state:
 
 def login_usuario(user, password):
     try:
-        hashed_pass = hash_password(password)
-        response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", hashed_pass).execute()
-        
-        if not response.data:
-            response_plano = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
-            if response_plano.data:
-                user_data = response_plano.data[0]
-                supabase.table("usuarios").update({"contrasena": hashed_pass}).eq("id", user_data["id"]).execute()
-                response = response_plano
-            else:
-                return False
-
+        response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", password).execute()
         if response.data:
             user_data = response.data[0]
             if user_data.get("estatus", "Activo") in ["Suspendido", "Bloqueado"]:
@@ -195,12 +179,11 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
-                                pass_segura = hash_password(nueva_contrasena)
                                 nuevo_registro = {
                                     "nombre": nuevo_nombre, 
                                     "usuario": nuevo_usuario, 
                                     "email": nuevo_email,
-                                    "contrasena": pass_segura, 
+                                    "contrasena": nueva_contrasena, 
                                     "rol": nuevo_rol, 
                                     "estatus": "Activo",
                                     "genero": nuevo_genero if es_nadador_reg else None,
@@ -234,8 +217,7 @@ if not st.session_state.autenticado:
                                 if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
                                     st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
                                 else:
-                                    clave_hash = hash_password(nueva_clave)
-                                    supabase.table("usuarios").update({"contrasena": clave_hash}).eq("id", user_info["id"]).execute()
+                                    supabase.table("usuarios").update({"contrasena": nueva_clave}).eq("id", user_info["id"]).execute()
                                     st.success("✅ Contraseña actualizada correctamente.")
                             else:
                                 st.error("❌ Los datos proporcionados no coinciden.")
@@ -245,26 +227,24 @@ if not st.session_state.autenticado:
     st.stop()
 
 # -------------------------------------------------------------
-# BARRA LATERAL (SIDEBAR) - ESTRUCTURADA, ORDENADA Y PROTEGIDA
+# CONSTRUCCIÓN ORDENADA DE LA BARRA LATERAL (SIDEBAR)
 # -------------------------------------------------------------
-st.sidebar.markdown("### 👤 Identificación de Sesión")
-st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel / Rol:** `{st.session_state.rol}`")
-
-if st.sidebar.button("🚪 Salir del Sistema", use_container_width=True):
+st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:** `{st.session_state.rol}`")
+if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-st.sidebar.markdown("---")
-
+# Panel de navegación de atletas (reducido el margen vertical)
 if st.session_state.rol in ["Entrenador", "Administrador"]:
-    st.sidebar.markdown("### 🎯 Panel de Gestión de Atletas")
+    st.sidebar.markdown("<br>", unsafe_allow_html=True)
+    st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
         resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         if resp_atletas.data:
             df_atl = pd.DataFrame(resp_atletas.data)
             dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
             
-            sel_id = st.sidebar.selectbox("Monitorear a Atleta:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
+            sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
             atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
             
             st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
@@ -281,38 +261,51 @@ else:
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-st.sidebar.markdown("---")
+# Análisis Colectivo y Filtros (Restaurados y reubicados con menor espaciado)
+modo_equipo = False
+tipo_filtro = "Todos los Atletas"
+filtro_genero = "Todos"
+cat_sel = None
+ids_sel = []
 
-st.sidebar.markdown("### 📊 Ajustes y Selección de Prueba")
+if st.session_state.rol in ["Entrenador", "Administrador"]:
+    st.sidebar.markdown("<br>", unsafe_allow_html=True)
+    st.sidebar.subheader("👥 Análisis Colectivo")
+    modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
+    
+    if modo_equipo:
+        st.sidebar.markdown("<br>", unsafe_allow_html=True)
+        st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
+        filtro_genero = st.sidebar.radio("Segmentar obligatoriamente por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
+        tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
+        
+        try:
+            resp_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+            atletas_preload = resp_preload.data if resp_preload.data else []
+            
+            if filtro_genero == "Femenino (F)":
+                atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
+            elif filtro_genero == "Masculino (M)":
+                atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
+
+            if tipo_filtro == "Categoría Etaria" and atletas_preload:
+                categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
+                if categorias_disponibles:
+                    cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
+                    
+            elif tipo_filtro == "Atletas Específicos" and atletas_preload:
+                dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
+                if dict_nom:
+                    ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
+        except Exception as e:
+            st.sidebar.error("Error cargando los filtros secundarios.")
+
+# Ajuste por prueba (reducido el margen vertical)
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+st.sidebar.subheader("📊 Ajustes por prueba")
 lista_pruebas = ['50 Libre', '100 Libre', '200 Libre', '50 Espalda', '100 Espalda', '200 Espalda', '50 Mariposa', '100 Mariposa', '200 Mariposa', '50 Pecho', '100 Pecho', '200 Pecho', '200 Combinado', '400 Combinado']
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
 
-modo_equipo = False
-if st.session_state.rol in ["Entrenador", "Administrador"]:
-    with st.sidebar.expander("👥 Opciones de Análisis Colectivo"):
-        modo_equipo = st.checkbox("Activar Comparativa de Equipo", value=False)
-
-st.sidebar.markdown("---")
-
-# Ubicación del deslizador de rapidez de deriva y edad intermedia justo debajo de Ajustes por Prueba
-st.sidebar.markdown("### ⏱️ Rapidez de Deriva e Intervalo")
-h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
-t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=4.0, max_value=25.0, value=14.0, step=0.1)
-
-st.sidebar.markdown("---")
-
-# Activación del modo de simulación justo arriba del motor matemático / parámetros
-st.sidebar.markdown("### 🌐 Simulación Externa")
-modo_simulacion = st.sidebar.checkbox("🚨 Activar Modo Simulación Externa / Libre", value=False)
-
-st.sidebar.markdown("---")
-
-st.sidebar.markdown("### 📐 Motor Matemático Asintótico (Parámetros)")
-sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
-
-# -------------------------------------------------------------
-# EXTRACCIÓN DE MARCAS DE REFERENCIA (Feveda / WA)
-# -------------------------------------------------------------
 m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
 es_preinfantil = st.session_state.nadador_seleccionado_categoria.startswith("Preinfantil")
 
@@ -330,19 +323,14 @@ if not es_preinfantil:
             m_wa_b = float(ref_data["m_wa_b"]) if ref_data["m_wa_b"] else 0.0
             m_wa_a = float(ref_data["m_wa_a"]) if ref_data["m_wa_a"] else 0.0
             m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] else 25.0
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# Valores Ficticios e Históricos para evitar nulos y soportar pruebas vacías
-val_t0_def = 10.0
-val_T0_def = float(round(m_wr * 1.8, 2)) if m_wr > 0 else 45.0
-val_t_pb_def = 12.0
-val_T_pb_def = float(round(m_wr * 1.3, 2)) if m_wr > 0 else 35.0
-val_T_target_def = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
+# Adaptar modelo a Base de datos
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+sincronizar_db = st.sidebar.checkbox("🚨 Adaptar Modelo a Base de Datos", value=True)
 
-# -------------------------------------------------------------
-# CARGA DE DATOS HISTÓRICOS (Con protección ante ausencia de datos)
-# -------------------------------------------------------------
+# Carga de datos históricos base para el cálculo de límites
 try:
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
@@ -350,7 +338,7 @@ try:
         .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
         .order("edad", desc=False).execute()
         
-    if response.data and len(response.data) > 0:
+    if response.data:
         df_procesado = pd.DataFrame(response.data)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
         db_t0 = float(df_procesado.iloc[0]["Edad"])
@@ -383,73 +371,44 @@ except Exception:
     df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
     db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
 
-val_t0 = db_t0 if (sincronizar_db and db_t0 is not None) else val_t0_def
-val_T0 = db_T0 if (sincronizar_db and db_T0 is not None) else val_T0_def
-val_t_pb = db_t_pb if (sincronizar_db and db_t_pb is not None) else val_t_pb_def
-val_T_pb = db_T_pb if (sincronizar_db and db_T_pb is not None) else val_T_pb_def
-val_T_target = val_T_target_def
+val_t0 = db_t0 if (sincronizar_db and db_t0 is not None) else 10.0
+val_T0 = db_T0 if (sincronizar_db and db_T0 is not None) else float(round(m_wr * 1.8, 2))
+val_t_pb = db_t_pb if (sincronizar_db and db_t_pb is not None) else 12.0
+val_T_pb = db_T_pb if (sincronizar_db and db_T_pb is not None) else float(round(m_wr * 1.3, 2))
+val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
-with st.sidebar.expander("⚙️ Variables de Proyección y Límites", expanded=True):
-    t0 = st.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=sincronizar_db)
-    T0 = st.number_input("2. Tiempo Inicial (T0):", min_value=1.0, value=val_T0, step=0.1, disabled=sincronizar_db)
-    t_peak = st.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, value=23.0)
-    T_target = st.number_input("4. Tiempo Objetivo Peak (T_target):", min_value=1.0, value=val_T_target)
-    t_pb = st.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=sincronizar_db)
-    T_pb = st.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=sincronizar_db)
+# Celdas de configuración lateral
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+st.sidebar.subheader("📐 Parámetros de Límites y PB")
+t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=sincronizar_db)
+T0 = st.sidebar.number_input("2. Tiempo Inicial (T0):", min_value=1.0, value=val_T0, step=0.1, disabled=sincronizar_db)
+t_peak = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, value=23.0)
+T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_value=1.0, value=val_T_target)
+t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=sincronizar_db)
+T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=sincronizar_db)
 
-st.sidebar.markdown("---")
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+st.sidebar.subheader("⏱️ Rapidez de Deriva e Intervalo")
+h = st.sidebar.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
+t_intermedia = st.sidebar.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-# Filtros de segmentación por equipos
-tipo_filtro = "Todos los Atletas"
-filtro_genero = "Todos"
-cat_sel = None
-ids_sel = []
-
+# TÍTULO DINÁMICO CONDICIONADO DE LA CONSULTA
 if modo_equipo:
-    st.sidebar.markdown("### 🔍 Filtros de Segmentación de Equipo")
-    filtro_genero = st.sidebar.radio("Segmentar obligatoriamente por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
-    tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
-    
-    try:
-        resp_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-        atletas_preload = resp_preload.data if resp_preload.data else []
-        
-        if filtro_genero == "Femenino (F)":
-            atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
-        elif filtro_genero == "Masculino (M)":
-            atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
+    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: Comparativo")
+else:
+    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 
-        if tipo_filtro == "Categoría Etaria" and atletas_preload:
-            categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
-            if categorias_disponibles:
-                cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
-                
-        elif tipo_filtro == "Atletas Específicos" and atletas_preload:
-            dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
-            if dict_nom:
-                ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
-    except Exception as e:
-        st.sidebar.error("Error cargando los filtros secundarios.")
+st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
-# -------------------------------------------------------------
-# MOTOR MATEMÁTICO ASINTÓTICO (Ecuación íntegra y sin discontinuidades)
-# -------------------------------------------------------------
+# MOTOR MATEMÁTICO ASINTÓTICO
 def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
     if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
-        if eq_T_pb >= eq_T0:
-            return 0.4
         tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
         def ecuacion_k_eq(k_val):
             ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / (1 - np.exp(-k_val))
             return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
-        try:
-            k_opt_eq, _, ier, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
-            if ier == 1:
-                return k_opt_eq[0]
-            else:
-                return 0.4
-        except Exception:
-            return 0.4
+        k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
+        return k_opt_eq[0]
     return 0.4
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
@@ -473,16 +432,6 @@ with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{(T_pb - T
 with c3: 
     T_intermedia_val = float(calcular_curva_atleta([t_intermedia], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
     st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
-
-# -------------------------------------------------------------
-# TÍTULO DINÁMICO CONDICIONADO DE LA CONSULTA
-# -------------------------------------------------------------
-if modo_equipo:
-    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: Comparativo")
-else:
-    st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
-
-st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
 # -------------------------------------------------------------
 # RENDIMIENTO GRÁFICO: MODO EQUIPO
@@ -579,6 +528,7 @@ if modo_equipo:
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
+                # Renderizado de marcas mínimas (Modo Equipo)
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
@@ -613,7 +563,7 @@ if modo_equipo:
 
 else:
     # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL (Soporte para Modo Simulación y visualización sin colapsos)
+    # LIENZO INDIVIDUAL
     # -------------------------------------------------------------
     edades_curva = np.linspace(t0, t_peak, 500)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -624,7 +574,7 @@ else:
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
-    if 'df_procesado' in locals() and len(df_procesado) > 0:
+    if len(df_procesado) > 0:
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
         ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
         todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
@@ -651,11 +601,13 @@ else:
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
+    # --- RENDERIZADO DE ETIQUETAS CON REUBICACIÓN LATERAL DEL PB ---
     ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
     ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
     ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
     ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
+    # Renderizado de marcas mínimas (Individual)
     x_texto = lim_x_min + 0.1
     if not es_preinfantil:
         referencias = [
@@ -682,7 +634,7 @@ else:
     ax.set_axisbelow(True) 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-    if 'df_procesado' in locals() and len(df_procesado) > 0:
+    if len(df_procesado) > 0:
         df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
         df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
         df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
@@ -724,76 +676,61 @@ else:
     st.pyplot(fig)
 
 # -------------------------------------------------------------
-# MÓDULOS DE GESTIÓN (Formularios e historial con control de modo simulación)
+# MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
 st.markdown("---")
 tab_marcas, tab_entrenador, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos por Categoría (Entrenador)", "🛡️ Consola Global (Admin)"])
 
 with tab_marcas:
-    if modo_simulacion:
-        st.warning("⚠️ Está en Modo Simulación Libre. El registro histórico y las modificaciones de BD están deshabilitados.")
-    else:
-        col_ins, col_vistas = st.columns([1.2, 1.8])
-        with col_ins:
-            st.markdown("### ⏱️ Registrar Nueva Marca Cronometrada")
-            with st.form("form_insertar_marca", clear_on_submit=True):
-                ins_evento = st.text_input("Nombre de la Competencia / Chequeo (Evento / Fecha):")
-                ins_fecha = st.date_input("Fecha del Evento", datetime.date.today())
-                ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=5.0, max_value=600.0, step=0.01)
-                
-                if st.form_submit_button("💾 Guardar Marca Histórica", use_container_width=True):
-                    if ins_evento:
-                        if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
-                            try:
-                                id_atleta = st.session_state.nadador_seleccionado_id
-                                fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
-                                
-                                if st.session_state.rol in ["Entrenador", "Administrador"]:
-                                    atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
-                                    if atleta_query.data:
-                                        fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
-                                
-                                if not fecha_nacimiento_atleta:
-                                    st.error("❌ El atleta no posee fecha de nacimiento en su perfil.")
-                                else:
-                                    edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha)
-                                    if edad_calculada is None:
-                                        st.error("❌ Error al procesar la fecha de nacimiento.")
-                                    else:
-                                        nueva_m = {
-                                            "prueba": titulo_grafico, 
-                                            "edad": float(edad_calculada), 
-                                            "tiempo": float(ins_tiempo),
-                                            "nota": ins_evento, 
-                                            "usuario_id": id_atleta
-                                        }
-                                        supabase.table("marcas_historicas").insert(nueva_m).execute()
-                                        st.success(f"Marca guardada. Edad calculada: {edad_calculada} años.")
-                                        st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al guardar el registro: {e}")
-                    else:
-                        st.error("Rellene el nombre del evento / chequeo para efectuar la carga.")
+    col_ins, col_vistas = st.columns([1, 2])
+    with col_ins:
+        st.markdown("**Ingresar Nueva Marca**")
+        with st.form("form_insertar_marca", clear_on_submit=True):
+            ins_fecha_evento = st.date_input("Fecha de la Competencia:", value=datetime.date.today())
+            ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
+            ins_nota = st.text_input("Evento / Fecha:")
+            
+            if st.form_submit_button("💾 Guardar Registro"):
+                if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
+                    try:
+                        id_atleta = st.session_state.nadador_seleccionado_id
+                        fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
                         
-        with col_vistas:
-            st.markdown("### 📋 Historial Cronológico de Tiempos")
-            if 'df_procesado' in locals() and len(df_procesado) > 0:
-                st.dataframe(df_procesado.drop(columns=["id"]), use_container_width=True)
-                
-                if st.session_state.rol in ["Entrenador", "Administrador"]:
-                    st.markdown("### 🗑️ Zona de Gestión de Errores")
-                    id_para_eliminar = st.selectbox(
-                        "Seleccione el registro erróneo a eliminar:",
-                        options=df_procesado["id"].tolist(),
-                        format_func=lambda x: f"{df_procesado.loc[df_procesado['id'] == x, 'Evento / Fecha'].values[0]} -> {df_procesado.loc[df_procesado['id'] == x, 'Tiempo'].values[0]}s"
-                    )
+                        if st.session_state.rol in ["Entrenador", "Administrador"]:
+                            atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
+                            if atleta_query.data:
+                                fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
+                        
+                        if not fecha_nacimiento_atleta:
+                            st.error("❌ El atleta no posee fecha de nacimiento en su perfil.")
+                        else:
+                            edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
+                            if edad_calculada is None:
+                                st.error("❌ Error al procesar la fecha de nacimiento.")
+                            else:
+                                nueva_m = {
+                                    "prueba": titulo_grafico, 
+                                    "edad": float(edad_calculada), 
+                                    "tiempo": float(ins_tiempo),
+                                    "nota": ins_nota, 
+                                    "usuario_id": id_atleta
+                                }
+                                supabase.table("marcas_historicas").insert(nueva_m).execute()
+                                st.success(f"Marca guardada. Edad calculada automáticamente: {edad_calculada} años.")
+                                st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar el registro: {e}")
                     
-                    if st.button("Eliminar Registro Permanentemente", type="primary"):
-                        supabase.table("marcas_historicas").delete().eq("id", int(id_para_eliminar)).execute()
-                        st.success("Registro eliminado satisfactoriamente de la base de datos.")
-                        st.rerun()
-            else:
-                st.info("No hay tiempos registrados en el historial de la base de datos para esta prueba.")
+    with col_vistas:
+        st.markdown("**Historial Cronológico de Tiempos**")
+        if len(df_procesado) > 0:
+            if st.session_state.rol in ["Entrenador", "Administrador"]:
+                id_del = st.selectbox("Eliminar registro (ID):", options=df_procesado["id"].tolist())
+                if st.button("🗑️ Eliminar Fila"):
+                    supabase.table("marcas_historicas").delete().eq("id", int(id_del)).execute()
+                    st.warning("Registro removido.")
+                    st.rerun()
+            st.dataframe(df_procesado.drop(columns=["id"]), use_container_width=True)
 
 with tab_entrenador:
     if st.session_state.rol in ["Entrenador", "Administrador"]:
@@ -895,7 +832,7 @@ with tab_admin:
 st.markdown("---")
 st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
 
-if ('df_procesado' in locals() and len(df_procesado) > 0) or modo_equipo:
+if len(df_procesado) > 0 or modo_equipo:
     export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
     csv_data = export_df.to_csv(index=False).encode('utf-8')
     txt_string = export_df.to_string(index=False)
