@@ -353,26 +353,80 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             st.sidebar.error("Error cargando los filtros secundarios.")
 
 # -------------------------------------------------------------
-# AJUSTE POR PRUEBA Y SLIDERS RESERVADOS
+# AJUSTE DINÁMICO POR CATEGORÍA Y PRUEBA
 # -------------------------------------------------------------
 spc()
 st.sidebar.subheader("📊 Ajustes por prueba")
 
-lista_pruebas = [
-    '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre', 
-    '50 Espalda', '100 Espalda', '200 Espalda', 
-    '50 Mariposa', '100 Mariposa', '200 Mariposa', 
-    '50 Pecho', '100 Pecho', '200 Pecho', 
-    '200 Combinado', '400 Combinado'
-]
+cat_atleta = st.session_state.nadador_seleccionado_categoria
+es_preinfantil = cat_atleta.startswith("Preinfantil")
+
+if es_preinfantil:
+    lista_pruebas = [
+        '25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa',
+        '50 Libre', '100 Combinado'
+    ]
+elif cat_atleta == "Infantil A":
+    lista_pruebas = [
+        '50 Libre', '50 Espalda', '50 Pecho', '50 Mariposa', 
+        '100 Libre', '200 Libre', '400 Libre', '200 Combinado'
+    ]
+elif cat_atleta == "Infantil B":
+    lista_pruebas = [
+        '50 Libre', '50 Espalda', '50 Pecho', '50 Mariposa',
+        '100 Libre', '100 Espalda', '100 Pecho', '100 Mariposa',
+        '200 Libre', '200 Espalda', '200 Pecho', '200 Mariposa',
+        '400 Libre', '800 Libre', '200 Combinado'
+    ]
+else:
+    lista_pruebas = [
+        '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre', 
+        '50 Espalda', '100 Espalda', '200 Espalda', 
+        '50 Mariposa', '100 Mariposa', '200 Mariposa', 
+        '50 Pecho', '100 Pecho', '200 Pecho', 
+        '200 Combinado', '400 Combinado'
+    ]
+
 titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
 
 contenedor_sliders = st.sidebar.container()
 
 m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
-es_preinfantil = st.session_state.nadador_seleccionado_categoria.startswith("Preinfantil")
 
-if not es_preinfantil:
+# Extracción y cálculo de marcas (Especial para Preinfantil)
+if es_preinfantil:
+    def get_m_ano_infantil_a(prueba_str):
+        try:
+            resp = supabase.table("marcas_referencia").select("m_ano")\
+                .eq("prueba", prueba_str)\
+                .eq("genero", st.session_state.nadador_seleccionado_genero)\
+                .eq("categoria", "Infantil A").execute()
+            if resp.data and resp.data[0].get("m_ano"):
+                return float(resp.data[0]["m_ano"])
+        except Exception:
+            pass
+        return 0.0
+
+    if titulo_grafico.startswith("25 "):
+        estilo = titulo_grafico.split(" ")[1] # Extrae Libre, Espalda, etc.
+        ref_50 = get_m_ano_infantil_a(f"50 {estilo}")
+        m_ano = ref_50 / 2.0  # Fisiológicamente la mitad del tiempo de 50m
+        m_wr = m_ano * 0.8 if m_ano > 0 else 15.0 # Ficticio para límite del gráfico
+    elif titulo_grafico == "50 Libre":
+        m_ano = get_m_ano_infantil_a("50 Libre")
+        m_wr = m_ano * 0.8 if m_ano > 0 else 30.0
+    elif titulo_grafico == "100 Combinado":
+        m_l = get_m_ano_infantil_a("50 Libre")
+        m_e = get_m_ano_infantil_a("50 Espalda")
+        m_p = get_m_ano_infantil_a("50 Pecho")
+        m_m = get_m_ano_infantil_a("50 Mariposa")
+        
+        if all(v > 0 for v in [m_l, m_e, m_p, m_m]):
+            m_ano = ((m_l + m_e + m_p + m_m) / 2.0) * 1.15
+        else:
+            m_ano = 0.0
+        m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
+else:
     try:
         ref_resp = supabase.table("marcas_referencia").select("*")\
             .eq("prueba", titulo_grafico)\
@@ -440,7 +494,11 @@ val_t0 = db_t0 if (db_t0 is not None) else 10.0
 val_T0 = db_T0 if (db_T0 is not None) else float(round(m_wr * 1.8, 2))
 val_t_pb = db_t_pb if (db_t_pb is not None) else 12.0
 val_T_pb = db_T_pb if (db_T_pb is not None) else float(round(m_wr * 1.3, 2))
-val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
+
+if es_preinfantil:
+    val_T_target = float(round(m_ano, 2)) if m_ano > 0 else 25.0
+else:
+    val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
 spc()
 st.sidebar.subheader("📐 Parámetros de Límites y PB")
@@ -613,8 +671,9 @@ if modo_equipo:
                             desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
                             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
                 else:
-                    ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-                    ax.text(x_texto, m_wr - ((lim_y_superior - lim_y_inferior) * 0.006), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7, va="top", ha="left")
+                    if m_ano > 0:
+                        ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
+                        ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
                 
                 ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
                 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
@@ -691,8 +750,9 @@ else:
                 desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
                 ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
     else:
-        ax.axhline(y=m_wr, color="#2C3E50", linestyle="--", linewidth=0.6, alpha=0.7)
-        ax.text(x_texto, m_wr - ((lim_y_superior - lim_y_inferior) * 0.006), f"WR Base: {m_wr:.2f}s", color="#2C3E50", fontsize=7, va="top", ha="left")
+        if m_ano > 0:
+            ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
+            ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
 
     if simulacion_externa:
         ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
@@ -800,7 +860,6 @@ else:
             st.markdown("**Historial Cronológico de Tiempos**")
             if len(df_procesado) > 0:
                 if st.session_state.rol in ["Entrenador", "Administrador"]:
-                    # --- INTEGRACIÓN: SELECCIÓN AMIGABLE PARA ELIMINACIÓN ---
                     opciones_eliminacion = {
                         f"Edad: {row['Edad']} | Tiempo: {row['Tiempo']} | {row['Evento / Fecha']}": row['id']
                         for _, row in df_procesado.iterrows()
@@ -823,49 +882,53 @@ else:
     with tab_entrenador:
         if st.session_state.rol in ["Entrenador", "Administrador"]:
             st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
-            u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
             
-            db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
-            try:
-                ref_dinamica = supabase.table("marcas_referencia").select("*")\
-                    .eq("prueba", titulo_grafico)\
-                    .eq("genero", st.session_state.nadador_seleccionado_genero)\
-                    .eq("categoria", u_cat).execute()
-                if ref_dinamica.data:
-                    r_det = ref_dinamica.data[0]
-                    db_m_ano = float(r_det["m_ano"]) if r_det["m_ano"] is not None else None
-                    db_m_panam_b = float(r_det["m_panam_b"]) if r_det["m_panam_b"] is not None else None
-                    db_m_panam_a = float(r_det["m_panam_a"]) if r_det["m_panam_a"] is not None else None
-                    db_m_wa_b = float(r_det["m_wa_b"]) if r_det["m_wa_b"] is not None else None
-                    db_m_wa_a = float(r_det["m_wa_a"]) if r_det["m_wa_a"] is not None else None
-                    db_m_wr = float(r_det["m_wr"]) if r_det["m_wr"] is not None else None
-            except Exception:
-                pass
-
-            with st.form("form_update_referencias"):
-                u_ano = st.number_input("Marca Mínima Año (seg):", value=db_m_ano if db_m_ano is not None else 0.0, disabled=(db_m_ano is None))
-                u_panamb = st.number_input("PANAM Jr - Marca B (seg):", value=db_m_panam_b if db_m_panam_b is not None else 0.0, disabled=(db_m_panam_b is None))
-                u_panama = st.number_input("PANAM Jr - Marca A (seg):", value=db_m_panam_a if db_m_panam_a is not None else 0.0, disabled=(db_m_panam_a is None))
-                u_wab = st.number_input("World Aquatics - Marca B (seg):", value=db_m_wa_b if db_m_wa_b is not None else 0.0, disabled=(db_m_wa_b is None))
-                u_waa = st.number_input("World Aquatics - Marca A (seg):", value=db_m_wa_a if db_m_wa_a is not None else 0.0, disabled=(db_m_wa_a is None))
-                u_wr = st.number_input("Récord Mundial de Estilo Absoluto:", value=db_m_wr if db_m_wr is not None else 25.0, disabled=(db_m_wr is None))
+            if titulo_grafico in ['25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa', '100 Combinado'] or es_preinfantil:
+                st.info(f"💡 **Aviso:** Las marcas de referencia para pruebas Preinfantiles ({titulo_grafico}) se calculan automáticamente basándose en las marcas mínimas de 50m de la categoría Infantil A. No se configuran manualmente en este panel para proteger la integridad de los cálculos.")
+            else:
+                u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
                 
-                if st.form_submit_button("⚡ Guardar Configuración de Tiempos"):
-                    up_data = {}
-                    if db_m_ano is not None: up_data["m_ano"] = u_ano
-                    if db_m_panam_b is not None: up_data["m_panam_b"] = u_panamb
-                    if db_m_panam_a is not None: up_data["m_panam_a"] = u_panama
-                    if db_m_wa_b is not None: up_data["m_wa_b"] = u_wab
-                    if db_m_wa_a is not None: up_data["m_wa_a"] = u_waa
-                    if db_m_wr is not None: up_data["m_wr"] = u_wr
+                db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
+                try:
+                    ref_dinamica = supabase.table("marcas_referencia").select("*")\
+                        .eq("prueba", titulo_grafico)\
+                        .eq("genero", st.session_state.nadador_seleccionado_genero)\
+                        .eq("categoria", u_cat).execute()
+                    if ref_dinamica.data:
+                        r_det = ref_dinamica.data[0]
+                        db_m_ano = float(r_det["m_ano"]) if r_det["m_ano"] is not None else None
+                        db_m_panam_b = float(r_det["m_panam_b"]) if r_det["m_panam_b"] is not None else None
+                        db_m_panam_a = float(r_det["m_panam_a"]) if r_det["m_panam_a"] is not None else None
+                        db_m_wa_b = float(r_det["m_wa_b"]) if r_det["m_wa_b"] is not None else None
+                        db_m_wa_a = float(r_det["m_wa_a"]) if r_det["m_wa_a"] is not None else None
+                        db_m_wr = float(r_det["m_wr"]) if r_det["m_wr"] is not None else None
+                except Exception:
+                    pass
+
+                with st.form("form_update_referencias"):
+                    u_ano = st.number_input("Marca Mínima Año (seg):", value=db_m_ano if db_m_ano is not None else 0.0, disabled=(db_m_ano is None))
+                    u_panamb = st.number_input("PANAM Jr - Marca B (seg):", value=db_m_panam_b if db_m_panam_b is not None else 0.0, disabled=(db_m_panam_b is None))
+                    u_panama = st.number_input("PANAM Jr - Marca A (seg):", value=db_m_panam_a if db_m_panam_a is not None else 0.0, disabled=(db_m_panam_a is None))
+                    u_wab = st.number_input("World Aquatics - Marca B (seg):", value=db_m_wa_b if db_m_wa_b is not None else 0.0, disabled=(db_m_wa_b is None))
+                    u_waa = st.number_input("World Aquatics - Marca A (seg):", value=db_m_wa_a if db_m_wa_a is not None else 0.0, disabled=(db_m_wa_a is None))
+                    u_wr = st.number_input("Récord Mundial de Estilo Absoluto:", value=db_m_wr if db_m_wr is not None else 25.0, disabled=(db_m_wr is None))
                     
-                    if up_data:
-                        supabase.table("marcas_referencia").upsert({
-                            "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
-                            "categoria": u_cat, **up_data
-                        }, on_conflict="prueba,genero,categoria").execute()
-                        st.success(f"Tiempos de referencia actualizados para {u_cat}.")
-                        st.rerun()
+                    if st.form_submit_button("⚡ Guardar Configuración de Tiempos"):
+                        up_data = {}
+                        if db_m_ano is not None: up_data["m_ano"] = u_ano
+                        if db_m_panam_b is not None: up_data["m_panam_b"] = u_panamb
+                        if db_m_panam_a is not None: up_data["m_panam_a"] = u_panama
+                        if db_m_wa_b is not None: up_data["m_wa_b"] = u_wab
+                        if db_m_wa_a is not None: up_data["m_wa_a"] = u_waa
+                        if db_m_wr is not None: up_data["m_wr"] = u_wr
+                        
+                        if up_data:
+                            supabase.table("marcas_referencia").upsert({
+                                "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
+                                "categoria": u_cat, **up_data
+                            }, on_conflict="prueba,genero,categoria").execute()
+                            st.success(f"Tiempos de referencia actualizados para {u_cat}.")
+                            st.rerun()
         else:
             st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
 
@@ -898,8 +961,6 @@ else:
                     nueva_f_nac_admin = st.date_input("Corregir Fecha Nacimiento:", value=f_nac_inicial, disabled=campos_deshabilitados)
                     
                     if st.button("⚠️ Forzar Cambios de Perfil"):
-                        
-                        # --- INTEGRACIÓN: DISPARADOR DE CORREO DE ACTIVACIÓN ---
                         if user_actual.get("estatus") == "Pendiente" and nuevo_est_user == "Activo":
                             enviar_email(
                                 "¡Tu cuenta ha sido activada!", 
