@@ -1079,6 +1079,79 @@ else:
                 else:
                     st.info("No hay competencias para auditar.")
 
+    # -------------------------------------------------------------
+        # 3. GENERADOR AUTOMÁTICO DE HITOS (ASIGNACIÓN DE ATLETAS)
+        # -------------------------------------------------------------
+        if st.session_state.rol in ["Entrenador", "Administrador"]:
+            st.markdown("---")
+            st.markdown("### 🎯 Generación de Hitos y Auditoría de Elegibilidad")
+            st.caption("Seleccione una competencia programada para evaluar a la nómina de nadadores activos y generar sus hitos de seguimiento.")
+            
+            if resp_comp.data:
+                comp_inscripcion = st.selectbox("Competencia a procesar:", options=list(dict_comps.keys()), key="sel_ins")
+                datos_comp_ins = dict_comps[comp_inscripcion]
+                
+                if st.button("🚀 Procesar Nómina y Generar Hitos"):
+                    with st.spinner("Evaluando normativas y generando expedientes..."):
+                        try:
+                            # 1. Obtener la nómina de atletas activos
+                            resp_atletas = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                            atletas = resp_atletas.data
+                            
+                            if not atletas:
+                                st.warning("No hay atletas activos en el sistema para procesar.")
+                            else:
+                                temporada_evento = datos_comp_ins["temporada"]
+                                ente = datos_comp_ins["ente_rector"]
+                                comp_id = datos_comp_ins["id"]
+                                
+                                contadores = {"elegibles": 0, "ineligibles": 0, "omitidos": 0}
+                                
+                                for atleta in atletas:
+                                    atleta_id = atleta["id"]
+                                    fnac = atleta["fecha_nacimiento"]
+                                    
+                                    # Verificar si el hito ya existe para no duplicar
+                                    check_exist = supabase.table("historial_hitos").select("id").eq("usuario_id", atleta_id).eq("competencia_id", comp_id).execute()
+                                    if check_exist.data:
+                                        contadores["omitidos"] += 1
+                                        continue
+                                        
+                                    if not fnac:
+                                        estado_elegible = False
+                                        motivo = "Perfil incompleto: Falta fecha de nacimiento."
+                                    else:
+                                        # Llamada a la función que agregamos al inicio del script
+                                        edad_tecnica = calcular_edad_tecnica_al_31_dic(fnac, temporada_evento)
+                                        estado_elegible, motivo = evaluar_elegibilidad_internacional(edad_tecnica, ente)
+                                    
+                                    # Calcular fecha para la alerta (15 días antes)
+                                    f_alerta = calcular_fecha_alerta(datos_comp_ins["fecha_inicio"], 15)
+                                    
+                                    # Crear el registro pivote en historial_hitos
+                                    nuevo_hito = {
+                                        "usuario_id": atleta_id,
+                                        "competencia_id": comp_id,
+                                        "temporada_auditada": temporada_evento,
+                                        "elegible": estado_elegible,
+                                        "motivo_ineligibilidad": motivo if not estado_elegible else None,
+                                        "estado_cumplimiento": "Pendiente",
+                                        "fecha_alerta": f_alerta.isoformat()
+                                    }
+                                    
+                                    supabase.table("historial_hitos").insert(nuevo_hito).execute()
+                                    
+                                    if estado_elegible:
+                                        contadores["elegibles"] += 1
+                                    else:
+                                        contadores["ineligibles"] += 1
+                                        
+                                st.success(f"✅ Proceso completado con éxito.")
+                                st.info(f"📊 **Resumen:** {contadores['elegibles']} atletas asignados (Pendientes) | {contadores['ineligibles']} descartados por normativa | {contadores['omitidos']} ya estaban registrados.")
+                                
+                        except Exception as e:
+                            st.error(f"Error durante la generación de hitos: {e}")
+
     with tab_admin:
         if st.session_state.rol == "Administrador":
             st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")
