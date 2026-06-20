@@ -833,8 +833,8 @@ else:
         with col_ins:
             st.markdown("**Ingresar Nueva Marca**")
             with st.form("form_insertar_marca", clear_on_submit=True):
-                ins_fecha_evento = st.date_input("Fecha de la Competencia:", value=datetime.date.today())
-                ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=1.0, step=0.01)
+                ins_fecha_evento = st.date_input("Fecha de la Competencia:", min_value=datetime.date(2020, 1, 1), max_value=datetime.date.today(), value=datetime.date.today())
+                ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=20.0,  max_value=1800.0, step=0.01)
                 ins_nota = st.text_input("Evento / Fecha:")
                 
                 if st.form_submit_button("💾 Guardar Registro"):
