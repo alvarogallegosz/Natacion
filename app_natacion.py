@@ -148,7 +148,6 @@ def login_usuario(user, password):
         if response.data:
             user_data = response.data[0]
             
-            # --- INTEGRACIÓN: VALIDACIÓN DE ESTATUS PENDIENTE ---
             if user_data.get("estatus") == "Pendiente":
                 st.error("⚠️ Tu cuenta está en proceso de revisión por la administración. Aún no puedes ingresar.")
                 return False
@@ -224,7 +223,6 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
-                                # --- INTEGRACIÓN: DETERMINAR ESTATUS Y DISPARAR CORREOS ---
                                 status_inicial = "Pendiente" if nuevo_rol in ["Entrenador", "Administrador"] else "Activo"
                                 
                                 nuevo_registro = {
@@ -353,7 +351,7 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             st.sidebar.error("Error cargando los filtros secundarios.")
 
 # -------------------------------------------------------------
-# AJUSTE DINÁMICO POR CATEGORÍA Y PRUEBA
+# AJUSTE DINÁMICO POR CATEGORÍA Y ORDENAMIENTO DE PRUEBAS
 # -------------------------------------------------------------
 spc()
 st.sidebar.subheader("📊 Ajustes por prueba")
@@ -361,33 +359,47 @@ st.sidebar.subheader("📊 Ajustes por prueba")
 cat_atleta = st.session_state.nadador_seleccionado_categoria
 es_preinfantil = cat_atleta.startswith("Preinfantil")
 
+# Se han añadido separadores visuales '--- Estilo ---' para mejorar la intuición
 if es_preinfantil:
     lista_pruebas = [
-        '25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa',
-        '50 Libre', '100 Combinado'
+        '--- 🏊‍♂️ LIBRE ---', '25 Libre', '50 Libre',
+        '--- 🏊‍♂️ ESPALDA ---', '25 Espalda',
+        '--- 🏊‍♂️ MARIPOSA ---', '25 Mariposa',
+        '--- 🏊‍♂️ PECHO ---', '25 Pecho',
+        '--- 🏊‍♂️ COMBINADO ---', '100 Combinado'
     ]
 elif cat_atleta == "Infantil A":
     lista_pruebas = [
-        '50 Libre', '50 Espalda', '50 Pecho', '50 Mariposa', 
-        '100 Libre', '200 Libre', '400 Libre', '200 Combinado'
+        '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre',
+        '--- 🏊‍♂️ ESPALDA ---', '50 Espalda',
+        '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa',
+        '--- 🏊‍♂️ PECHO ---', '50 Pecho',
+        '--- 🏊‍♂️ COMBINADO ---', '200 Combinado'
     ]
 elif cat_atleta == "Infantil B":
     lista_pruebas = [
-        '50 Libre', '50 Espalda', '50 Pecho', '50 Mariposa',
-        '100 Libre', '100 Espalda', '100 Pecho', '100 Mariposa',
-        '200 Libre', '200 Espalda', '200 Pecho', '200 Mariposa',
-        '400 Libre', '800 Libre', '200 Combinado'
+        '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre',
+        '--- 🏊‍♂️ ESPALDA ---', '50 Espalda', '100 Espalda', '200 Espalda',
+        '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa', '100 Mariposa', '200 Mariposa',
+        '--- 🏊‍♂️ PECHO ---', '50 Pecho', '100 Pecho', '200 Pecho',
+        '--- 🏊‍♂️ COMBINADO ---', '200 Combinado'
     ]
 else:
     lista_pruebas = [
-        '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre', 
-        '50 Espalda', '100 Espalda', '200 Espalda', 
-        '50 Mariposa', '100 Mariposa', '200 Mariposa', 
-        '50 Pecho', '100 Pecho', '200 Pecho', 
-        '200 Combinado', '400 Combinado'
+        '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre',
+        '--- 🏊‍♂️ ESPALDA ---', '50 Espalda', '100 Espalda', '200 Espalda',
+        '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa', '100 Mariposa', '200 Mariposa',
+        '--- 🏊‍♂️ PECHO ---', '50 Pecho', '100 Pecho', '200 Pecho',
+        '--- 🏊‍♂️ COMBINADO ---', '200 Combinado', '400 Combinado'
     ]
 
-titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=0)
+# Usamos index=1 para que se seleccione por defecto la primera prueba válida y no el separador
+titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=1)
+
+# Protección en caso de que el usuario seleccione un separador visual
+if titulo_grafico.startswith("---"):
+    st.sidebar.info("👆 Selecciona una distancia específica en el menú superior para ver o editar los datos.")
+    st.stop()
 
 contenedor_sliders = st.sidebar.container()
 
@@ -408,10 +420,10 @@ if es_preinfantil:
         return 0.0
 
     if titulo_grafico.startswith("25 "):
-        estilo = titulo_grafico.split(" ")[1] # Extrae Libre, Espalda, etc.
+        estilo = titulo_grafico.split(" ")[1]
         ref_50 = get_m_ano_infantil_a(f"50 {estilo}")
-        m_ano = ref_50 / 2.0  # Fisiológicamente la mitad del tiempo de 50m
-        m_wr = m_ano * 0.8 if m_ano > 0 else 15.0 # Ficticio para límite del gráfico
+        m_ano = ref_50 / 2.0  
+        m_wr = m_ano * 0.8 if m_ano > 0 else 15.0 
     elif titulo_grafico == "50 Libre":
         m_ano = get_m_ano_infantil_a("50 Libre")
         m_wr = m_ano * 0.8 if m_ano > 0 else 30.0
