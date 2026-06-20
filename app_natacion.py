@@ -566,6 +566,25 @@ with contenedor_sliders:
     h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
     t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
+    # --- NUEVO: INTERRUPTOR DE VISTA MACRO/MICRO ---
+    spc()
+    st.sidebar.subheader("👁️ Lente de Planificación")
+    modo_vista = st.sidebar.radio(
+        "Modo del Gráfico:", 
+        ["Macro: Carrera Completa", "Micro: Temporada Actual"],
+        help="Alterna entre la visión a largo plazo hasta el Peak, y el zoom detallado del año en curso con los hitos de competencia."
+    )
+    
+    fecha_cierre_temp = None
+    if modo_vista == "Micro: Temporada Actual":
+        ano_actual = datetime.date.today().year
+        fecha_cierre_temp = st.sidebar.date_input(
+            "Cierre de Temporada (Zoom End):",
+            value=datetime.date(ano_actual, 12, 31),
+            min_value=datetime.date.today(),
+            help="Puedes extender esta fecha más allá del 31 de diciembre si el ciclo termina el año siguiente."
+        )
+
 if not modo_equipo and st.session_state.rol == "Nadador":
     st.sidebar.markdown("---")
     st.sidebar.caption("📅 *Plan de control de proyección a 3 meses hasta los 18 años requerido para cumplir normativas de rendimiento.*")
@@ -768,8 +787,71 @@ else:
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-    lim_x_min = max(4.0, t0 - 0.5)
-    lim_x_max = t_peak + 1.0
+    # ... (código anterior: ax.axvline para t0, t_pb, t_peak, etc.) ...
+
+    # --- NUEVA LÓGICA DE ZOOM Y EVENTOS (MODO MICRO) ---
+    eventos_temporada_render = []
+    
+    # Intentar obtener la fecha de nacimiento como objeto 'date' para el cálculo exacto
+    fn_obj = None
+    try:
+        if st.session_state.fecha_nacimiento:
+            fn_obj = datetime.date.fromisoformat(str(st.session_state.fecha_nacimiento))
+    except:
+        pass
+
+    if modo_vista == "Micro: Temporada Actual" and fn_obj:
+        edad_hoy = calcular_edad_decimal(fn_obj, datetime.date.today())
+        edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
+        
+        # 1. Ajuste del Zoom (Eje X)
+        lim_x_min = max(t0, edad_hoy - 0.1)  # Un poco antes de hoy
+        lim_x_max = edad_cierre + 0.1        # Un poco después del cierre
+        
+        # 2. Búsqueda y trazado de hitos del catálogo
+        try:
+            # Traemos competencias cuyo año coincida con hoy o el de cierre
+            anos_busqueda = list(set([datetime.date.today().year, fecha_cierre_temp.year]))
+            resp_ev = supabase.table("catalogo_competencias").select("*").in_("temporada", anos_busqueda).execute()
+            
+            if resp_ev.data:
+                for ev in resp_ev.data:
+                    f_ini_ev = datetime.date.fromisoformat(ev["fecha_inicio"])
+                    
+                    # Filtrar solo las que caen dentro de la ventana de tiempo elegida
+                    if datetime.date.today() <= f_ini_ev <= fecha_cierre_temp:
+                        edad_ev = calcular_edad_decimal(fn_obj, f_ini_ev)
+                        t_proy_ev = float(calcular_curva_atleta([edad_ev], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
+                        
+                        eventos_temporada_render.append({
+                            "Fecha": f_ini_ev.strftime("%d-%m-%Y"),
+                            "Competencia": ev["nombre_evento"],
+                            "Ente": ev["ente_rector"],
+                            "Edad": f"{edad_ev:.2f} a",
+                            "Target Proyectado": f"{t_proy_ev:.2f} s"
+                        })
+                        
+                        # Dibujar hito (línea vertical tenue) y etiqueta
+                        ax.axvline(x=edad_ev, color="#8E44AD", linestyle=":", linewidth=1.2, alpha=0.5)
+                        ax.text(edad_ev + 0.01, lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.1), 
+                                ev["nombre_evento"], rotation=90, fontsize=6.5, color="#8E44AD", alpha=0.8)
+                        # Dibujar el punto de cruce en la curva asintótica
+                        ax.scatter(edad_ev, t_proy_ev, color="#8E44AD", s=20, zorder=4)
+        except Exception as e:
+            pass
+            
+        # Target de fin de temporada
+        T_cierre = float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
+        ax.scatter(edad_cierre, T_cierre, color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
+        ax.text(edad_cierre, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+
+    else:
+        # Modo Macro (Carrera Completa Original)
+        lim_x_min = max(4.0, t0 - 0.5)
+        lim_x_max = t_peak + 1.0
+
+    ax.set_xlim(lim_x_min, lim_x_max)
+    # ... (sigue el código original para ax.set_ylim y referencias...) ...
     ax.set_xlim(lim_x_min, lim_x_max)
 
     peor_tiempo_ind = max(todos_los_tiempos_ind)
@@ -856,7 +938,17 @@ else:
             estilizar_tabla_nativo(mpl_table2)
 
     st.pyplot(fig)
+# Renderizar el gráfico principal
+    st.pyplot(fig)
 
+    # --- NUEVO: TABLA DE PLANIFICACIÓN DE TEMPORADA ---
+    if modo_vista == "Micro: Temporada Actual" and eventos_temporada_render:
+        st.markdown("#### 📋 Hoja de Ruta de la Temporada")
+        st.caption("Proyección de tiempos calculados mediante la intersección de las fechas de competencia con la curva fisiológica asintótica del atleta.")
+        df_eventos_render = pd.DataFrame(eventos_temporada_render)
+        st.dataframe(df_eventos_render, use_container_width=True, hide_index=True)
+    elif modo_vista == "Micro: Temporada Actual":
+        st.info("No hay competencias programadas en el catálogo para esta ventana de tiempo.")
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
