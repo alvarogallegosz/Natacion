@@ -865,7 +865,7 @@ st.markdown("---")
 if simulacion_externa:
     st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
 else:
-    tab_marcas, tab_entrenador, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos por Categoría (Entrenador)", "🛡️ Consola Global (Admin)"])
+    tab_marcas, tab_entrenador, tab_calendario, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos", "📅 Calendario Anual", "🛡️ Consola Global (Admin)"])
 
     with tab_marcas:
         col_ins, col_vistas = st.columns([1, 2])
@@ -982,6 +982,102 @@ else:
                             st.rerun()
         else:
             st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
+
+    # -------------------------------------------------------------
+    # PESTAÑA: CALENDARIO ANUAL DE COMPETENCIAS
+    # -------------------------------------------------------------
+    with tab_calendario:
+        st.markdown("### 📅 Gestión del Calendario de Competencias")
+        
+        temporada_actual = datetime.date.today().year
+        st.markdown(f"**Competencias Programadas - Temporada {temporada_actual}**")
+        
+        # 1. Vista de solo lectura (Disponible para todos, incluyendo Nadadores)
+        try:
+            resp_comp = supabase.table("catalogo_competencias").select("*").eq("temporada", temporada_actual).order("fecha_inicio", desc=False).execute()
+            if resp_comp.data:
+                df_comp = pd.DataFrame(resp_comp.data)
+                # Formateo de fechas para mejor lectura
+                df_comp["fecha_inicio"] = pd.to_datetime(df_comp["fecha_inicio"]).dt.strftime('%d-%m-%Y')
+                df_comp["fecha_fin"] = pd.to_datetime(df_comp["fecha_fin"]).dt.strftime('%d-%m-%Y')
+                
+                st.dataframe(
+                    df_comp[["nombre_evento", "ente_rector", "categoria_evento", "fecha_inicio", "fecha_fin"]], 
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info(f"No hay competencias registradas en el catálogo para la temporada {temporada_actual}.")
+        except Exception as e:
+            st.error(f"Error cargando calendario: {e}")
+
+        # 2. Controles de Edición (Restringido a Entrenadores y Admins)
+        if st.session_state.rol in ["Entrenador", "Administrador"]:
+            st.markdown("---")
+            col_add, col_edit = st.columns(2)
+            
+            with col_add:
+                st.markdown("**➕ Programar Nueva Competencia**")
+                with st.form("form_add_comp", clear_on_submit=True):
+                    add_temp = st.number_input("Temporada (Año):", min_value=2024, max_value=2050, value=temporada_actual, step=1)
+                    add_nombre = st.text_input("Nombre del Evento:")
+                    add_ente = st.selectbox("Ente Rector:", ["FEVEDA", "PANAM", "SURAM", "WA"])
+                    add_cat = st.selectbox("Nivel / Categoría:", ["Nacional", "Internacional"])
+                    
+                    c_ini, c_fin = st.columns(2)
+                    with c_ini: add_f_ini = st.date_input("Fecha Inicio:", min_value=datetime.date(2024, 1, 1))
+                    with c_fin: add_f_fin = st.date_input("Fecha Fin:", min_value=datetime.date(2024, 1, 1))
+                    
+                    if st.form_submit_button("💾 Guardar en Catálogo"):
+                        if add_nombre:
+                            nueva_comp = {
+                                "temporada": add_temp,
+                                "nombre_evento": add_nombre,
+                                "ente_rector": add_ente,
+                                "categoria_evento": add_cat,
+                                "fecha_inicio": add_f_ini.isoformat(),
+                                "fecha_fin": add_f_fin.isoformat(),
+                                "creador_id": st.session_state.usuario_id
+                            }
+                            supabase.table("catalogo_competencias").insert(nueva_comp).execute()
+                            st.success("Competencia agregada exitosamente.")
+                            st.rerun()
+                        else:
+                            st.error("El nombre del evento es obligatorio.")
+                            
+            with col_edit:
+                st.markdown("**✏️ Auditar / Posponer / Suspender**")
+                if resp_comp.data:
+                    # Crear diccionario para el selectbox
+                    dict_comps = {f"{c['nombre_evento']} ({c['fecha_inicio']})": c for c in resp_comp.data}
+                    comp_seleccionada = st.selectbox("Seleccione Competencia a Modificar:", options=list(dict_comps.keys()))
+                    
+                    if comp_seleccionada:
+                        datos_c = dict_comps[comp_seleccionada]
+                        with st.form("form_edit_comp"):
+                            st.caption("Modifique las fechas en caso de postergación, o agregue '(SUSPENDIDO)' al nombre si el evento se cancela.")
+                            
+                            edit_nombre = st.text_input("Nombre del Evento:", value=datos_c["nombre_evento"])
+                            c_edit_ini, c_edit_fin = st.columns(2)
+                            
+                            # Manejo seguro de fechas desde la base de datos
+                            val_f_ini = datetime.date.fromisoformat(datos_c["fecha_inicio"])
+                            val_f_fin = datetime.date.fromisoformat(datos_c["fecha_fin"])
+                            
+                            with c_edit_ini: edit_f_ini = st.date_input("Nueva Fecha Inicio:", value=val_f_ini)
+                            with c_edit_fin: edit_f_fin = st.date_input("Nueva Fecha Fin:", value=val_f_fin)
+                            
+                            if st.form_submit_button("🔄 Aplicar Correcciones"):
+                                supabase.table("catalogo_competencias").update({
+                                    "fecha_inicio": edit_f_ini.isoformat(),
+                                    "fecha_fin": edit_f_fin.isoformat(),
+                                    "nombre_evento": edit_nombre
+                                }).eq("id", datos_c["id"]).execute()
+                                
+                                st.warning("Competencia actualizada. Los hitos de los atletas se ajustarán a estas nuevas fechas.")
+                                st.rerun()
+                else:
+                    st.info("No hay competencias para auditar.")
 
     with tab_admin:
         if st.session_state.rol == "Administrador":
