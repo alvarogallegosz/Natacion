@@ -20,6 +20,45 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 # -------------------------------------------------------------
+# MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
+# -------------------------------------------------------------
+
+def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
+    """
+    Calcula la edad del nadador al 31 de diciembre del año en curso, 
+    según la normativa técnica para categorización.
+    """
+    # Si la fecha_nacimiento es un string de base de datos, convertirlo a date
+    if isinstance(fecha_nacimiento, str):
+        fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
+        
+    edad_tecnica = temporada_activa - fecha_nacimiento.year
+    return edad_tecnica
+
+def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
+    """
+    Verifica si el nadador cumple con la edad mínima para eventos internacionales.
+    Retorna: (Booleano de elegibilidad, Motivo de rechazo o None)
+    """
+    entes_internacionales = ["PANAM", "SURAM", "WA"]
+    
+    if ente_rector in entes_internacionales:
+        if edad_tecnica < 14:
+            return False, f"Ineligible: Edad técnica ({edad_tecnica} años) menor a 14 años exigidos para {ente_rector}."
+            
+    return True, "Elegible"
+
+def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
+    """
+    Calcula la fecha exacta en la que el cron/sistema debe notificar al atleta.
+    """
+    if isinstance(fecha_inicio_competencia, str):
+        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
+        
+    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
+    return fecha_alerta
+
+# -------------------------------------------------------------
 # FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
 def enviar_email(asunto, cuerpo, destinatario):
