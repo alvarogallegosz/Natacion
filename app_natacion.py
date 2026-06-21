@@ -801,7 +801,9 @@ else:
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-# --- 2. LÓGICA DE ESCALA (CALENDARIO VS EDAD) ---
+# --- 2. LÓGICA DE ESCALA (CALENDARIO EN MICRO VS EDAD EN MACRO) ---
+    import matplotlib.dates as mdates
+    
     eventos_temporada_render = []
     fn_obj = None
     try:
@@ -813,35 +815,28 @@ else:
     if 'fecha_cierre_temp' not in locals() or not fecha_cierre_temp:
         fecha_cierre_temp = datetime.date(datetime.date.today().year, 12, 31)
 
-    # Inicializamos los límites de forma segura
-    lim_x_min = None
-    lim_x_max = None
+    # Variables de límites base unificadas
+    lim_x_min_val = None
+    lim_x_max_val = None
 
     if modo_vista == "Micro: Temporada Actual" and fn_obj:
-        import matplotlib.dates as mdates
+        # Eje X basado en fechas (Calendario)
+        lim_x_min_val = datetime.date.today()
+        lim_x_max_val = fecha_cierre_temp
         
-        # Convertir límites a fechas (Eje X basado en calendario)
-        edad_hoy = calcular_edad_decimal(fn_obj, datetime.date.today())
-        edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
-        
-        # Rango del eje X en formato fecha nativa
-        lim_x_min = datetime.date.today()
-        lim_x_max = fecha_cierre_temp
-        ax.set_xlim(lim_x_min, lim_x_max)
-        
-        # Formatear el eje X para mostrar meses de forma legible
+        ax.set_xlim(lim_x_min_val, lim_x_max_val)
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
         ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
         plt.xticks(rotation=45)
 
-        # Generar curva proyectada sobre el calendario
-        fechas_sim = pd.date_range(lim_x_min, lim_x_max, periods=200)
+        # Curva proyectada sobre calendario
+        fechas_sim = pd.date_range(lim_x_min_val, lim_x_max_val, periods=200)
         edades_fechas = [calcular_edad_decimal(fn_obj, d.date()) for d in fechas_sim]
         tiempos_sim = calcular_curva_atleta(edades_fechas, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
         
         ax.plot(fechas_sim, tiempos_sim, color="#2980B9", linewidth=2.5, label="Curva Proyectada", zorder=3)
 
-        # Búsqueda y trazado de hitos del catálogo en las fechas correctas
+        # Trazado de competencias del catálogo
         try:
             anos_busqueda = list(set([datetime.date.today().year, fecha_cierre_temp.year]))
             resp_ev = supabase.table("catalogo_competencias").select("*").in_("temporada", anos_busqueda).execute()
@@ -850,7 +845,7 @@ else:
                 for ev in resp_ev.data:
                     f_ini_ev = datetime.date.fromisoformat(ev["fecha_inicio"])
                     
-                    if lim_x_min <= f_ini_ev <= lim_x_max:
+                    if lim_x_min_val <= f_ini_ev <= lim_x_max_val:
                         edad_ev = calcular_edad_decimal(fn_obj, f_ini_ev)
                         t_proy_ev = float(calcular_curva_atleta([edad_ev], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
                         
@@ -862,7 +857,6 @@ else:
                             "Target Proyectado": f"{t_proy_ev:.2f} s"
                         })
                         
-                        # Dibujar línea vertical y scatter usando la fecha nativa
                         ax.axvline(x=f_ini_ev, color="#8E44AD", linestyle=":", linewidth=1.2, alpha=0.5)
                         ax.text(f_ini_ev, lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.15), 
                                 ev["nombre_evento"], rotation=90, fontsize=6.5, color="#8E44AD", alpha=0.8, zorder=4)
@@ -870,18 +864,19 @@ else:
         except Exception as e:
             pass
             
-        # Meta proyectada al cierre de temporada (marcador de fin de año/ciclo)
-        ax.scatter(lim_x_max, T_cierre := float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0]), 
-                   color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
-        ax.text(lim_x_max, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+        # Meta proyectada al cierre de temporada
+        T_cierre = float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
+        ax.scatter(lim_x_max_val, T_cierre, color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
+        ax.text(lim_x_max_val, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
     else:
         # Modo Macro (Carrera Completa Original - Eje X en Años de Edad)
-        lim_x_min = max(4.0, t0 - 0.5)
-        lim_x_max = t_peak + 1.0
-        ax.set_xlim(lim_x_min, lim_x_max)
+        lim_x_min_val = max(4.0, t0 - 0.5)
+        lim_x_max_val = t_peak + 1.0
         
-        edades_sim = np.linspace(lim_x_min, lim_x_max, 200)
+        ax.set_xlim(lim_x_min_val, lim_x_max_val)
+        
+        edades_sim = np.linspace(lim_x_min_val, lim_x_max_val, 200)
         tiempos_sim = calcular_curva_atleta(edades_sim, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
         ax.plot(edades_sim, tiempos_sim, color="#2980B9", linewidth=2.5, label="Curva Proyectada", zorder=3)
         
@@ -889,8 +884,13 @@ else:
         ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
         ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
         ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
-    # ... (código anterior) ...
-    ax.set_xlim(lim_x_min, lim_x_max)
+
+    # --- 3. LÍNEA DE SEGURIDAD PARA ETIQUETAS POSTERIORES ---
+    # Convertimos de forma segura el inicio del eje X a número flotante para evitar errores en x_texto de la línea 901
+    if hasattr(lim_x_min_val, 'toordinal'): # Es fecha (modo micro)
+        x_texto = calcular_edad_decimal(fn_obj, lim_x_min_val) + 0.1
+    else: # Es número (modo macro)
+        x_texto = lim_x_min_val + 0.1
 
     # --- NUEVA LÍNEA DE SEGURIDAD ---
     # Rescatamos el límite mínimo actual del eje X para que las etiquetas subsiguientes lo lean sin NameError
