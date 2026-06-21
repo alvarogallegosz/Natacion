@@ -781,117 +781,93 @@ else:
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
 
     fig = plt.figure(figsize=(8.5, 11.0))
-    # Dimensiones normalizadas relativas a la hoja vertical (izq, fondo, ancho, alto)
     ancho_grafico = 0.76
     margen_izq = 0.12
 
-    # =============================================================================
-    # ⚖️ CREACIÓN DEL EJE Y AJUSTE DINÁMICO (Lupa Vertical vs Vista Panorámica)
-    # =============================================================================
+    # 1. CREACIÓN DEL EJE SEGÚN VISTA
     if tipo_vista == "Micro (Ventana Anual)":
-        # MODO MICRO: Mayor altura para la ventana anual, inicia arriba de la tabla (en 0.48)
         alto_grafico = 0.45
         fondo_grafico = 0.48
-        
-        # ¡AQUÍ ESTÁ LA SOLUCIÓN! Creamos "ax" antes de hacerle set_ylim
         ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
-        
-        # 1. Obtenemos los tiempos de la curva teórica dentro del rango mensual, con alta resolución
-        edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 200)
-        tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
-        
-        # 2. Obtenemos las edades y tiempos de las marcas reales que caen en la ventana
-        tiempos_reales_ventana = []
-        if not simulacion_externa and len(df_procesado) > 0:
-            for idx_t, t_val in enumerate(df_procesado["Edad"]):
-                if edad_min_zoom <= t_val <= edad_max_zoom:
-                    tiempos_reales_ventana.append(df_procesado["Tiempo"].iloc[idx_t])
-        
-        todos_tiempos_ventana = tiempos_curva_ventana + tiempos_reales_ventana
-        
-        if todos_tiempos_ventana and len(todos_tiempos_ventana) > 0:
-            p_min = min(todos_tiempos_ventana)
-            p_max = max(todos_tiempos_ventana)
-            # Damos un pequeño margen para que la curva no pegue contra los bordes
-            margen_y = max(0.5, (p_max - p_min) * 0.15)
-            lim_y_inferior = p_min - margen_y
-            lim_y_superior = p_max + margen_y
-        else:
-            # Respaldo seguro si la ventana no tiene registros en ese rango mensual
-            lim_y_inferior = float(T_target) - 2.0
-            lim_y_superior = float(T0) + 2.0
-
-        # Asignamos los límites de la ventana anual
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-        lim_x_min = edad_min_zoom
-        lim_x_max = edad_max_zoom
-        ax.set_xlim(lim_x_min, lim_x_max)
-        
     else:
-        # MODO MACRO: Diseño original, gráfico contenido para desplegar la tabla histórica abajo
         alto_grafico = 0.33
         fondo_grafico = 0.52  
-        
-        # ¡AQUÍ ESTÁ LA SOLUCIÓN! Creamos "ax" antes de hacerle set_ylim
         ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
 
-        # 🗺️ Escala completa original de toda la trayectoria deportiva
-        todos_los_tiempos_ind = [T0, T_pb, T_target]
+    # 2. CÁLCULO ESTRICTO DE LÍMITES 
+    todos_los_tiempos_ind = [T0, T_pb, T_target]
+    if not simulacion_externa and len(df_procesado) > 0:
+        todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+
+    if tipo_vista == "Micro (Ventana Anual)":
+        edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 300)
+        tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
+        
+        tiempos_reales_ventana = []
         if not simulacion_externa and len(df_procesado) > 0:
-            todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
-            
+            for _, row in df_procesado.iterrows():
+                if edad_min_zoom <= row["Edad"] <= edad_max_zoom:
+                    tiempos_reales_ventana.append(row["Tiempo"])
+                    
+        todos_tiempos_v = tiempos_curva_ventana + tiempos_reales_ventana
+        
+        if todos_tiempos_v:
+            t_min_v = min(todos_tiempos_v)
+            t_max_v = max(todos_tiempos_v)
+        else:
+            t_min_v = min(tiempos_curva)
+            t_max_v = max(tiempos_curva)
+
+        margen_y = max(0.5, (t_max_v - t_min_v) * 0.15)
+        lim_y_inferior = t_min_v - margen_y
+        lim_y_superior = t_max_v + margen_y
+        
+        lim_x_min = edad_min_zoom
+        lim_x_max = edad_max_zoom
+    else:
         peor_tiempo_ind = max(todos_los_tiempos_ind)
         lim_y_inferior = m_wr * 0.95
         lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
         
         lim_x_min = max(4.0, t0 - 0.5)
         lim_x_max = t_peak + 1.0
-        ax.set_xlim(lim_x_min, lim_x_max)
 
-    # =============================================================================
-    # ETIQUETAS, FORMATO Y CAJAS DE TEXTO
-    # =============================================================================
-    offset_y = (lim_y_superior - lim_y_inferior) * 0.025
-    estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
-    
-    # Nos aseguramos de mostrar las anotaciones solo si están dentro de la ventana visible en modo Micro
-    if tipo_vista != "Micro (Ventana Anual)" or (edad_min_zoom <= t0 <= edad_max_zoom):
-        ax.text(t0 + 0.02, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=7.5, va="bottom", ha="left", bbox=estilo_bbox)
-        
-    if tipo_vista != "Micro (Ventana Anual)" or (edad_min_zoom <= t_pb <= edad_max_zoom):
-        ax.text(t_pb + 0.02, T_pb if tipo_vista != "Micro (Ventana Anual)" else T_pb - offset_y, 
-                f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=7.5, va="center", ha="left", bbox=estilo_bbox)
+    # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
+    ax.set_xlim(lim_x_min, lim_x_max)
+    ax.set_ylim(lim_y_inferior, lim_y_superior)
 
-    # Trazo de la curva de proyección asintótica
+    # 3. DIBUJO DE CURVAS
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
-    todos_los_tiempos_ind = [T0, T_pb, T_target]
-    
     if not simulacion_externa and len(df_procesado) > 0:
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
         ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
-        todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
 
-    ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
-    ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
-    ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
-    ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=30, zorder=5, label="Punto Consultado")
-
-    ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
-    ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
-    ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
-    ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
-# =============================================================================
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-    ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-    ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
-    ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
-    ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
+    # 4. CONDICIONAMOS LOS HITOS (Para que no aplasten el gráfico si están fuera de la ventana)
+    if lim_x_min <= t0 <= lim_x_max and lim_y_inferior <= T0 <= lim_y_superior:
+        ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
+        ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
+        ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
 
-    x_texto = lim_x_min + 0.1
+    if lim_x_min <= t_pb <= lim_x_max and lim_y_inferior <= T_pb <= lim_y_superior:
+        ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
+        ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+        ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
+
+    if lim_x_min <= t_intermedia <= lim_x_max and lim_y_inferior <= T_intermedia_val <= lim_y_superior:
+        ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=30, zorder=5, label="Punto Consultado")
+        ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+        ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
+
+    if lim_x_min <= t_peak <= lim_x_max and lim_y_inferior <= T_target <= lim_y_superior:
+        ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
+        ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
+        ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
+
+    x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
     if not es_preinfantil:
         referencias = [
             {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
@@ -922,6 +898,7 @@ else:
     ax.set_axisbelow(True) 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
+    # 5. RENDERIZADO DE TABLA (Intacto)
     if not simulacion_externa and len(df_procesado) > 0:
         df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
         df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
@@ -961,8 +938,8 @@ else:
             mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
             estilizar_tabla_nativo(mpl_table2)
 
+    # AQUÍ ESTÁ LA MAGIA FINAL
     st.pyplot(fig, use_container_width=True)
-
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
