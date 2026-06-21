@@ -815,14 +815,18 @@ else:
     if 'fecha_cierre_temp' not in locals() or not fecha_cierre_temp:
         fecha_cierre_temp = datetime.date(datetime.date.today().year, 12, 31)
 
-    # Variables de límites base unificadas
+    # Variables base inicializadas de forma segura
     lim_x_min_val = None
     lim_x_max_val = None
+    edad_cierre = 0.0  # <--- Respaldo seguro para evitar el NameError
 
     if modo_vista == "Micro: Temporada Actual" and fn_obj:
         # Eje X basado en fechas (Calendario)
         lim_x_min_val = datetime.date.today()
         lim_x_max_val = fecha_cierre_temp
+        
+        # Calculamos la edad de cierre para esta modalidad
+        edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
         
         ax.set_xlim(lim_x_min_val, lim_x_max_val)
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
@@ -864,7 +868,7 @@ else:
         except Exception as e:
             pass
             
-        # Meta proyectada al cierre de temporada
+        # Meta proyectada al cierre de temporada (común para ambas vistas, pero usando la variable segura)
         T_cierre = float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
         ax.scatter(lim_x_max_val, T_cierre, color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
         ax.text(lim_x_max_val, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
@@ -873,6 +877,9 @@ else:
         # Modo Macro (Carrera Completa Original - Eje X en Años de Edad)
         lim_x_min_val = max(4.0, t0 - 0.5)
         lim_x_max_val = t_peak + 1.0
+        
+        # En modo macro, asignamos edad_cierre a t_peak para mantener la coherencia de la curva proyectada si se requiere
+        edad_cierre = t_peak
         
         ax.set_xlim(lim_x_min_val, lim_x_max_val)
         
@@ -886,7 +893,6 @@ else:
         ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
     # --- 3. LÍNEA DE SEGURIDAD PARA ETIQUETAS POSTERIORES ---
-    # Convertimos de forma segura el inicio del eje X a número flotante para evitar errores en x_texto de la línea 901
     if hasattr(lim_x_min_val, 'toordinal'): # Es fecha (modo micro)
         x_texto = calcular_edad_decimal(fn_obj, lim_x_min_val) + 0.1
     else: # Es número (modo macro)
