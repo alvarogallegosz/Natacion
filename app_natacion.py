@@ -961,7 +961,7 @@ else:
             mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
             estilizar_tabla_nativo(mpl_table2)
 
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=True)
 
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
