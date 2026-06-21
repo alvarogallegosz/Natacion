@@ -946,8 +946,6 @@ else:
             estilizar_tabla_nativo(mpl_table2)
 
     st.pyplot(fig)
-# Renderizar el gráfico principal
-    st.pyplot(fig)
 
     # --- NUEVO: TABLA DE PLANIFICACIÓN DE TEMPORADA ---
     if modo_vista == "Micro: Temporada Actual" and eventos_temporada_render:
