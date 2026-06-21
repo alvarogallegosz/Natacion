@@ -785,16 +785,72 @@ else:
     ancho_grafico = 0.76
     margen_izq = 0.12
 
+    # =============================================================================
+    # 🗺️ LÍMITES Y ESCALA DEL EJE Y (CORREGIDO PARA AMBOS MODOS)
+    # =============================================================================
     if tipo_vista == "Micro (Ventana Anual)":
-        # MODO MICRO: Gráfico más alto para visualizar la ventana anual mensual, espacio para eventos
-        alto_grafico = 0.48
-        fondo_grafico = 0.40  # Deja el 40% inferior de la página vertical libre
-        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+        # 1. Obtenemos los tiempos de la curva dentro del rango mensual, con alta resolución
+        edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 200)
+        tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
+        
+        # 2. Obtenemos las edades de las marcas reales
+        todas_las_edades_ind = [t0, t_pb, t_peak]
+        if not simulacion_externa and len(df_procesado) > 0:
+            todas_las_edades_ind.extend(df_procesado["Edad"].tolist())
+        
+        # 3. Filtramos las marcas reales que caen dentro de la ventana del zoom
+        tiempos_reales_ventana = []
+        if not simulacion_externa and len(df_procesado) > 0:
+            for idx_t, t_val in enumerate(df_procesado["Edad"]):
+                if edad_min_zoom <= t_val <= edad_max_zoom:
+                    tiempos_reales_ventana.append(df_procesado["Tiempo"].iloc[idx_t])
+        
+        # Unimos ambos conjuntos para encontrar los extremos reales
+        todos_tiempos_ventana = tiempos_curva_ventana + tiempos_reales_ventana
+        
+        if todos_tiempos_ventana and len(todos_tiempos_ventana) > 1:
+            p_min = min(todos_tiempos_ventana)
+            p_max = max(todos_tiempos_ventana)
+            # Damos un pequeño margen para que la curva no pegue contra el techo o el suelo del gráfico
+            margen_y = max(0.5, (p_max - p_min) * 0.15)
+            lim_y_inferior = p_min - margen_y
+            lim_y_superior = p_max + margen_y
+        else:
+            # Respaldo seguro si no hay datos en ese rango
+            lim_y_inferior = float(T_target) - 2.0
+            lim_y_superior = float(T0) + 2.0
+
+        ax.set_ylim(lim_y_inferior, lim_y_superior)
+        ax.set_xlim(edad_min_zoom, edad_max_zoom)
+        
     else:
-        # MODO MACRO: Diseño original, gráfico contenido para desplegar la tabla histórica abajo
-        alto_grafico = 0.33
-        fondo_grafico = 0.52  # Deja el 52% inferior de la página vertical libre
-        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+        # 🗺️ MODO MACRO: Escala completa original de toda la trayectoria deportiva
+        todos_los_tiempos_ind = [T0, T_pb, T_target]
+        if not simulacion_externa and len(df_procesado) > 0:
+            todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+            
+        peor_tiempo_ind = max(todos_los_tiempos_ind)
+        lim_y_inferior = m_wr * 0.95
+        lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
+        ax.set_ylim(lim_y_inferior, lim_y_superior)
+        
+        lim_x_min = max(4.0, t0 - 0.5)
+        lim_x_max = t_peak + 1.0
+        ax.set_xlim(lim_x_min, lim_x_max)
+
+    # =============================================================================
+    # ETIQUETAS, FORMATO Y CAJAS DE TEXTO
+    # =============================================================================
+    offset_y = (lim_y_superior - lim_y_inferior) * 0.025
+    estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
+    
+    # Nos aseguramos de mostrar las anotaciones solo si están dentro de la ventana visible en modo Micro
+    if tipo_vista != "Micro (Ventana Anual)" or (edad_min_zoom <= t0 <= edad_max_zoom):
+        ax.text(t0 + 0.02, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=7.5, va="bottom", ha="left", bbox=estilo_bbox)
+        
+    if tipo_vista != "Micro (Ventana Anual)" or (edad_min_zoom <= t_pb <= edad_max_zoom):
+        ax.text(t_pb + 0.02, T_pb if tipo_vista != "Micro (Ventana Anual)" else T_pb - offset_y, 
+                f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=7.5, va="center", ha="left", bbox=estilo_bbox)
 
     # Trazo de la curva de proyección asintótica
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
