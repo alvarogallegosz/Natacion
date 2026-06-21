@@ -810,26 +810,32 @@ else:
         lim_x_max = t_peak + 1.0
         ax.set_xlim(lim_x_min, lim_x_max)
     # ===========================================
+
 # =============================================================================
     # ⚖️ AJUSTE DINÁMICO DEL EJE Y (Lupa Vertical vs Vista Panorámica)
     # =============================================================================
     if tipo_vista == "Micro (Ventana Anual)":
-        # 1. Filtramos los tiempos de la curva teórica dentro de la ventana de zoom
-        tiempos_curva_ventana = [T_grid[i] for i in range(len(t_grid)) if edad_min_zoom <= t_grid[i] <= edad_max_zoom]
+        # 1. Filtramos los tiempos de la curva teórica dentro de la ventana de zoom (Usando variables reales)
+        tiempos_curva_ventana = [tiempos_curva[i] for i in range(len(edades_curva)) if edad_min_zoom <= edades_curva[i] <= edad_max_zoom]
         
-        # 2. Filtramos las marcas reales de competencia dentro de la misma ventana
+        # 2. Generamos el mapeo de edades individuales para evitar NameError en las marcas reales
+        todas_las_edades_ind = [t0, t_pb, t_peak]
+        if not simulacion_externa and len(df_procesado) > 0:
+            todas_las_edades_ind.extend(df_procesado["Edad"].tolist())
+            
+        # 3. Filtramos las marcas reales de competencia dentro de la misma ventana
         tiempos_reales_ventana = [todos_los_tiempos_ind[i] for i in range(len(todas_las_edades_ind)) if edad_min_zoom <= todas_las_edades_ind[i] <= edad_max_zoom]
         
-        # Combinamos ambas listas para calcular los extremos visuales exactos
+        # Combinamos ambas listas filtradas para calcular los extremos visuales exactos
         todos_tiempos_ventana = tiempos_curva_ventana + tiempos_reales_ventana
         
         if todos_tiempos_ventana:
             tiempo_min_ventana = min(todos_tiempos_ventana)
             tiempo_max_ventana = max(todos_tiempos_ventana)
         else:
-            # Respaldo por si la ventana no coincide con registros reales
-            tiempo_min_ventana = min(T_grid)
-            tiempo_max_ventana = max(T_grid)
+            # Respaldo por si la ventana no coincide con registros reales en ese rango
+            tiempo_min_ventana = min(tiempos_curva)
+            tiempo_max_ventana = max(tiempos_curva)
             
         # Aplicamos la holgura del 1% para que los datos respiren sin chocar con los bordes
         lim_y_inferior = tiempo_min_ventana * 0.99
