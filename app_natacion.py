@@ -801,7 +801,7 @@ else:
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-    # --- 2. LÓGICA DE ESCALA (CALENDARIO VS EDAD) ---
+# --- 2. LÓGICA DE ESCALA (CALENDARIO VS EDAD) ---
     eventos_temporada_render = []
     fn_obj = None
     try:
@@ -813,6 +813,10 @@ else:
     if 'fecha_cierre_temp' not in locals() or not fecha_cierre_temp:
         fecha_cierre_temp = datetime.date(datetime.date.today().year, 12, 31)
 
+    # Inicializamos los límites de forma segura
+    lim_x_min = None
+    lim_x_max = None
+
     if modo_vista == "Micro: Temporada Actual" and fn_obj:
         import matplotlib.dates as mdates
         
@@ -821,8 +825,9 @@ else:
         edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
         
         # Rango del eje X en formato fecha nativa
-        f_inicio_zoom = datetime.date.today()
-        ax.set_xlim(f_inicio_zoom, fecha_cierre_temp)
+        lim_x_min = datetime.date.today()
+        lim_x_max = fecha_cierre_temp
+        ax.set_xlim(lim_x_min, lim_x_max)
         
         # Formatear el eje X para mostrar meses de forma legible
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
@@ -830,7 +835,7 @@ else:
         plt.xticks(rotation=45)
 
         # Generar curva proyectada sobre el calendario
-        fechas_sim = pd.date_range(f_inicio_zoom, fecha_cierre_temp, periods=200)
+        fechas_sim = pd.date_range(lim_x_min, lim_x_max, periods=200)
         edades_fechas = [calcular_edad_decimal(fn_obj, d.date()) for d in fechas_sim]
         tiempos_sim = calcular_curva_atleta(edades_fechas, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
         
@@ -845,7 +850,7 @@ else:
                 for ev in resp_ev.data:
                     f_ini_ev = datetime.date.fromisoformat(ev["fecha_inicio"])
                     
-                    if f_inicio_zoom <= f_ini_ev <= fecha_cierre_temp:
+                    if lim_x_min <= f_ini_ev <= lim_x_max:
                         edad_ev = calcular_edad_decimal(fn_obj, f_ini_ev)
                         t_proy_ev = float(calcular_curva_atleta([edad_ev], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
                         
@@ -866,9 +871,9 @@ else:
             pass
             
         # Meta proyectada al cierre de temporada (marcador de fin de año/ciclo)
-        ax.scatter(fecha_cierre_temp, T_cierre := float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0]), 
+        ax.scatter(lim_x_max, T_cierre := float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0]), 
                    color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
-        ax.text(fecha_cierre_temp, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+        ax.text(lim_x_max, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
 
     else:
         # Modo Macro (Carrera Completa Original - Eje X en Años de Edad)
