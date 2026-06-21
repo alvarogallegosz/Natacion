@@ -494,7 +494,32 @@ else:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# LÓGICA DE SIMULACIÓN EXTERNA
+# =============================================================================
+# CONTROLES DE VISTA: MACRO / MICRO (Alineado a 0 espacios, fuera del try-except)
+# =============================================================================
+tipo_vista = st.sidebar.selectbox(
+    "Enfoque del Gráfico", 
+    ["Macro (Historial Completo)", "Micro (Ventana Anual)"]
+)
+
+# El slider mensual solo se despliega si se elige la opción Micro
+if tipo_vista == "Micro (Ventana Anual)":
+    limite_inf_abs = float(np.floor(t0)) if 't0' in locals() else 8.0
+    limite_sup_abs = float(np.ceil(t_peak)) if 't_peak' in locals() else 18.0
+    rango_def_min = float(t_pb) if 't_pb' in locals() else limite_inf_abs
+    rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
+
+    edad_min_zoom, edad_max_zoom = st.sidebar.slider(
+        "🔎 Rango de la Ventana (Edad)",
+        min_value=limite_inf_abs,
+        max_value=limite_sup_abs,
+        value=(rango_def_min, rango_def_max),
+        step=1/12,  # Paso mensual
+        format="%.2f años"
+    )
+# =============================================================================
+
+# LÓGICA DE SIMULACIÓN EXTERNA (Sigue a 0 espacios)
 spc()
 st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
