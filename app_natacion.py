@@ -793,10 +793,14 @@ else:
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-    lim_x_min = max(4.0, t0 - 0.5)
-    lim_x_max = t_peak + 1.0
-    ax.set_xlim(lim_x_min, lim_x_max)
-
+# === NUEVA LÓGICA DE ENFOQUE (REEMPLAZO) ===
+    if tipo_vista == "Micro (Ventana Anual)":
+        ax.set_xlim(edad_min_zoom, edad_max_zoom)
+    else:
+        lim_x_min = max(4.0, t0 - 0.5)
+        lim_x_max = t_peak + 1.0
+        ax.set_xlim(lim_x_min, lim_x_max)
+    # ===========================================
     peor_tiempo_ind = max(todos_los_tiempos_ind)
     lim_y_inferior = m_wr * 0.95
     lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
