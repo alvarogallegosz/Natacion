@@ -787,9 +787,21 @@ else:
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-    # ... (código anterior: ax.axvline para t0, t_pb, t_peak, etc.) ...
+# --- 1. DEFINIR LÍMITES, EJES Y ESTILOS PRIMERO ---
+    todos_los_tiempos_ind = [T0, T_pb, T_target]
+    
+    if not simulacion_externa and len(df_procesado) > 0:
+        todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+        
+    peor_tiempo_ind = max(todos_los_tiempos_ind)
+    lim_y_inferior = m_wr * 0.95
+    lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
+    ax.set_ylim(lim_y_inferior, lim_y_superior)
 
-    # --- NUEVA LÓGICA DE ZOOM Y EVENTOS (MODO MICRO) ---
+    offset_y = (lim_y_superior - lim_y_inferior) * 0.025
+    estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
+
+    # --- 2. NUEVA LÓGICA DE ZOOM Y EVENTOS (MODO MICRO) ---
     eventos_temporada_render = []
     
     # Intentar obtener la fecha de nacimiento como objeto 'date' para el cálculo exacto
@@ -800,17 +812,19 @@ else:
     except:
         pass
 
+    # Calcular fecha de cierre de temporada (ejemplo: 31 de julio del año en curso o similar según tu lógica)
+    fecha_cierre_temp = datetime.date(datetime.date.today().year, 12, 31)
+
     if modo_vista == "Micro: Temporada Actual" and fn_obj:
         edad_hoy = calcular_edad_decimal(fn_obj, datetime.date.today())
         edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
         
-        # 1. Ajuste del Zoom (Eje X)
-        lim_x_min = max(t0, edad_hoy - 0.1)  # Un poco antes de hoy
-        lim_x_max = edad_cierre + 0.1        # Un poco después del cierre
+        # Ajuste del Zoom (Eje X)
+        lim_x_min = max(t0, edad_hoy - 0.1)  
+        lim_x_max = edad_cierre + 0.1        
         
-        # 2. Búsqueda y trazado de hitos del catálogo
+        # Búsqueda y trazado de hitos del catálogo
         try:
-            # Traemos competencias cuyo año coincida con hoy o el de cierre
             anos_busqueda = list(set([datetime.date.today().year, fecha_cierre_temp.year]))
             resp_ev = supabase.table("catalogo_competencias").select("*").in_("temporada", anos_busqueda).execute()
             
@@ -818,7 +832,6 @@ else:
                 for ev in resp_ev.data:
                     f_ini_ev = datetime.date.fromisoformat(ev["fecha_inicio"])
                     
-                    # Filtrar solo las que caen dentro de la ventana de tiempo elegida
                     if datetime.date.today() <= f_ini_ev <= fecha_cierre_temp:
                         edad_ev = calcular_edad_decimal(fn_obj, f_ini_ev)
                         t_proy_ev = float(calcular_curva_atleta([edad_ev], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
@@ -851,17 +864,12 @@ else:
         lim_x_max = t_peak + 1.0
 
     ax.set_xlim(lim_x_min, lim_x_max)
-    # ... (sigue el código original para ax.set_ylim y referencias...) ...
-    ax.set_xlim(lim_x_min, lim_x_max)
 
-    peor_tiempo_ind = max(todos_los_tiempos_ind)
-    lim_y_inferior = m_wr * 0.95
-    lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
-    ax.set_ylim(lim_y_inferior, lim_y_superior)
-
-    offset_y = (lim_y_superior - lim_y_inferior) * 0.025
-    estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
-
+    # --- 3. DIBUJO DE ETIQUETAS Y LÍNEAS DE REFERENCIA (Continúa tu script normal) ---
+    ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
+    ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+    ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+    ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
     ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
     ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
     ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
