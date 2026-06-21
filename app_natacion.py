@@ -882,54 +882,7 @@ else:
     ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
-
-# === NUEVA LÓGICA DE ENFOQUE (CORRECCIÓN DEFECTO VISTA MICRO) ===
-    if tipo_vista == "Micro (Ventana Anual)":
-        lim_x_min = edad_min_zoom
-        lim_x_max = edad_max_zoom
-    else:
-        lim_x_min = max(4.0, t0 - 0.5)
-        lim_x_max = t_peak + 1.0
-
-    ax.set_xlim(lim_x_min, lim_x_max)
-
 # =============================================================================
-    # ⚖️ AJUSTE DINÁMICO DEL EJE Y (Lupa Vertical vs Vista Panorámica)
-    # =============================================================================
-    if tipo_vista == "Micro (Ventana Anual)":
-        # 1. Filtramos los tiempos de la curva teórica dentro de la ventana de zoom (Usando variables reales)
-        tiempos_curva_ventana = [tiempos_curva[i] for i in range(len(edades_curva)) if edad_min_zoom <= edades_curva[i] <= edad_max_zoom]
-        
-        # 2. Generamos el mapeo de edades individuales para evitar NameError en las marcas reales
-        todas_las_edades_ind = [t0, t_pb, t_peak]
-        if not simulacion_externa and len(df_procesado) > 0:
-            todas_las_edades_ind.extend(df_procesado["Edad"].tolist())
-            
-        # 3. Filtramos las marcas reales de competencia dentro de la misma ventana
-        tiempos_reales_ventana = [todos_los_tiempos_ind[i] for i in range(len(todas_las_edades_ind)) if edad_min_zoom <= todas_las_edades_ind[i] <= edad_max_zoom]
-        
-        # Combinamos ambas listas filtradas para calcular los extremos visuales exactos
-        todos_tiempos_ventana = tiempos_curva_ventana + tiempos_reales_ventana
-        
-        if todos_tiempos_ventana:
-            tiempo_min_ventana = min(todos_tiempos_ventana)
-            tiempo_max_ventana = max(todos_tiempos_ventana)
-        else:
-            # Respaldo por si la ventana no coincide con registros reales en ese rango
-            tiempo_min_ventana = min(tiempos_curva)
-            tiempo_max_ventana = max(tiempos_curva)
-            
-        # Aplicamos la holgura del 1% para que los datos respiren sin chocar con los bordes
-        lim_y_inferior = tiempo_min_ventana * 0.99
-        lim_y_superior = tiempo_max_ventana * 1.01
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-    else:
-        # 🗺️ MODO MACRO: Escala completa original de toda la trayectoria deportiva
-        peor_tiempo_ind = max(todos_los_tiempos_ind)
-        lim_y_inferior = m_wr * 0.95
-        lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-    # =============================================================================
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
