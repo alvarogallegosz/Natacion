@@ -786,9 +786,16 @@ else:
     margen_izq = 0.12
 
     # =============================================================================
-    # ⚖️ AJUSTE DINÁMICO DE EJES (Lupa Vertical vs Vista Panorámica)
+    # ⚖️ CREACIÓN DEL EJE Y AJUSTE DINÁMICO (Lupa Vertical vs Vista Panorámica)
     # =============================================================================
     if tipo_vista == "Micro (Ventana Anual)":
+        # MODO MICRO: Mayor altura para la ventana anual, inicia arriba de la tabla (en 0.48)
+        alto_grafico = 0.45
+        fondo_grafico = 0.48
+        
+        # ¡AQUÍ ESTÁ LA SOLUCIÓN! Creamos "ax" antes de hacerle set_ylim
+        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+        
         # 1. Obtenemos los tiempos de la curva teórica dentro del rango mensual, con alta resolución
         edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 200)
         tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
@@ -821,7 +828,14 @@ else:
         ax.set_xlim(lim_x_min, lim_x_max)
         
     else:
-        # 🗺️ MODO MACRO: Escala completa original de toda la trayectoria deportiva
+        # MODO MACRO: Diseño original, gráfico contenido para desplegar la tabla histórica abajo
+        alto_grafico = 0.33
+        fondo_grafico = 0.52  
+        
+        # ¡AQUÍ ESTÁ LA SOLUCIÓN! Creamos "ax" antes de hacerle set_ylim
+        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+
+        # 🗺️ Escala completa original de toda la trayectoria deportiva
         todos_los_tiempos_ind = [T0, T_pb, T_target]
         if not simulacion_externa and len(df_procesado) > 0:
             todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
