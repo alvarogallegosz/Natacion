@@ -561,29 +561,10 @@ t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=inputs_bloqueados)
 
 with contenedor_sliders:
-    spc()
-    st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
-    h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
-    t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
-
-    # --- NUEVO: INTERRUPTOR DE VISTA MACRO/MICRO ---
-    spc()
-    st.sidebar.subheader("👁️ Lente de Planificación")
-    modo_vista = st.sidebar.radio(
-        "Modo del Gráfico:", 
-        ["Macro: Carrera Completa", "Micro: Temporada Actual"],
-        help="Alterna entre la visión a largo plazo hasta el Peak, y el zoom detallado del año en curso con los hitos de competencia."
-    )
-    
-    fecha_cierre_temp = None
-    if modo_vista == "Micro: Temporada Actual":
-        ano_actual = datetime.date.today().year
-        fecha_cierre_temp = st.sidebar.date_input(
-            "Cierre de Temporada (Zoom End):",
-            value=datetime.date(ano_actual, 12, 31),
-            min_value=datetime.date.today(),
-            help="Puedes extender esta fecha más allá del 31 de diciembre si el ciclo termina el año siguiente."
-        )
+        spc()
+        st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
+        h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
+        t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
 if not modo_equipo and st.session_state.rol == "Nadador":
     st.sidebar.markdown("---")
@@ -758,197 +739,171 @@ if modo_equipo:
     except Exception as e:
         st.error(f"Error procesando los segmentos de equipo: {e}")
 
+# -------------------------------------------------------------
+# LIENZO INDIVIDUAL Y SIMULACIÓN (CONSOLIDADO CON HITOS)
+# -------------------------------------------------------------
+edades_curva = np.linspace(t0, t_peak, 500)
+tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+
+fig = plt.figure(figsize=(8.5, 11.0))
+ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+
+ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
+
+todos_los_tiempos_ind = [T0, T_pb, T_target]
+ 
+if not simulacion_externa and len(df_procesado) > 0:
+    ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
+    ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
+    todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+
+ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
+ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
+ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
+ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=30, zorder=5, label="Punto Consultado")
+
+ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
+ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
+ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
+ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
+
+lim_x_min = max(4.0, t0 - 0.5)
+lim_x_max = t_peak + 1.0
+ax.set_xlim(lim_x_min, lim_x_max)
+
+peor_tiempo_ind = max(todos_los_tiempos_ind)
+lim_y_inferior = m_wr * 0.95
+lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
+ax.set_ylim(lim_y_inferior, lim_y_superior)
+
+offset_y = (lim_y_superior - lim_y_inferior) * 0.025
+estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
+
+ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
+ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
+
+x_texto = lim_x_min + 0.1
+if not es_preinfantil:
+    referencias = [
+        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
+        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
+        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
+        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
+        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
+        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
+    ]
+    for r in referencias:
+        if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
+            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
 else:
-    # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL Y SIMULACIÓN
-    # -------------------------------------------------------------
-    edades_curva = np.linspace(t0, t_peak, 500)
-    tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+    if m_ano > 0:
+        ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
+        ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
 
-    fig = plt.figure(figsize=(8.5, 11.0))
-    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+# =============================================================
+# INYECCIÓN QUIRÚRGICA: PROCESAR HITOS DE SUPABASE EN EL GRÁFICO
+# =============================================================
+eventos_render = []
+fn_obj = None
+try:
+    if st.session_state.fecha_nacimiento:
+        fn_obj = datetime.date.fromisoformat(str(st.session_state.fecha_nacimiento))
+except:
+    pass
 
-    ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
-
-    todos_los_tiempos_ind = [T0, T_pb, T_target]
-    
-    if not simulacion_externa and len(df_procesado) > 0:
-        ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
-        ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
-        todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
-
-    ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
-    ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5, label="PB Actual de Control")
-    ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
-    ax.scatter(t_intermedia, T_intermedia_val, color="red", marker="o", s=30, zorder=5, label="Punto Consultado")
-
-    ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
-    ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
-    ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
-   # --- 2. LÓGICA DE ESCALA (CALENDARIO EN MICRO VS EDAD EN MACRO) ---
-    import matplotlib.dates as mdates
-    from datetime import timedelta
-
-    eventos_temporada_render = []
-    fn_obj = None
+if fn_obj:
     try:
-        if st.session_state.fecha_nacimiento:
-            fn_obj = datetime.date.fromisoformat(str(st.session_state.fecha_nacimiento))
-    except:
+        ano_actual = datetime.date.today().year
+        resp_ev = supabase.table("catalogo_competencias").select("*").in_("temporada", [ano_actual, ano_actual + 1]).execute()
+        if resp_ev.data:
+            for ev in resp_ev.data:
+                f_ini_ev = datetime.date.fromisoformat(ev["fecha_inicio"])
+                edad_ev = calcular_edad_decimal(fn_obj, f_ini_ev)
+                
+                # Pintar la bandera morada solo si la competencia cae dentro del ciclo visible
+                if lim_x_min <= edad_ev <= lim_x_max:
+                    t_proy_ev = float(calcular_curva_atleta([edad_ev], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
+                    
+                    eventos_render.append({
+                        "Fecha": f_ini_ev.strftime("%d-%m-%Y"),
+                        "Competencia": ev["nombre_evento"],
+                        "Ente": ev["ente_rector"],
+                        "Edad": f"{edad_ev:.2f} a",
+                        "Target Proyectado": f"{t_proy_ev:.2f} s"
+                    })
+                    
+                    # Dibujar línea vertical y punto de cruce morado sobre tu curva macro
+                    ax.axvline(x=edad_ev, color="#8E44AD", linestyle=":", linewidth=1.2, alpha=0.5, zorder=2)
+                    ax.text(edad_ev + 0.02, lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.12), 
+                            ev["nombre_evento"], rotation=90, fontsize=6.5, color="#8E44AD", alpha=0.8, zorder=4)
+                    ax.scatter(edad_ev, t_proy_ev, color="#8E44AD", s=25, zorder=4)
+    except Exception:
         pass
+# =============================================================
 
-    if 'fecha_cierre_temp' not in locals() or not fecha_cierre_temp:
-        fecha_cierre_temp = datetime.date(datetime.date.today().year, 12, 31)
+if simulacion_externa:
+    ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
+else:
+    ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, pad=10)
 
-    lim_x_min_val = None
-    lim_x_max_val = None
-    edad_cierre = 0.0
+ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
+ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
+ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
+ax.set_axisbelow(True) 
+ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-    if modo_vista == "Micro: Temporada Actual" and fn_obj:
-        # EJE X: FECHAS
-        lim_x_min_val = datetime.date.today() - timedelta(days=10)
-        lim_x_max_val = fecha_cierre_temp + timedelta(days=15)
-        edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
+if not simulacion_externa and len(df_procesado) > 0:
+    df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
+    df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
+    df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
+     
+    limite_filas_por_bloque = 16
+    total_filas = len(df_table_render)
+     
+    def estilizar_tabla_nativo(instancia_tabla):
+        instancia_tabla.auto_set_font_size(False)
+        instancia_tabla.set_fontsize(8.5)
+        instancia_tabla.scale(1.0, 1.3)
+        for (row, col), cell in instancia_tabla.get_celld().items():
+            if row == 0:
+                cell.set_text_props(color='white')
+                cell.set_facecolor('#007A87')
+            else:
+                cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
-        ax.set_xlim(lim_x_min_val, lim_x_max_val)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
-        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-        plt.xticks(rotation=45)
-
-        hoy = datetime.date.today()
-        ax.axvline(x=hoy, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
-        
-        fechas_sim = pd.date_range(hoy, fecha_cierre_temp, periods=200)
-        edades_fechas = [calcular_edad_decimal(fn_obj, d.date()) for d in fechas_sim]
-        tiempos_sim = calcular_curva_atleta(edades_fechas, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-        ax.plot(fechas_sim, tiempos_sim, color="#2980B9", linewidth=2.5, label="Curva Proyectada", zorder=3)
-
-        try:
-            anos_busqueda = list(set([hoy.year, fecha_cierre_temp.year]))
-            resp_ev = supabase.table("catalogo_competencias").select("*").in_("temporada", anos_busqueda).execute()
-            if resp_ev.data:
-                for ev in resp_ev.data:
-                    f_ini_ev = datetime.date.fromisoformat(ev["fecha_inicio"])
-                    if lim_x_min_val <= f_ini_ev <= lim_x_max_val:
-                        edad_ev = calcular_edad_decimal(fn_obj, f_ini_ev)
-                        t_proy_ev = float(calcular_curva_atleta([edad_ev], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
-                        eventos_temporada_render.append({
-                            "Fecha": f_ini_ev.strftime("%d-%m-%Y"),
-                            "Competencia": ev["nombre_evento"], "Ente": ev["ente_rector"],
-                            "Edad": f"{edad_ev:.2f} a", "Target Proyectado": f"{t_proy_ev:.2f} s"
-                        })
-                        ax.axvline(x=f_ini_ev, color="#8E44AD", linestyle=":", linewidth=1.2, alpha=0.5)
-                        ax.text(f_ini_ev, lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.15), 
-                                ev["nombre_evento"], rotation=90, fontsize=6.5, color="#8E44AD", alpha=0.8, zorder=4)
-                        ax.scatter(f_ini_ev, t_proy_ev, color="#8E44AD", s=25, zorder=4)
-        except Exception:
-            pass
-            
-        T_cierre = float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
-        ax.scatter(fecha_cierre_temp, T_cierre, color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
-        ax.text(fecha_cierre_temp, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
-
-        x_texto = lim_x_min_val + timedelta(days=3)
-
+    if total_filas <= limite_filas_por_bloque:
+        ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
+        ax_table.axis('off')
+        mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=[0.15, 0.15, 0.70])
+        estilizar_tabla_nativo(mpl_table)
     else:
-        # EJE X: EDADES DECIMALES (MACRO)
-        lim_x_min_val = max(4.0, t0 - 0.5)
-        lim_x_max_val = t_peak + 1.0
-        edad_cierre = t_peak
-        
-        ax.set_xlim(lim_x_min_val, lim_x_max_val)
+        if total_filas > 32: df_table_render = df_table_render.iloc[:32]
+        df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
+        df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
+         
+        ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
+        ax_table1.axis('off')
+        mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
+        estilizar_tabla_nativo(mpl_table1)
+         
+        ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
+        ax_table2.axis('off')
+        mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
+        estilizar_tabla_nativo(mpl_table2)
 
-        ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
-        
-        edades_sim = np.linspace(t0, t_peak, 200)
-        tiempos_sim = calcular_curva_atleta(edades_sim, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-        ax.plot(edades_sim, tiempos_sim, color="#2980B9", linewidth=2.5, label="Curva Proyectada", zorder=3)
-        
-        ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-        ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
-        ax.text(t_intermedia + 0.1, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-        ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
+st.pyplot(fig)
 
-        x_texto = lim_x_min_val + 0.2
-    if not es_preinfantil:
-        referencias = [
-            {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-            {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
-            {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-            {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
-            {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
-            {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
-        ]
-        for r in referencias:
-            if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
-    else:
-        if m_ano > 0:
-            ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-            ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
+# --- NUEVO INTERFAZ: TABLA DE PLANIFICACIÓN DE TEMPORADA DEBAJO DEL LIENZO ---
+if eventos_render:
+    st.markdown("#### 📋 Hoja de Ruta de la Temporada")
+    st.caption("Proyección de tiempos calculados mediante la intersección de las fechas de competencia con la curva fisiológica asintótica del atleta.")
+    df_eventos_render = pd.DataFrame(eventos_render)
+    st.dataframe(df_eventos_render, use_container_width=True, hide_index=True)
 
-    if simulacion_externa:
-        ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
-    else:
-        ax.set_title(f"Curva de Rendimiento Asintótica - {titulo_grafico}\nAtleta: {st.session_state.nadador_seleccionado_nombre} | Categoría: {st.session_state.nadador_seleccionado_categoria}", fontsize=12, pad=10)
-
-    ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
-    ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
-    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
-    ax.set_axisbelow(True) 
-    ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
-
-    if not simulacion_externa and len(df_procesado) > 0:
-        df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
-        df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
-        df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
-        
-        limite_filas_por_bloque = 16
-        total_filas = len(df_table_render)
-        
-        def estilizar_tabla_nativo(instancia_tabla):
-            instancia_tabla.auto_set_font_size(False)
-            instancia_tabla.set_fontsize(8.5)
-            instancia_tabla.scale(1.0, 1.3)
-            for (row, col), cell in instancia_tabla.get_celld().items():
-                if row == 0:
-                    cell.set_text_props(color='white')
-                    cell.set_facecolor('#007A87')
-                else:
-                    cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
-
-        if total_filas <= limite_filas_por_bloque:
-            ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
-            ax_table.axis('off')
-            mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=[0.15, 0.15, 0.70])
-            estilizar_tabla_nativo(mpl_table)
-        else:
-            if total_filas > 32: df_table_render = df_table_render.iloc[:32]
-            df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
-            df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
-            
-            ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
-            ax_table1.axis('off')
-            mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
-            estilizar_tabla_nativo(mpl_table1)
-            
-            ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
-            ax_table2.axis('off')
-            mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
-            estilizar_tabla_nativo(mpl_table2)
-
-    st.pyplot(fig)
-
-    # --- NUEVO: TABLA DE PLANIFICACIÓN DE TEMPORADA ---
-    if modo_vista == "Micro: Temporada Actual" and eventos_temporada_render:
-        st.markdown("#### 📋 Hoja de Ruta de la Temporada")
-        st.caption("Proyección de tiempos calculados mediante la intersección de las fechas de competencia con la curva fisiológica asintótica del atleta.")
-        df_eventos_render = pd.DataFrame(eventos_temporada_render)
-        st.dataframe(df_eventos_render, use_container_width=True, hide_index=True)
-    elif modo_vista == "Micro: Temporada Actual":
-        st.info("No hay competencias programadas en el catálogo para esta ventana de tiempo.")
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
