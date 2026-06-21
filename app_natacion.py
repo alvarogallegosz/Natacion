@@ -586,7 +586,7 @@ if tipo_vista == "Micro (Ventana Anual)":
         min_value=limite_inf_abs,
         max_value=limite_sup_abs,
         value=(rango_def_min, rango_def_max),
-        step=0.083,  # Paso mensual
+        step=0.1,  # Paso mensual
         format="%.2f años"
     )
 else:
