@@ -494,31 +494,6 @@ else:
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
-# =============================================================================
-# CONTROLES DE VISTA: MACRO / MICRO (Alineado a 0 espacios, fuera del try-except)
-# =============================================================================
-tipo_vista = st.sidebar.selectbox(
-    "Enfoque del Gráfico", 
-    ["Macro (Historial Completo)", "Micro (Ventana Anual)"]
-)
-
-# El slider mensual solo se despliega si se elige la opción Micro
-if tipo_vista == "Micro (Ventana Anual)":
-    limite_inf_abs = float(np.floor(t0)) if 't0' in locals() else 8.0
-    limite_sup_abs = float(np.ceil(t_peak)) if 't_peak' in locals() else 18.0
-    rango_def_min = float(t_pb) if 't_pb' in locals() else limite_inf_abs
-    rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
-
-    edad_min_zoom, edad_max_zoom = st.sidebar.slider(
-        "🔎 Rango de la Ventana (Edad)",
-        min_value=limite_inf_abs,
-        max_value=limite_sup_abs,
-        value=(rango_def_min, rango_def_max),
-        step=1/12,  # Paso mensual
-        format="%.2f años"
-    )
-# =============================================================================
-
 # LÓGICA DE SIMULACIÓN EXTERNA (Sigue a 0 espacios)
 spc()
 st.sidebar.subheader("🚨 Simulación de Escenarios")
@@ -584,7 +559,35 @@ t_peak = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=
 T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_value=1.0, value=val_T_target)
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=inputs_bloqueados)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=inputs_bloqueados)
+# =============================================================================
+# 🔎 NUEVA UBICACIÓN: CONTROLES DE VISTA CON LÍMITES DINÁMICOS DEL ATLETA
+# =============================================================================
+tipo_vista = st.sidebar.selectbox(
+    "Enfoque del Gráfico", 
+    ["Macro (Historial Completo)", "Micro (Ventana Anual)"]
+)
 
+if tipo_vista == "Micro (Ventana Anual)":
+    # Los límites ahora son estrictamente el rango real del modelo del atleta
+    limite_inf_abs = float(t0)
+    limite_sup_abs = float(t_peak)
+    
+    # Forzamos que los valores por defecto del rango no desborden los límites dinámicos
+    rango_def_min = max(limite_inf_abs, min(float(t_pb), limite_sup_abs))
+    rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
+
+    edad_min_zoom, edad_max_zoom = st.sidebar.slider(
+        "🔎 Rango de la Ventana (Edad)",
+        min_value=limite_inf_abs,
+        max_value=limite_sup_abs,
+        value=(rango_def_min, rango_def_max),
+        step=1/12,  # Paso mensual
+        format="%.2f años"
+    )
+else:
+    # Si la vista es Macro, asignamos un rango total para ignorar el filtro en la línea 809
+    edad_min_zoom = 0.0
+    edad_max_zoom = 100.0
 with contenedor_sliders:
         spc()
         st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
