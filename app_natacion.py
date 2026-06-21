@@ -553,14 +553,19 @@ else:
 
 spc()
 st.sidebar.subheader("📐 Parámetros de Límites y PB")
+# =============================================================================
+# 📐 PARÁMETROS DE LÍMITES Y PB (Mantén tus inputs tal como están)
+# =============================================================================
 t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.01, disabled=inputs_bloqueados)
 T0 = st.sidebar.number_input("2. Tiempo Inicial (T0):", min_value=1.0, value=val_T0, step=0.1, disabled=inputs_bloqueados)
 t_peak = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, value=23.0)
 T_target = st.sidebar.number_input("4. Tiempo Objetivo Peak (T_target):", min_value=1.0, value=val_T_target)
 t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.01, disabled=inputs_bloqueados)
 T_pb = st.sidebar.number_input("6. Tiempo del PB de Control (T_pb):", min_value=1.0, value=val_T_pb, step=0.01, disabled=inputs_bloqueados)
+
+
 # =============================================================================
-# 🔎 NUEVA UBICACIÓN: CONTROLES DE VISTA CON LÍMITES DINÁMICOS DEL ATLETA
+# 🔎 UBICACIÓN CORREGIDA: CONTROLES DE VISTA CON LÍMITES DINÁMICOS Y COMPLETO
 # =============================================================================
 tipo_vista = st.sidebar.selectbox(
     "Enfoque del Gráfico", 
@@ -568,11 +573,11 @@ tipo_vista = st.sidebar.selectbox(
 )
 
 if tipo_vista == "Micro (Ventana Anual)":
-    # Los límites ahora son estrictamente el rango real del modelo del atleta
+    # Al estar aquí abajo, ya t0 y t_peak existen con total certeza matemática
     limite_inf_abs = float(t0)
     limite_sup_abs = float(t_peak)
     
-    # Forzamos que los valores por defecto del rango no desborden los límites dinámicos
+    # Prevenimos desbordamientos del rango por defecto
     rango_def_min = max(limite_inf_abs, min(float(t_pb), limite_sup_abs))
     rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
 
@@ -585,7 +590,8 @@ if tipo_vista == "Micro (Ventana Anual)":
         format="%.2f años"
     )
 else:
-    # Si la vista es Macro, asignamos un rango total para ignorar el filtro en la línea 809
+    # ¡ESTA ES LA PIEZA FALTASTE! Si es Macro, inicializamos las variables 
+    # con un rango total para que la lista de la línea 812 incluya toda la curva.
     edad_min_zoom = 0.0
     edad_max_zoom = 100.0
 with contenedor_sliders:
