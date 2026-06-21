@@ -802,14 +802,15 @@ else:
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-# === NUEVA LÓGICA DE ENFOQUE (REEMPLAZO) ===
+# === NUEVA LÓGICA DE ENFOQUE (CORRECCIÓN DEFECTO VISTA MICRO) ===
     if tipo_vista == "Micro (Ventana Anual)":
-        ax.set_xlim(edad_min_zoom, edad_max_zoom)
+        lim_x_min = edad_min_zoom
+        lim_x_max = edad_max_zoom
     else:
         lim_x_min = max(4.0, t0 - 0.5)
         lim_x_max = t_peak + 1.0
-        ax.set_xlim(lim_x_min, lim_x_max)
-    # ===========================================
+
+    ax.set_xlim(lim_x_min, lim_x_max)
 
 # =============================================================================
     # ⚖️ AJUSTE DINÁMICO DEL EJE Y (Lupa Vertical vs Vista Panorámica)
