@@ -781,8 +781,22 @@ else:
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
 
     fig = plt.figure(figsize=(8.5, 11.0))
-    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+    # Dimensiones normalizadas relativas a la hoja vertical (izq, fondo, ancho, alto)
+    ancho_grafico = 0.76
+    margen_izq = 0.12
 
+    if tipo_vista == "Micro (Ventana Anual)":
+        # MODO MICRO: Gráfico más alto para visualizar la ventana anual mensual, espacio para eventos
+        alto_grafico = 0.48
+        fondo_grafico = 0.40  # Deja el 40% inferior de la página vertical libre
+        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+    else:
+        # MODO MACRO: Diseño original, gráfico contenido para desplegar la tabla histórica abajo
+        alto_grafico = 0.33
+        fondo_grafico = 0.52  # Deja el 52% inferior de la página vertical libre
+        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+
+    # Trazo de la curva de proyección asintótica
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
