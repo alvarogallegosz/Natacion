@@ -786,42 +786,39 @@ else:
     margen_izq = 0.12
 
     # =============================================================================
-    # 🗺️ LÍMITES Y ESCALA DEL EJE Y (CORREGIDO PARA AMBOS MODOS)
+    # ⚖️ AJUSTE DINÁMICO DE EJES (Lupa Vertical vs Vista Panorámica)
     # =============================================================================
     if tipo_vista == "Micro (Ventana Anual)":
-        # 1. Obtenemos los tiempos de la curva dentro del rango mensual, con alta resolución
+        # 1. Obtenemos los tiempos de la curva teórica dentro del rango mensual, con alta resolución
         edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 200)
         tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
         
-        # 2. Obtenemos las edades de las marcas reales
-        todas_las_edades_ind = [t0, t_pb, t_peak]
-        if not simulacion_externa and len(df_procesado) > 0:
-            todas_las_edades_ind.extend(df_procesado["Edad"].tolist())
-        
-        # 3. Filtramos las marcas reales que caen dentro de la ventana del zoom
+        # 2. Obtenemos las edades y tiempos de las marcas reales que caen en la ventana
         tiempos_reales_ventana = []
         if not simulacion_externa and len(df_procesado) > 0:
             for idx_t, t_val in enumerate(df_procesado["Edad"]):
                 if edad_min_zoom <= t_val <= edad_max_zoom:
                     tiempos_reales_ventana.append(df_procesado["Tiempo"].iloc[idx_t])
         
-        # Unimos ambos conjuntos para encontrar los extremos reales
         todos_tiempos_ventana = tiempos_curva_ventana + tiempos_reales_ventana
         
-        if todos_tiempos_ventana and len(todos_tiempos_ventana) > 1:
+        if todos_tiempos_ventana and len(todos_tiempos_ventana) > 0:
             p_min = min(todos_tiempos_ventana)
             p_max = max(todos_tiempos_ventana)
-            # Damos un pequeño margen para que la curva no pegue contra el techo o el suelo del gráfico
+            # Damos un pequeño margen para que la curva no pegue contra los bordes
             margen_y = max(0.5, (p_max - p_min) * 0.15)
             lim_y_inferior = p_min - margen_y
             lim_y_superior = p_max + margen_y
         else:
-            # Respaldo seguro si no hay datos en ese rango
+            # Respaldo seguro si la ventana no tiene registros en ese rango mensual
             lim_y_inferior = float(T_target) - 2.0
             lim_y_superior = float(T0) + 2.0
 
+        # Asignamos los límites de la ventana anual
         ax.set_ylim(lim_y_inferior, lim_y_superior)
-        ax.set_xlim(edad_min_zoom, edad_max_zoom)
+        lim_x_min = edad_min_zoom
+        lim_x_max = edad_max_zoom
+        ax.set_xlim(lim_x_min, lim_x_max)
         
     else:
         # 🗺️ MODO MACRO: Escala completa original de toda la trayectoria deportiva
