@@ -787,7 +787,7 @@ else:
     ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
     ax.axvline(x=t_intermedia, color="red", linestyle=":", linewidth=0.7, alpha=0.4)
 
-# --- 1. DEFINIR LÍMITES, EJES Y ESTILOS PRIMERO ---
+# --- 1. DEFINIR LÍMITES, EJES Y ESTILOS BASE ---
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     
     if not simulacion_externa and len(df_procesado) > 0:
@@ -801,10 +801,8 @@ else:
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-    # --- 2. NUEVA LÓGICA DE ZOOM Y EVENTOS (MODO MICRO) ---
+    # --- 2. LÓGICA DE ZOOM Y EVENTOS (MODO MICRO VS MACRO) ---
     eventos_temporada_render = []
-    
-    # Intentar obtener la fecha de nacimiento como objeto 'date' para el cálculo exacto
     fn_obj = None
     try:
         if st.session_state.fecha_nacimiento:
@@ -812,18 +810,25 @@ else:
     except:
         pass
 
-    # Calcular fecha de cierre de temporada (ejemplo: 31 de julio del año en curso o similar según tu lógica)
-    fecha_cierre_temp = datetime.date(datetime.date.today().year, 12, 31)
+    # Usamos la fecha de cierre seleccionada en la barra lateral (o un respaldo si no existe)
+    fecha_cierre_temp = fecha_cierre_temp if 'fecha_cierre_temp' in locals() and fecha_cierre_temp else datetime.date(datetime.date.today().year, 12, 31)
 
     if modo_vista == "Micro: Temporada Actual" and fn_obj:
         edad_hoy = calcular_edad_decimal(fn_obj, datetime.date.today())
         edad_cierre = calcular_edad_decimal(fn_obj, fecha_cierre_temp)
         
-        # Ajuste del Zoom (Eje X)
+        # Ajuste estricto del Zoom (Eje X)
         lim_x_min = max(t0, edad_hoy - 0.1)  
         lim_x_max = edad_cierre + 0.1        
+        ax.set_xlim(lim_x_min, lim_x_max)
         
-        # Búsqueda y trazado de hitos del catálogo
+        # Etiquetas limpias para modo micro (solo mostrar las relevantes en el año)
+        if t0 >= lim_x_min and t0 <= lim_x_max:
+            ax.text(t0 + 0.02, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=7, va="bottom", ha="left", bbox=estilo_bbox)
+        if t_pb >= lim_x_min and t_pb <= lim_x_max:
+            ax.text(t_pb + 0.02, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=7, va="center", ha="left", bbox=estilo_bbox)
+
+        # Búsqueda y trazado de hitos del catálogo para la temporada
         try:
             anos_busqueda = list(set([datetime.date.today().year, fecha_cierre_temp.year]))
             resp_ev = supabase.table("catalogo_competencias").select("*").in_("temporada", anos_busqueda).execute()
@@ -844,16 +849,15 @@ else:
                             "Target Proyectado": f"{t_proy_ev:.2f} s"
                         })
                         
-                        # Dibujar hito (línea vertical tenue) y etiqueta
+                        # Dibujar hito (línea vertical tenue) y etiqueta dentro del zoom
                         ax.axvline(x=edad_ev, color="#8E44AD", linestyle=":", linewidth=1.2, alpha=0.5)
-                        ax.text(edad_ev + 0.01, lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.1), 
+                        ax.text(edad_ev + 0.01, lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.15), 
                                 ev["nombre_evento"], rotation=90, fontsize=6.5, color="#8E44AD", alpha=0.8)
-                        # Dibujar el punto de cruce en la curva asintótica
-                        ax.scatter(edad_ev, t_proy_ev, color="#8E44AD", s=20, zorder=4)
+                        ax.scatter(edad_ev, t_proy_ev, color="#8E44AD", s=25, zorder=4)
         except Exception as e:
             pass
             
-        # Target de fin de temporada
+        # Meta proyectada al cierre de temporada
         T_cierre = float(calcular_curva_atleta([edad_cierre], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
         ax.scatter(edad_cierre, T_cierre, color="#2980B9", marker="D", edgecolor="black", s=40, zorder=5)
         ax.text(edad_cierre, T_cierre + offset_y, f"Meta Temp.\n{T_cierre:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
@@ -862,18 +866,13 @@ else:
         # Modo Macro (Carrera Completa Original)
         lim_x_min = max(4.0, t0 - 0.5)
         lim_x_max = t_peak + 1.0
-
-    ax.set_xlim(lim_x_min, lim_x_max)
-
-    # --- 3. DIBUJO DE ETIQUETAS Y LÍNEAS DE REFERENCIA (Continúa tu script normal) ---
-    ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-    ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
-    ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
-    ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
-    ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-    ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
-    ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
-    ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
+        ax.set_xlim(lim_x_min, lim_x_max)
+        
+        # Etiquetas modo macro original
+        ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
+        ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f}s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
+        ax.text(t_intermedia, T_intermedia_val + offset_y, f"Consulta: {t_intermedia:.1f}a\n{T_intermedia_val:.2f}s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
+        ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
     x_texto = lim_x_min + 0.1
     if not es_preinfantil:
