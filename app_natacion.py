@@ -801,11 +801,38 @@ else:
         lim_x_max = t_peak + 1.0
         ax.set_xlim(lim_x_min, lim_x_max)
     # ===========================================
-    peor_tiempo_ind = max(todos_los_tiempos_ind)
-    lim_y_inferior = m_wr * 0.95
-    lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
-    ax.set_ylim(lim_y_inferior, lim_y_superior)
-
+# =============================================================================
+    # ⚖️ AJUSTE DINÁMICO DEL EJE Y (Lupa Vertical vs Vista Panorámica)
+    # =============================================================================
+    if tipo_vista == "Micro (Ventana Anual)":
+        # 1. Filtramos los tiempos de la curva teórica dentro de la ventana de zoom
+        tiempos_curva_ventana = [T_grid[i] for i in range(len(t_grid)) if edad_min_zoom <= t_grid[i] <= edad_max_zoom]
+        
+        # 2. Filtramos las marcas reales de competencia dentro de la misma ventana
+        tiempos_reales_ventana = [todos_los_tiempos_ind[i] for i in range(len(todas_las_edades_ind)) if edad_min_zoom <= todas_las_edades_ind[i] <= edad_max_zoom]
+        
+        # Combinamos ambas listas para calcular los extremos visuales exactos
+        todos_tiempos_ventana = tiempos_curva_ventana + tiempos_reales_ventana
+        
+        if todos_tiempos_ventana:
+            tiempo_min_ventana = min(todos_tiempos_ventana)
+            tiempo_max_ventana = max(todos_tiempos_ventana)
+        else:
+            # Respaldo por si la ventana no coincide con registros reales
+            tiempo_min_ventana = min(T_grid)
+            tiempo_max_ventana = max(T_grid)
+            
+        # Aplicamos la holgura del 1% para que los datos respiren sin chocar con los bordes
+        lim_y_inferior = tiempo_min_ventana * 0.99
+        lim_y_superior = tiempo_max_ventana * 1.01
+        ax.set_ylim(lim_y_inferior, lim_y_superior)
+    else:
+        # 🗺️ MODO MACRO: Escala completa original de toda la trayectoria deportiva
+        peor_tiempo_ind = max(todos_los_tiempos_ind)
+        lim_y_inferior = m_wr * 0.95
+        lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
+        ax.set_ylim(lim_y_inferior, lim_y_superior)
+    # =============================================================================
     offset_y = (lim_y_superior - lim_y_inferior) * 0.025
     estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
