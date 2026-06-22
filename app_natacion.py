@@ -841,7 +841,43 @@ else:
     # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
-
+# =========================================================================
+    # 🐛 BLOQUE DE DIAGNÓSTICO TEMPORAL DE HITOS (ELIMINAR AL RESOLVER)
+    # =========================================================================
+    st.markdown("### 🐛 Diagnóstico de Hitos de Competencia")
+    try:
+        res_diag = supabase.table("historial_hitos") \
+            .select("*, catalogo_competencias(*)") \
+            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
+            .execute()
+            
+        if not res_diag.data:
+            st.warning("⚠️ Supabase no devolvió ningún hito para este atleta.")
+        else:
+            f_nac_str = st.session_state.get("fecha_nacimiento")
+            if f_nac_str:
+                f_nac_obj = datetime.date.fromisoformat(str(f_nac_str)[:10]) if isinstance(f_nac_str, str) else f_nac_str
+                
+                for hito in res_diag.data:
+                    comp = hito.get("catalogo_competencias")
+                    if comp and comp.get("fecha_inicio"):
+                        f_evento_str = str(comp["fecha_inicio"])[:10]
+                        f_evento_obj = datetime.date.fromisoformat(f_evento_str)
+                        
+                        edad_calc = calcular_edad_decimal(f_nac_obj, f_evento_obj)
+                        
+                        st.write(f"**Evento:** {comp.get('nombre_evento')}")
+                        st.write(f"- Fecha del evento: `{f_evento_str}` | Edad calculada: `{edad_calc:.2f} años`")
+                        
+                        if lim_x_min <= edad_calc <= lim_x_max:
+                            st.success(f"✅ DENTRO DEL RANGO. Este hito DEBE aparecer en el gráfico (Límites actuales: {lim_x_min:.2f} a {lim_x_max:.2f}).")
+                        else:
+                            st.error(f"❌ FUERA DE RANGO. La ventana Micro actual va de {lim_x_min:.2f} a {lim_x_max:.2f}. El hito se descartó.")
+            else:
+                st.warning("⚠️ El atleta no tiene registrada una fecha de nacimiento válida en la sesión.")
+    except Exception as e:
+        st.error(f"🛑 Error en la consulta de diagnóstico: {e}")
+    # =========================================================================
     # -------------------------------------------------------------------------
     # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS DE COMPETENCIAS - CORREGIDO)
     # -------------------------------------------------------------------------
