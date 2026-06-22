@@ -843,49 +843,49 @@ else:
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     # -------------------------------------------------------------------------
-    # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS / EVENTOS DE AUDITORÍA - SUPABASE)
+    # 🟢 DIBUJO DE LÍNEAS VERTICALES CORREGIDO (HITOS DE COMPETENCIAS)
     # -------------------------------------------------------------------------
     try:
-        hitos_response = supabase.table("historial_hitos") \
-            .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
+        res_hitos = supabase.table("historial_hitos") \
+            .select("id, competencia_id, fecha_alerta, catalogo_competencias(nombre_evento, fecha_inicio)") \
             .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
             .execute()
+            
+        if res_hitos.data and st.session_state.get("fecha_nacimiento"):
+            f_nac_str = st.session_state.fecha_nacimiento
+            if isinstance(f_nac_str, str):
+                f_nac = datetime.datetime.strptime(f_nac_str, '%Y-%m-%d').date()
+            else:
+                f_nac = f_nac_str
+
+            for hito in res_hitos.data:
+                comp_info = hito.get("catalogo_competencias")
+                if comp_info and comp_info.get("fecha_inicio"):
+                    fecha_comp_str = comp_info["fecha_inicio"]
+                    f_evento = datetime.date.fromisoformat(fecha_comp_str)
                     
-        if hitos_response.data:
-            leyenda_ok_impresa = False
-            leyenda_fail_impresa = False
+                    # Conversión explícita a Edad Decimal compatible con la escala del eje X
+                    edad_hito_calculada = calcular_edad_decimal(f_nac, f_evento)
                     
-            f_nac_str = st.session_state.get("fecha_nacimiento")
-            if f_nac_str:
-                if isinstance(f_nac_str, str):
-                    f_nac = datetime.datetime.strptime(f_nac_str, '%Y-%m-%d').date()
-                else:
-                    f_nac = f_nac_str
+                    if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
+                        # Dibujar la línea vertical punteada en la coordenada X decimal exacta
+                        ax.axvline(x=edad_hito_calculada, color="#8E44AD", linestyle="-.", linewidth=1.2, alpha=0.7, zorder=4)
                         
-                for hito in hitos_response.data:
-                    info_competencia = hito.get("catalogo_competencias")
-                    if info_competencia and info_competencia.get("fecha_inicio"):
-                        fecha_inicio_str = info_competencia["fecha_inicio"]
-                                
-                        f_evento = datetime.date.fromisoformat(fecha_inicio_str)
-                        edad_hito_calculada = calcular_edad_decimal(f_nac, f_evento)
-                                
-                        if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
-                            es_elegible = hito.get("elegible", True)
-                                    
-                            color_linea = "#2ECC71" if es_elegible else "#E74C3C"
-                            estilo_linea = "--" if es_elegible else ":"
-                                    
-                            etiqueta_linea = None
-                            if es_elegible and not leyenda_ok_impresa:
-                                etiqueta_linea = "Hito / Evento Aprobado"
-                                leyenda_ok_impresa = True
-                            elif not es_elegible and not leyenda_fail_impresa:
-                                etiqueta_linea = "Hito / Evento Inelegible"
-                                leyenda_fail_impresa = True
-                                        
-                            ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
-                                    
+                        # Ubicación dinámica del texto en el margen superior del lienzo
+                        y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.1)
+                        nombre_evento = comp_info.get("nombre_evento", "Competencia")
+                        nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
+                        
+                        ax.text(
+                            edad_hito_calculada + 0.02, 
+                            y_pos, 
+                            f"Hito: {nombre_corto}\n({edad_hito_calculada:.1f} a)", 
+                            color="#8E44AD", 
+                            fontsize=7, 
+                            va="top", 
+                            ha="left",
+                            bbox=dict(boxstyle="round,pad=0.3", fc="#FDEDEC", ec="#E6B0AA", lw=0.5, alpha=0.9)
+                        )
     except Exception as e:
         st.warning(f"Advertencia al cargar la auditoría visual de hitos: {e}")
 
