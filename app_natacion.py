@@ -858,6 +858,7 @@ else:
     except Exception as e:
         # Si hay algún problema, mostramos advertencia sutil en consola
         print(f"No se pudieron cargar los hitos en el gráfico: {e}")    
+   
     # 2. CÁLCULO ESTRICTO DE LÍMITES 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     if not simulacion_externa and len(df_procesado) > 0:
@@ -896,10 +897,56 @@ else:
         lim_x_min = max(4.0, t0 - 0.5)
         lim_x_max = t_peak + 1.0
 
-    # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
+   # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
+    # =========================================================================
+    # 🟢 DIBUJAR LÍNEAS VERTICALES (HITOS Y EVENTOS DE AUDITORÍA - SUPABASE)
+    # =========================================================================
+    try:
+        # Consulta filtrada por el usuario activo en la sesión
+        hitos_response = supabase.table("historial_hitos") \
+            .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
+            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
+            .execute()
+            
+        if hitos_response.data:
+            leyenda_elegible_puesta = False
+            leyenda_inelegible_puesta = False
+            
+            for hito in hitos_response.data:
+                info_competencia = hito.get("catalogo_competencias")
+                if info_competencia and info_competencia.get("fecha_inicio"):
+                    fecha_inicio_str = info_competencia["fecha_inicio"]
+                    
+                    # Convertimos la fecha de la competencia a edad decimal
+                    edad_hito = calcular_edad_decimal(st.session_state.fecha_nacimiento, datetime.date.fromisoformat(fecha_inicio_str))
+                    
+                    # Comprobamos que el hito caiga dentro de los límites visuales (sea micro o macro)
+                    if edad_hito and (lim_x_min <= edad_hito <= lim_x_max):
+                        es_elegible = hito.get("elegible", True)
+                        
+                        color_linea = "#2ECC71" if es_elegible else "#E74C3C"
+                        estilo_linea = "--" if es_elegible else ":"
+                        
+                        # Evitamos duplicar etiquetas en la leyenda de Streamlit
+                        etiqueta = None
+                        if es_elegible and not leyenda_elegible_puesta:
+                            etiqueta = "Hito / Evento Aprobado"
+                            leyenda_elegible_puesta = True
+                        elif not es_elegible and not leyenda_inelegible_puesta:
+                            etiqueta = "Hito / Evento Inelegible"
+                            leyenda_inelegible_puesta = True
+                            
+                        # Trazado de la línea vertical
+                        ax.axvline(x=edad_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta)
+                        
+    except Exception as e:
+        print(f"No se pudieron cargar los hitos de auditoría en el gráfico: {e}")
+
+    # 3. DIBUJO DE CURVAS Y LÍMITES
+    ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
     # 3. DIBUJO DE CURVAS
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
