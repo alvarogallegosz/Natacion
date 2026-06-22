@@ -905,22 +905,36 @@ else:
                                 color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
                                 estilo_linea = "--" if es_elegible else ":"
                                 
-                                ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, alpha=0.8, zorder=5)
-                                
-                                y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.12)
-                                nombre_evento = comp_info.get("nombre_evento") or "Competencia"
-                                nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
-                                
-                                ax.text(
-                                    edad_hito_calculada + 0.03, 
-                                    y_pos, 
-                                    f"{nombre_corto}\n({edad_hito_calculada:.2f} a)", 
+                                # 1. LÍNEAS ULTRA SUTILES: Bajamos el grosor a 0.7 y la opacidad (alpha) a 0.5
+                                ax.axvline(
+                                    x=edad_hito_calculada, 
                                     color=color_linea, 
-                                    fontsize=7, 
-                                    va="top", 
-                                    ha="left",
-                                    zorder=6,
-                                    bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
+                                    linestyle=estilo_linea, 
+                                    linewidth=0.7, 
+                                    alpha=0.5, 
+                                    zorder=5
+                                )
+                                
+                                # Elevamos la posición Y para que el texto empiece pegado al borde superior
+                                y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
+                                
+                                nombre_evento = comp_info.get("nombre_evento") or "Competencia"
+                                nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
+                                
+                                # 2. ETIQUETAS VERTICALES, LIVIANAS Y SIN RECUADRO
+                                ax.text(
+                                    x=edad_hito_calculada + 0.015,  # Separación milimétrica a la derecha de la línea
+                                    y=y_pos, 
+                                    s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)",  # Todo en una sola línea continua
+                                    color=color_linea, 
+                                    fontsize=7.5, 
+                                    weight="light",     # Fuente delgada / liviana
+                                    rotation=90,        # Rotación vertical paralela a la línea
+                                    va="top",           # Anclaje superior (el texto cae hacia abajo)
+                                    ha="left",          # Alineado a la derecha del punto X
+                                    alpha=0.85,         # Texto ligeramente suave para no competir con la curva principal
+                                    zorder=6
+                                    # NOTA: Se eliminó por completo el parámetro 'bbox' para quitar el recuadro blanco
                                 )
 
         # El Candado de los límites se mantiene firme
