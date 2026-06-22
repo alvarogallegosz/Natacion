@@ -873,14 +873,18 @@ else:
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     try:
-        nadador_id = st.session_state.get("nadador_seleccionado_id")
+        nadador_id = st.session_state.get("nadador_selected_id") # O tu variable de id de atleta
+        
+        # [PASO A] Inicializamos la lista vacía aquí (mismo nivel que el try)
+        hitos_para_tabla = []
         
         if nadador_id:
-            # Invocamos la función con caché nativo (Cero impacto y 100% seguro contra loops)
+            # Invocamos tu función cacheada (la de la línea 64)
             datos_atleta = obtener_datos_hitos_atleta(nadador_id)
             
             if datos_atleta and datos_atleta.get("fecha_nacimiento"):
                 fecha_nacimiento_real = datetime.date.fromisoformat(str(datos_atleta["fecha_nacimiento"])[:10])
+                fecha_hoy = datetime.date.today()
                 
                 for hito in datos_atleta["hitos"]:
                     comp_info = hito.get("catalogo_competencias")
@@ -895,55 +899,64 @@ else:
                             else:
                                 continue
                             
-                            # Cálculo matemático directo (Resta estricta de fechas)
+                            # Cálculo de edad exacta
                             dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
                             edad_hito_calculada = dias_de_vida / 365.25
 
-                            # Filtro visual para la ventana del gráfico
+                            # Filtro: Solo lo que entra en la ventana visual del gráfico
                             if lim_x_min <= edad_hito_calculada <= lim_x_max:
                                 es_elegible = hito.get("elegible", True)
                                 color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
                                 estilo_linea = "--" if es_elegible else ":"
                                 
-                                # 1. LÍNEAS ULTRA SUTILES: Bajamos el grosor a 0.7 y la opacidad (alpha) a 0.5
-                                ax.axvline(
-                                    x=edad_hito_calculada, 
-                                    color=color_linea, 
-                                    linestyle=estilo_linea, 
-                                    linewidth=0.7, 
-                                    alpha=0.5, 
-                                    zorder=5
-                                )
+                                # 1. Dibujo de líneas verticales ultra sutiles
+                                ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=0.7, alpha=0.5, zorder=5)
                                 
-                                # Elevamos la posición Y para que el texto empiece pegado al borde superior
                                 y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
-                                
                                 nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                                 nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
                                 
-                                # 2. ETIQUETAS VERTICALES, LIVIANAS Y SIN RECUADRO
+                                # 2. Etiquetas verticales livianas y limpias
                                 ax.text(
-                                    x=edad_hito_calculada + 0.015,  # Separación milimétrica a la derecha de la línea
+                                    x=edad_hito_calculada + 0.015, 
                                     y=y_pos, 
-                                    s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)",  # Todo en una sola línea continua
+                                    s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)", 
                                     color=color_linea, 
                                     fontsize=7.5, 
-                                    weight="light",     # Fuente delgada / liviana
-                                    rotation=90,        # Rotación vertical paralela a la línea
-                                    va="top",           # Anclaje superior (el texto cae hacia abajo)
-                                    ha="left",          # Alineado a la derecha del punto X
-                                    alpha=0.85,         # Texto ligeramente suave para no competir con la curva principal
+                                    weight="light", 
+                                    rotation=90, 
+                                    va="top", 
+                                    ha="left",
+                                    alpha=0.85, 
                                     zorder=6
-                                    # NOTA: Se eliminó por completo el parámetro 'bbox' para quitar el recuadro blanco
                                 )
 
-        # El Candado de los límites se mantiene firme
+                                # [PASO B] Si la competencia es futura (por venir), la guardamos para la tabla
+                                if fecha_evento_real >= fecha_hoy:
+                                    # Evaluamos la curva con tu función matemática para obtener el tiempo teórico
+                                    # NOTA: Reemplaza 'calcular_tiempo_curva' por el nombre real de tu función matemática
+                                    try:
+                                        tiempo_proyectado = calcular_tiempo_curva(edad_hito_calculada)
+                                    except:
+                                        tiempo_proyectado = None
+                                        
+                                    hitos_para_tabla.append({
+                                        "Competencia / Hito": nombre_evento,
+                                        "Fecha de Inicio": fecha_evento_real.strftime("%d/%m/%Y"),
+                                        "Edad Esperada": f"{edad_hito_calculada:.2f} años",
+                                        "Tiempo Proyectado": f"{tiempo_proyectado:.2f} s" if tiempo_proyectado else "Por calcular"
+                                    })
+
+        # [PASO C] Al terminar el bucle, guardamos todo el paquete en la sesión
+        st.session_state["hitos_tabla_actual"] = hitos_para_tabla
+
+        # Aseguramos el candado de los límites visuales
         ax.set_xlim(lim_x_min, lim_x_max)
         ax.set_ylim(lim_y_inferior, lim_y_superior)
         ax.set_autoscale_on(False)
 
     except Exception as e:
-        print(f"Advertencia menor controlada durante el renderizado visual: {e}")
+        print(f"Advertencia menor en renderizado: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
@@ -1050,6 +1063,31 @@ else:
 
     # AQUÍ ESTÁ LA MAGIA FINAL
     st.pyplot(fig, use_container_width=True)
+
+# === ESTO VA EN TU FLUJO PRINCIPAL DE LA INTERFAZ ===
+# 2. AJUSTE PENDIENTE: Si el usuario seleccionó el modo "Micro", pintamos la tabla abajo
+# (Cambia 'modo_vista' por la variable exacta que uses en tu radio/select de Modo)
+if modo_vista == "Micro":
+    st.write("---") # Línea divisoria sutil
+    st.markdown("### 📋 Planificación de Competencias Futuras (Hitos Proyectados)")
+    
+    # Extraemos la lista que el gráfico dejó empaquetada en la sesión
+    datos_tabla = st.session_state.get("hitos_tabla_actual", [])
+    
+    if datos_tabla:
+        import pandas as pd
+        # Convertimos la lista limpia a un DataFrame de Pandas
+        df_hitos = pd.DataFrame(datos_tabla)
+        
+        # Mostramos la tabla elegante sin índices numéricos invasivos
+        st.dataframe(
+            df_hitos, 
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("No hay competencias o hitos programados a futuro en esta ventana temporal.")
+
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
