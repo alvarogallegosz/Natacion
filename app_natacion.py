@@ -841,113 +841,80 @@ else:
     # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
-# =========================================================================
-    # 🐛 BLOQUE DE DIAGNÓSTICO TEMPORAL DE HITOS (ELIMINAR AL RESOLVER)
-    # =========================================================================
-    st.markdown("### 🐛 Diagnóstico de Hitos de Competencia")
-    try:
-        res_diag = supabase.table("historial_hitos") \
-            .select("*, catalogo_competencias(*)") \
-            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-            .execute()
-            
-        if not res_diag.data:
-            st.warning("⚠️ Supabase no devolvió ningún hito para este atleta.")
-        else:
-            f_nac_str = st.session_state.get("fecha_nacimiento")
-            if f_nac_str:
-                f_nac_obj = datetime.date.fromisoformat(str(f_nac_str)[:10]) if isinstance(f_nac_str, str) else f_nac_str
-                
-                for hito in res_diag.data:
-                    comp = hito.get("catalogo_competencias")
-                    if comp and comp.get("fecha_inicio"):
-                        f_evento_str = str(comp["fecha_inicio"])[:10]
-                        f_evento_obj = datetime.date.fromisoformat(f_evento_str)
-                        
-                        edad_calc = calcular_edad_decimal(f_nac_obj, f_evento_obj)
-                        
-                        st.write(f"**Evento:** {comp.get('nombre_evento')}")
-                        st.write(f"- Fecha del evento: `{f_evento_str}` | Edad calculada: `{edad_calc:.2f} años`")
-                        
-                        if lim_x_min <= edad_calc <= lim_x_max:
-                            st.success(f"✅ DENTRO DEL RANGO. Este hito DEBE aparecer en el gráfico (Límites actuales: {lim_x_min:.2f} a {lim_x_max:.2f}).")
-                        else:
-                            st.error(f"❌ FUERA DE RANGO. La ventana Micro actual va de {lim_x_min:.2f} a {lim_x_max:.2f}. El hito se descartó.")
-            else:
-                st.warning("⚠️ El atleta no tiene registrada una fecha de nacimiento válida en la sesión.")
-    except Exception as e:
-        st.error(f"🛑 Error en la consulta de diagnóstico: {e}")
-    # =========================================================================
+
     # -------------------------------------------------------------------------
-    # 🟢 DIBUJO DE LÍNEAS VERTICALES CORREGIDO (HITOS DE COMPETENCIAS)
+    # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS DE COMPETENCIAS - CORREGIDO)
     # -------------------------------------------------------------------------
     try:
-        # Usamos "*" tanto en la tabla principal como en la relacionada para evitar errores de nombres
+        # Consulta limpia a Supabase para traer el historial de hitos del atleta seleccionado
         res_hitos = supabase.table("historial_hitos") \
             .select("*, catalogo_competencias(*) ") \
             .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
             .execute()
             
-        if res_hitos.data and st.session_state.get("fecha_nacimiento"):
-            f_nac_str = st.session_state.fecha_nacimiento
-            if isinstance(f_nac_str, str):
-                f_nac = datetime.datetime.strptime(f_nac_str, '%Y-%m-%d').date()
-            else:
-                f_nac = f_nac_str
+        if res_hitos.data:
+            # NOTA CLAVE: st.session_state.fecha_nacimiento debe venir directamente de la tabla 'usuarios'
+            # para el atleta seleccionado en la barra lateral, evitando fechas de inicio de segmentos o temporadas.
+            f_nac_str = st.session_state.get("fecha_nacimiento")
+            
+            if f_nac_str:
+                if isinstance(f_nac_str, str):
+                    f_nac = datetime.datetime.strptime(f_nac_str[:10], '%Y-%m-%d').date()
+                else:
+                    f_nac = f_nac_str
 
-            for hito in res_hitos.data:
-                comp_info = hito.get("catalogo_competencias")
-                if comp_info:
-                    # Extracción segura de la fecha del evento con alternativas de columnas
-                    fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha") or hito.get("fecha_alerta")
-                    if fecha_comp_str:
-                        # Parseo ultra-seguro del formato de fecha obtenido
-                        if isinstance(fecha_comp_str, str):
-                            f_evento = datetime.date.fromisoformat(fecha_comp_str[:10])
-                        elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
-                            f_evento = fecha_comp_str if isinstance(fecha_comp_str, datetime.date) else fecha_comp_str.date()
-                        else:
-                            continue
+                for hito in res_hitos.data:
+                    comp_info = hito.get("catalogo_competencias")
+                    if comp_info:
+                        # Extracción limpia de la fecha de inicio de la competencia
+                        fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
                         
-                        # Conversión a Edad Decimal exacta para posicionar en el Eje X
-                        edad_hito_calculada = calcular_edad_decimal(f_nac, f_evento)
-                        
-                        # Validamos rigurosamente si el hito pertenece al rango visual configurado (Macro o Micro)
-                        if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
-                            # Respetamos el color según la elegibilidad que manejabas originalmente
-                            es_elegible = hito.get("elegible", True)
-                            color_linea = "#2ECC71" if es_elegible else "#E74C3C" # Verde si califica, Rojo si es inelegible
-                            estilo_linea = "--" if es_elegible else ":"
+                        if fecha_comp_str:
+                            if isinstance(fecha_comp_str, str):
+                                f_evento = datetime.date.fromisoformat(fecha_comp_str[:10])
+                            elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
+                                f_evento = fecha_comp_str if isinstance(fecha_comp_str, datetime.date) else fecha_comp_str.date()
+                            else:
+                                continue
                             
-                            # Trazamos la línea vertical en el eje X numérico correspondiente
-                            ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, alpha=0.8, zorder=5)
+                            # CÁLCULO DE EDAD REAL: Fecha del evento (catalogo_competencias) - Nacimiento del nadador (usuarios)
+                            edad_hito_calculada = calcular_edad_decimal(f_nac, f_evento)
                             
-                            # Ubicación de la etiqueta descriptiva en la parte superior del gráfico
-                            y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.12)
-                            nombre_evento = comp_info.get("nombre_evento") or comp_info.get("nombre") or comp_info.get("evento") or "Competencia"
-                            nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
-                            
-                            ax.text(
-                                edad_hito_calculada + 0.03, 
-                                y_pos, 
-                                f"{nombre_corto}\n({edad_hito_calculada:.2f} a)", 
-                                color=color_linea, 
-                                fontsize=7, 
-                                va="top", 
-                                ha="left",
-                                zorder=6,
-                                bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
-                            )
-                            
-        # 🔥 EL CANDADO: Forzamos y congelamos los límites aquí mismo para evitar que 
-        # ejecuciones de código posteriores destruyan el encuadre o el autoescalado de Matplotlib.
+                            # CONDICIONAL: Solo si la edad real entra en la ventana visual (lim_x_min a lim_x_max)
+                            if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
+                                es_elegible = hito.get("elegible", True)
+                                color_linea = "#2ECC71" if es_elegible else "#E74C3C" # Verde si es elegible, Rojo si no
+                                estilo_linea = "--" if es_elegible else ":"
+                                
+                                # Trazamos la línea vertical en la posición exacta del eje X
+                                ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, alpha=0.8, zorder=5)
+                                
+                                # Posicionamiento del texto explicativo en la parte superior del gráfico
+                                y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.12)
+                                nombre_evento = comp_info.get("nombre_evento") or "Competencia"
+                                nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
+                                
+                                ax.text(
+                                    edad_hito_calculada + 0.03, 
+                                    y_pos, 
+                                    f"{nombre_corto}\n({edad_hito_calculada:.2f} a)", 
+                                    color=color_linea, 
+                                    fontsize=7, 
+                                    va="top", 
+                                    ha="left",
+                                    zorder=6,
+                                    bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
+                                )
+            else:
+                st.warning("⚠️ No se encontró una fecha de nacimiento válida en la sesión para el atleta seleccionado.")
+                
+        # 🔥 EL CANDADO: Forzamos y congelamos los límites para asegurar el encuadre exacto de la ventana
         ax.set_xlim(lim_x_min, lim_x_max)
         ax.set_ylim(lim_y_inferior, lim_y_superior)
         ax.set_autoscale_on(False)
 
     except Exception as e:
-        st.warning(f"Advertencia al cargar la auditoría visual de hitos: {e}")
-
+        st.warning(f"Advertencia al cargar la visualización de hitos: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
