@@ -872,90 +872,97 @@ else:
         ax.set_xlim(lim_x_min, lim_x_max)
         ax.set_ylim(lim_y_inferior, lim_y_superior)
 
-        try:
-            nadador_id = st.session_state.get("nadador_seleccionado_id")
+        # Inicializador global del contenedor de la tabla micro
+        datos_tabla_micro = []
+
+        # Extracción segura de la base de datos
+        nadador_id = st.session_state.get("nadador_seleccionado_id")
+        
+        if nadador_id:
+            datos_atleta = obtener_datos_hitos_atleta(nadador_id)
             
-            if nadador_id:
-                # Invocamos la función con caché nativo (Cero impacto y 100% seguro contra loops)
-                datos_atleta = obtener_datos_hitos_atleta(nadador_id)
-                
-                if datos_atleta and datos_atleta.get("fecha_nacimiento"):
+            if datos_atleta and datos_atleta.get("fecha_nacimiento"):
+                try:
                     fecha_nacimiento_real = datetime.date.fromisoformat(str(datos_atleta["fecha_nacimiento"])[:10])
-                    
-                    # [NUEVO] Inicializa el contenedor limpio para la tabla en modo Micro
-                    datos_tabla_micro = []
-                    
-                    for hito in datos_atleta["hitos"]:
-                        comp_info = hito.get("catalogo_competencias")
-                        if comp_info:
-                            fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
+                except Exception:
+                    fecha_nacimiento_real = None
+                
+                if fecha_nacimiento_real:
+                    # Iteración con Try-Except INTERNO por cada hito para evitar abortar el ciclo completo
+                    for hito in datos_atleta.get("hitos", []):
+                        try:
+                            comp_info = hito.get("catalogo_competencias")
+                            if not comp_info:
+                                continue
                             
-                            if fecha_comp_str:
-                                if isinstance(fecha_comp_str, str):
-                                    fecha_evento_real = datetime.date.fromisoformat(fecha_comp_str[:10])
-                                elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
-                                    fecha_evento_real = fecha_comp_str if isinstance(fecha_comp_str, datetime.date) else fecha_comp_str.date()
-                                else:
-                                    continue
+                            fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
+                            if not fecha_comp_str:
+                                continue
+                            
+                            if isinstance(fecha_comp_str, str):
+                                fecha_evento_real = datetime.date.fromisoformat(fecha_comp_str[:10])
+                            elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
+                                fecha_evento_real = fecha_comp_str if isinstance(fecha_comp_str, datetime.date) else fecha_comp_str.date()
+                            else:
+                                continue
+                            
+                            # Resta estricta de fechas para obtener la edad cronológica exacta
+                            dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
+                            edad_hito_calculada = dias_de_vida / 365.25
+
+                            # Filtro visual estricto de la ventana gráfica actual (Micro o Macro)
+                            if lim_x_min <= edad_hito_calculada <= lim_x_max:
+                                es_elegible = hito.get("elegible", True)
+                                color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
+                                estilo_linea = "--" if es_elegible else ":"
                                 
-                                # Cálculo matemático directo (Resta estricta de fechas)
-                                dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
-                                edad_hito_calculada = dias_de_vida / 365.25
+                                # Dibujo de la línea vertical en el gráfico
+                                ax.axvline(
+                                    x=edad_hito_calculada, 
+                                    color=color_linea, 
+                                    linestyle=estilo_linea, 
+                                    linewidth=0.7, 
+                                    alpha=0.5, 
+                                    zorder=5
+                                )
+                                
+                                y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
+                                nombre_evento = comp_info.get("nombre_evento") or "Competencia"
+                                nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
+                                
+                                # Etiquetas verticales sin recuadro
+                                ax.text(
+                                    x=edad_hito_calculada + 0.015, 
+                                    y=y_pos, 
+                                    s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)", 
+                                    color=color_linea, 
+                                    fontsize=7.5, 
+                                    weight="light",
+                                    rotation=90, 
+                                    va="top", 
+                                    ha="left", 
+                                    alpha=0.85, 
+                                    zorder=6
+                                )
 
-                                # Filtro visual para la ventana del gráfico
-                                if lim_x_min <= edad_hito_calculada <= lim_x_max:
-                                    es_elegible = hito.get("elegible", True)
-                                    color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
-                                    estilo_linea = "--" if es_elegible else ":"
-                                    
-                                    # 1. LÍNEAS ULTRA SUTILES: Bajamos el grosor a 0.7 y la opacidad (alpha) a 0.5
-                                    ax.axvline(
-                                        x=edad_hito_calculada, 
-                                        color=color_linea, 
-                                        linestyle=estilo_linea, 
-                                        linewidth=0.7, 
-                                        alpha=0.5, 
-                                        zorder=5
-                                    )
-                                    
-                                    # Elevamos la posición Y para que el texto empiece pegado al borde superior
-                                    y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
-                                    
-                                    nombre_evento = comp_info.get("nombre_evento") or "Competencia"
-                                    nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
-                                    
-                                    # 2. ETIQUETAS VERTICALES, LIVIANAS Y SIN RECUADRO
-                                    ax.text(
-                                        x=edad_hito_calculada + 0.015,  # Separación milimétrica a la derecha de la línea
-                                        y=y_pos, 
-                                        s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)",  # Todo en una sola línea continua
-                                        color=color_linea, 
-                                        fontsize=7.5, 
-                                        weight="light",     # Fuente delgada / liviana
-                                        rotation=90,        # Rotación vertical paralela a la línea
-                                        va="top",           # Anclaje superior (el texto cae hacia abajo)
-                                        ha="left",          # Alineado a la derecha del punto X
-                                        alpha=0.85,         # Texto ligeramente suave para no competir con la curva principal
-                                        zorder=6
-                                    )
+                                # Captura para la tabla en Modo Micro (Se eliminó la restricción de fecha futura)
+                                if tipo_vista == "Micro (Ventana Anual)":
+                                    tiempo_proyectado = calcular_curva_atleta(edad_hito_calculada, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+                                    datos_tabla_micro.append({
+                                        "Competencia / Evento": nombre_evento,
+                                        "Fecha": fecha_evento_real.strftime('%d/%m/%Y'),
+                                        "Edad": f"{edad_hito_calculada:.2f} a",
+                                        "Tiempo Prog.": f"{tiempo_proyectado:.2f} s"
+                                    })
+                        except Exception as e_hito:
+                            # Si un hito individual falla por datos corruptos, se reporta en consola y se continúa con el siguiente
+                            print(f"Advertencia: No se pudo procesar un hito individual: {e_hito}")
 
-                                    # [NUEVO] Captura limpia para la tabla: Solo en Modo Micro y si el evento es futuro
-                                    if tipo_vista == "Micro (Ventana Anual)" and fecha_evento_real >= datetime.date.today():
-                                        tiempo_proyectado = calcular_curva_atleta(edad_hito_calculada, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-                                        datos_tabla_micro.append({
-                                            "Competencia / Evento": nombre_evento,
-                                            "Fecha de Inicio": fecha_evento_real.strftime('%d/%m/%Y'),
-                                            "Edad Hito": f"{edad_hito_calculada:.2f} años",
-                                            "Tiempo Esperado": f"{tiempo_proyectado:.2f} s"
-                                        })
+        # Asegurar límites del gráfico tras el procesamiento
+        ax.set_xlim(lim_x_min, lim_x_max)
+        ax.set_ylim(lim_y_inferior, lim_y_superior)
+        ax.set_autoscale_on(False)
 
-            # El Candado de los límites se mantiene firme
-            ax.set_xlim(lim_x_min, lim_x_max)
-            ax.set_ylim(lim_y_inferior, lim_y_superior)
-            ax.set_autoscale_on(False)
-
-        except Exception as e:
-            print(f"Advertencia menor controlada durante el renderizado visual: {e}")
         # -------------------------------------------------------------------------
         # 3. DIBUJO DE CURVAS
         # -------------------------------------------------------------------------
@@ -968,7 +975,6 @@ else:
         offset_y = (lim_y_superior - lim_y_inferior) * 0.025
         estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
-        # 4. CONDICIONAMOS LOS HITOS (Para que no aplasten el gráfico si están fuera de la ventana)
         if lim_x_min <= t0 <= lim_x_max and lim_y_inferior <= T0 <= lim_y_superior:
             ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
             ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f}s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
@@ -1020,14 +1026,29 @@ else:
         ax.set_axisbelow(True) 
         ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
-        # 5. RENDERIZADO DE TABLA INTERNA DEL LIENZO (Intacto)
-        if not simulacion_externa and len(df_procesado) > 0:
-            df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
-            df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
-            df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
-            
-            limite_filas_por_bloque = 16
+        # =========================================================================
+        # 5. RENDERIZADO DE TABLA DINÁMICA DENTRO DEL LIENZO CARTA
+        # =========================================================================
+        df_table_render = None
+        es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
+
+        if es_modo_micro_tabla:
+            if datos_tabla_micro:
+                df_table_render = pd.DataFrame(datos_tabla_micro)
+                anchos_columnas = [0.46, 0.18, 0.16, 0.20]
+            else:
+                df_table_render = pd.DataFrame(columns=["Competencia / Evento", "Fecha", "Edad", "Tiempo Prog."])
+                anchos_columnas = [0.46, 0.18, 0.16, 0.20]
+        else:
+            if not simulacion_externa and len(df_procesado) > 0:
+                df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
+                df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
+                df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
+                anchos_columnas = [0.15, 0.15, 0.70]
+
+        if df_table_render is not None:
             total_filas = len(df_table_render)
+            limite_filas_por_bloque = 16
             
             def estilizar_tabla_nativo(instancia_tabla):
                 instancia_tabla.auto_set_font_size(False)
@@ -1043,21 +1064,30 @@ else:
             if total_filas <= limite_filas_por_bloque:
                 ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
                 ax_table.axis('off')
-                mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=[0.15, 0.15, 0.70])
+                mpl_table = ax_table.table(
+                    cellText=df_table_render.values, 
+                    colLabels=df_table_render.columns, 
+                    cellLoc='center', 
+                    loc='upper center', 
+                    colWidths=anchos_columnas
+                )
                 estilizar_tabla_nativo(mpl_table)
             else:
-                if total_filas > 32: df_table_render = df_table_render.iloc[:32]
+                if total_filas > 32: 
+                    df_table_render = df_table_render.iloc[:32]
                 df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
                 df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
                 
+                anchos_doble = anchos_columnas if es_modo_micro_tabla else [0.18, 0.18, 0.64]
+                
                 ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
                 ax_table1.axis('off')
-                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
+                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
                 estilizar_tabla_nativo(mpl_table1)
                 
                 ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
                 ax_table2.axis('off')
-                mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=[0.18, 0.18, 0.64])
+                mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
                 estilizar_tabla_nativo(mpl_table2)
 
         # -------------------------------------------------------------
@@ -1065,12 +1095,12 @@ else:
         # -------------------------------------------------------------
         st.pyplot(fig, use_container_width=True)
 
-        # [NUEVO] Renderiza la tabla nativa de Streamlit limpia justo debajo del lienzo
-        if tipo_vista == "Micro (Ventana Anual)" and 'datos_tabla_micro' in locals() and datos_tabla_micro:
-            st.markdown("#### 📋 Próximas Competencias e Hitos Proyectados")
-            df_tabla_micro = pd.DataFrame(datos_tabla_micro)
+        # Tabla limpia interactiva abajo del gráfico interactivo
+        if es_modo_micro_tabla and datos_tabla_micro:
+            st.markdown("#### 📋 Próximas Competencias e Hitos Proyectados en la Ventana")
+            df_tabla_micro_st = pd.DataFrame(datos_tabla_micro)
             st.dataframe(
-                df_tabla_micro, 
+                df_tabla_micro_st, 
                 use_container_width=True, 
                 hide_index=True
             )
