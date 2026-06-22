@@ -846,15 +846,12 @@ else:
     # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS DE COMPETENCIAS - CORREGIDO)
     # -------------------------------------------------------------------------
     try:
-        # Consulta limpia a Supabase para traer el historial de hitos del atleta seleccionado
         res_hitos = supabase.table("historial_hitos") \
             .select("*, catalogo_competencias(*) ") \
             .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
             .execute()
             
         if res_hitos.data:
-            # NOTA CLAVE: st.session_state.fecha_nacimiento debe venir directamente de la tabla 'usuarios'
-            # para el atleta seleccionado en la barra lateral, evitando fechas de inicio de segmentos o temporadas.
             f_nac_str = st.session_state.get("fecha_nacimiento")
             
             if f_nac_str:
@@ -866,7 +863,6 @@ else:
                 for hito in res_hitos.data:
                     comp_info = hito.get("catalogo_competencias")
                     if comp_info:
-                        # Extracción limpia de la fecha de inicio de la competencia
                         fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
                         
                         if fecha_comp_str:
@@ -877,19 +873,21 @@ else:
                             else:
                                 continue
                             
-                            # CÁLCULO DE EDAD REAL: Fecha del evento (catalogo_competencias) - Nacimiento del nadador (usuarios)
-                            edad_hito_calculada = calcular_edad_decimal(f_nac, f_evento)
+                            # =========================================================
+                            # 🔥 CÁLCULO DIRECTO: RESTA DE FECHAS (TIPO DATE)
+                            # =========================================================
+                            diferencia_dias = (f_evento - f_nac).days
+                            edad_hito_calculada = diferencia_dias / 365.25
+                            # =========================================================
                             
-                            # CONDICIONAL: Solo si la edad real entra en la ventana visual (lim_x_min a lim_x_max)
+                            # CONDICIONAL: Evaluar si el valor decimal entra en la ventana
                             if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
                                 es_elegible = hito.get("elegible", True)
-                                color_linea = "#2ECC71" if es_elegible else "#E74C3C" # Verde si es elegible, Rojo si no
+                                color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
                                 estilo_linea = "--" if es_elegible else ":"
                                 
-                                # Trazamos la línea vertical en la posición exacta del eje X
                                 ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, alpha=0.8, zorder=5)
                                 
-                                # Posicionamiento del texto explicativo en la parte superior del gráfico
                                 y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.12)
                                 nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                                 nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
@@ -908,7 +906,7 @@ else:
             else:
                 st.warning("⚠️ No se encontró una fecha de nacimiento válida en la sesión para el atleta seleccionado.")
                 
-        # 🔥 EL CANDADO: Forzamos y congelamos los límites para asegurar el encuadre exacto de la ventana
+        # EL CANDADO: Forzamos y congelamos los límites
         ax.set_xlim(lim_x_min, lim_x_max)
         ax.set_ylim(lim_y_inferior, lim_y_superior)
         ax.set_autoscale_on(False)
