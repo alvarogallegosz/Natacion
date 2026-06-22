@@ -774,137 +774,127 @@ if modo_equipo:
         st.error(f"Error procesando los segmentos de equipo: {e}")
 
 else:
-    # -------------------------------------------------------------
-    # LIENZO INDIVIDUAL Y SIMULACIÓN
-    # -------------------------------------------------------------
-    edades_curva = np.linspace(t0, t_peak, 500)
-    tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+            # -------------------------------------------------------------
+            # LIENZO INDIVIDUAL Y SIMULACIÓN
+            # -------------------------------------------------------------
+            edades_curva = np.linspace(t0, t_peak, 500)
+            tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
 
-    fig = plt.figure(figsize=(8.5, 11.0))
-    ancho_grafico = 0.76
-    margen_izq = 0.12
+            fig = plt.figure(figsize=(8.5, 11.0))
+            ancho_grafico = 0.76
+            margen_izq = 0.12
 
-  # ========================= 
-    # 1. CREACIÓN DEL EJE SEGÚN VISTA
-    # =========================
-    
-    # Margen izquierdo constante
-    margen_izq = 0.09 
-    ancho_grafico = 0.82
-    
-    # RESTRICIDENCIA DE LÍMITES PARA MARGEN SUPERIOR FIJO (2 cm / 11" = 7.1% de margen superior)
-    # Es decir, la gráfica termina en 1.0 - 0.071 = 0.929 (92.9% de la altura total)
-    fin_superior = 0.929
-    
-    if tipo_vista == "Micro (Ventana Anual)":
-        alto_grafico = 0.42  # Un tamaño prudente para que quepa en la mitad superior
-        # El origen inferior se calcula restando el alto del gráfico desde el punto superior
-        fondogr = fin_superior - alto_grafico  
-        
-    else: # Vista Macro o generales
-        alto_grafico = 0.35
-        fondogr = fin_superior - alto_grafico
-        
-    ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
- 
-    # 2. CÁLCULO ESTRICTO DE LÍMITES 
-    todos_los_tiempos_ind = [T0, T_pb, T_target]
-    if not simulacion_externa and len(df_procesado) > 0:
-        todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
-
-    if tipo_vista == "Micro (Ventana Anual)":
-        edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 300)
-        tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
-        
-        tiempos_reales_ventana = []
-        if not simulacion_externa and len(df_procesado) > 0:
-            for _, row in df_procesado.iterrows():
-                if edad_min_zoom <= row["Edad"] <= edad_max_zoom:
-                    tiempos_reales_ventana.append(row["Tiempo"])
-                    
-        todos_tiempos_v = tiempos_curva_ventana + tiempos_reales_ventana
-        
-        if todos_tiempos_v:
-            t_min_v = min(todos_tiempos_v)
-            t_max_v = max(todos_tiempos_v)
-        else:
-            t_min_v = min(tiempos_curva)
-            t_max_v = max(tiempos_curva)
-
-        margen_y = max(0.5, (t_max_v - t_min_v) * 0.15)
-        lim_y_inferior = t_min_v - margen_y
-        lim_y_superior = t_max_v + margen_y
-        
-        lim_x_min = edad_min_zoom
-        lim_x_max = edad_max_zoom
-    else:
-        peor_tiempo_ind = max(todos_los_tiempos_ind)
-        lim_y_inferior = m_wr * 0.95
-        lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
-        
-        lim_x_min = max(4.0, t0 - 0.5)
-        lim_x_max = t_peak + 1.0
-
-# ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
-    ax.set_xlim(lim_x_min, lim_x_max)
-    ax.set_ylim(lim_y_inferior, lim_y_superior)
-
-    # -------------------------------------------------------------------------
-    # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS / EVENTOS DE AUDITORÍA - SUPABASE)
-    # -------------------------------------------------------------------------
-    try:
-        hitos_response = supabase.table("historial_hitos") \
-            .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
-            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-            .execute()
+            # ========================= 
+            # 1. CREACIÓN DEL EJE SEGÚN VISTA
+            # =========================
+            margen_izq = 0.09 
+            ancho_grafico = 0.82
+            fin_superior = 0.929
             
-        if hitos_response.data:
-            leyenda_ok_impresa = False
-            leyenda_fail_impresa = False
-            
-            f_nac_str = st.session_state.get("fecha_nacimiento")
-            if f_nac_str:
-                if isinstance(f_nac_str, str):
-                    f_nac = datetime.datetime.strptime(f_nac_str, '%Y-%m-%d').date()
+            if tipo_vista == "Micro (Ventana Anual)":
+                alto_grafico = 0.42 
+                fondogr = fin_superior - alto_grafico  
+            else: # Vista Macro o generales
+                alto_grafico = 0.35
+                fondogr = fin_superior - alto_grafico
+                
+            ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
+
+            # 2. CÁLCULO ESTRICTO DE LÍMITES 
+            todos_los_tiempos_ind = [T0, T_pb, T_target]
+            if not simulacion_externa and len(df_procesado) > 0:
+                todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+
+            if tipo_vista == "Micro (Ventana Anual)":
+                edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 300)
+                tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
+                
+                tiempos_reales_ventana = []
+                if not simulacion_externa and len(df_procesado) > 0:
+                    for _, row in df_procesado.iterrows():
+                        if edad_min_zoom <= row["Edad"] <= edad_max_zoom:
+                            tiempos_reales_ventana.append(row["Tiempo"])
+                            
+                todos_tiempos_v = tiempos_curva_ventana + tiempos_reales_ventana
+                
+                if todos_tiempos_v:
+                    t_min_v = min(todos_tiempos_v)
+                    t_max_v = max(todos_tiempos_v)
                 else:
-                    f_nac = f_nac_str
-                
-                x_min_actual, x_max_actual = ax.get_xlim()
-                
-                for hito in hitos_response.data:
-                    info_competencia = hito.get("catalogo_competencias")
-                    if info_competencia and info_competencia.get("fecha_inicio"):
-                        fecha_inicio_str = info_competencia["fecha_inicio"]
-                        f_hito = datetime.date.fromisoformat(fecha_inicio_str)
-                        
-                        # Cálculo de edad absoluta del hito (en años decimales)
-                        edad_absoluta_hito = (f_hito - f_nac).days / 365.25
-                        
-                        # Verificamos si la edad del hito cae dentro de los límites visuales actuales
-                        if x_min_actual <= edad_absoluta_hito <= x_max_actual:
-                            es_elegible = hito.get("elegible", True)
-                            
-                            color_linea = "#2ECC71" if es_elegible else "#E74C3C"
-                            estilo_linea = "--" if es_elegible else ":"
-                            
-                            etiqueta_linea = None
-                            if es_elegible and not leyenda_ok_impresa:
-                                etiqueta_linea = "Hito / Evento Aprobado"
-                                leyenda_ok_impresa = True
-                            elif not es_elegible and not leyenda_fail_impresa:
-                                etiqueta_linea = "Hito / Evento Inelegible"
-                                leyenda_fail_impresa = True
-                                
-                            # Trazamos la línea vertical en la coordenada absoluta validada
-                            ax.axvline(x=edad_absoluta_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
-                            
-    except Exception as e:
-        st.warning(f"Advertencia al cargar la auditoría visual de hitos: {e}")
+                    t_min_v = min(tiempos_curva)
+                    t_max_v = max(tiempos_curva)
 
-    # -------------------------------------------------------------------------
-    # 3. DIBUJO DE CURVAS
-    # -------------------------------------------------------------------------
-    ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
+                margen_y = max(0.5, (t_max_v - t_min_v) * 0.15)
+                lim_y_inferior = t_min_v - margen_y
+                lim_y_superior = t_max_v + margen_y
+                
+                lim_x_min = edad_min_zoom
+                lim_x_max = edad_max_zoom
+            else:
+                peor_tiempo_ind = max(todos_los_tiempos_ind)
+                lim_y_inferior = m_wr * 0.95
+                lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
+                
+                lim_x_min = max(4.0, t0 - 0.5)
+                lim_x_max = t_peak + 1.0
+
+            # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
+            ax.set_xlim(lim_x_min, lim_x_max)
+            ax.set_ylim(lim_y_inferior, lim_y_superior)
+
+            # -------------------------------------------------------------------------
+            # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS / EVENTOS DE AUDITORÍA - SUPABASE)
+            # -------------------------------------------------------------------------
+            try:
+                hitos_response = supabase.table("historial_hitos") \
+                    .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
+                    .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
+                    .execute()
+                    
+                if hitos_response.data:
+                    leyenda_ok_impresa = False
+                    leyenda_fail_impresa = False
+                    
+                    f_nac_str = st.session_state.get("fecha_nacimiento")
+                    if f_nac_str:
+                        if isinstance(f_nac_str, str):
+                            f_nac = datetime.datetime.strptime(f_nac_str, '%Y-%m-%d').date()
+                        else:
+                            f_nac = f_nac_str
+                        
+                        for hito in hitos_response.data:
+                            info_competencia = hito.get("catalogo_competencias")
+                            if info_competencia and info_competencia.get("fecha_inicio"):
+                                fecha_inicio_str = info_competencia["fecha_inicio"]
+                                
+                                # 🎯 CONVERSIÓN EXACTA: Usamos la función nativa que ya calcula correctamente la edad en el eje X
+                                f_evento = datetime.date.fromisoformat(fecha_inicio_str)
+                                edad_hito_calculada = calcular_edad_decimal(f_nac, f_evento)
+                                
+                                if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
+                                    es_elegible = hito.get("elegible", True)
+                                    
+                                    color_linea = "#2ECC71" if es_elegible else "#E74C3C"
+                                    estilo_linea = "--" if es_elegible else ":"
+                                    
+                                    etiqueta_linea = None
+                                    if es_elegible and not leyenda_ok_impresa:
+                                        etiqueta_linea = "Hito / Evento Aprobado"
+                                        leyenda_ok_impresa = True
+                                    elif not es_elegible and not leyenda_fail_impresa:
+                                        etiqueta_linea = "Hito / Evento Inelegible"
+                                        leyenda_fail_impresa = True
+                                        
+                                    # Trazamos la línea vertical utilizando la edad escalada nativamente
+                                    ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
+                                    
+            except Exception as e:
+                st.warning(f"Advertencia al cargar la auditoría visual de hitos: {e}")
+
+            # -------------------------------------------------------------------------
+            # 3. DIBUJO DE CURVAS
+            # -------------------------------------------------------------------------
+            ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
     if not simulacion_externa and len(df_procesado) > 0:
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
