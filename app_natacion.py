@@ -28,7 +28,6 @@ def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
     Calcula la edad del nadador al 31 de diciembre del año en curso, 
     según la normativa técnica para categorización.
     """
-    # Si la fecha_nacimiento es un string de base de datos, convertirlo a date
     if isinstance(fecha_nacimiento, str):
         fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
         
@@ -61,7 +60,7 @@ def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
 # -------------------------------------------------------------
 # FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
-@st.cache_data(show_spinner=False, ttl=600)  # Almacena en caché por 10 minutos
+@st.cache_data(show_spinner=False, ttl=600)
 def obtener_datos_hitos_atleta(nadador_id):
     """
     Consulta de forma segura y aislada la información del atleta.
@@ -87,6 +86,7 @@ def obtener_datos_hitos_atleta(nadador_id):
     except Exception as e:
         print(f"Error interno en consulta cacheada de Supabase: {e}")
     return None
+
 # -------------------------------------------------------------
 # FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
@@ -98,7 +98,6 @@ def enviar_email(asunto, cuerpo, destinatario):
         msg['Subject'] = asunto
         msg.attach(MIMEText(cuerpo, 'plain'))
 
-        # Usando SMTP_SSL para el puerto 465
         with smtplib.SMTP_SSL(st.secrets["EMAIL_SMTP_SERVER"], int(st.secrets["EMAIL_SMTP_PORT"])) as server:
             server.login(st.secrets["EMAIL_REMITE"], st.secrets["EMAIL_PASSWORD"])
             server.sendmail(st.secrets["EMAIL_REMITE"], destinatario, msg.as_string())
@@ -115,7 +114,6 @@ st.markdown(
     <style>
     div[data-testid="stMetricValue"] { font-size: 22px !important; }
     div[data-testid="stMetricLabel"] { font-size: 13px !important; }
-    /* Reducción de tamaño en títulos de la barra lateral para evitar saltos de línea */
     section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3, section[data-testid="stSidebar"] .css-10trblm, section[data-testid="stSidebar"] h4 {
         font-size: 12px !important;
     }
@@ -528,7 +526,7 @@ try:
         .select("id, edad, tiempo, nota") \
         .eq("prueba", titulo_grafico) \
         .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-        .order("edad", desc=False).execute()
+        .order("nota", desc=False).execute() # Ordenado por Fecha/Evento
         
     if response.data:
         df_procesado = pd.DataFrame(response.data)
@@ -608,7 +606,7 @@ with contenedor_sliders:
 
 if not modo_equipo and st.session_state.rol == "Nadador":
     st.sidebar.markdown("---")
-    st.sidebar.caption("📅 *Plan de control de proyección a 3 meses hasta los 18 años requerido para cumplir normativas de rendimiento.*")
+    st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar marcas, asistir a campeonatos y optar por becas universitarias nacionales e internacionales.*")  # Actualizado contexto
 
 if modo_equipo:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: Comparativo")
@@ -775,7 +773,6 @@ else:
     edades_curva = np.linspace(t0, t_peak, 300)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
     
-    # LÍNEA 811 - AQUÍ COMIENZA EL BLOQUE QUE TE DABA PROBLEMAS
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     if not simulacion_externa and len(df_procesado) > 0:
         todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
@@ -892,6 +889,10 @@ else:
                             })
                     except Exception as e_hito:
                         print(f"Advertencia procesando hito individual: {e_hito}")
+
+    # ORDENAMIENTO CRONOLÓGICO POR EDAD DE LA TABLA MICRO (VENTANA ANUAL)
+    if datos_tabla_micro:
+        datos_tabla_micro.sort(key=lambda x: float(x["Edad"].replace(" a", "").strip()))
 
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
