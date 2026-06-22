@@ -845,61 +845,66 @@ else:
         lim_x_min = max(4.0, t0 - 0.5)
         lim_x_max = t_peak + 1.0
 
-# -------------------------------------------------------------------------
-    # ASIGNAMOS LOS LÍMITES DE EJES ANTES DE DIBUJAR (Ya lo tienes en tu código)
-    # -------------------------------------------------------------------------
+# ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     # -------------------------------------------------------------------------
-    # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS / EVENTOS DE AUDITORÍA - SUPABASE)
+    # 🟢 DIAGNÓSTICO Y DIBUJO DE LÍNEAS VERTICALES (HITOS / AUDITORÍA)
     # -------------------------------------------------------------------------
     try:
-        # Consultamos los hitos asociados al usuario activo
+        # Consulta a la base de datos Supabase
         hitos_response = supabase.table("historial_hitos") \
             .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
             .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
             .execute()
             
+        # 🔍 MODO DIAGNÓSTICO: Descomenta la siguiente línea para ver en pantalla lo que devuelve Supabase
+        # st.sidebar.write("Respuesta Supabase Hitos:", hitos_response.data)
+            
         if hitos_response.data:
             leyenda_ok_impresa = False
             leyenda_fail_impresa = False
             
-            # Obtenemos la fecha de nacimiento del nadador
-            f_nac = st.session_state.fecha_nacimiento
-            if isinstance(f_nac, str):
-                f_nac = datetime.datetime.strptime(f_nac, '%Y-%m-%d').date()
-            
-            for hito in hitos_response.data:
-                info_competencia = hito.get("catalogo_competencias")
-                if info_competencia and info_competencia.get("fecha_inicio"):
-                    fecha_inicio_str = info_competencia["fecha_inicio"]
-                    f_hito = datetime.date.fromisoformat(fecha_inicio_str)
+            f_nac_str = st.session_state.get("fecha_nacimiento")
+            if f_nac_str:
+                if isinstance(f_nac_str, str):
+                    f_nac = datetime.datetime.strptime(f_nac_str, '%Y-%m-%d').date()
+                else:
+                    f_nac = f_nac_str
+                
+                for hito in hitos_response.data:
+                    info_competencia = hito.get("catalogo_competencias")
                     
-                    # 🎯 CÁLCULO EXACTO: Resta de fechas para obtener la edad decimal
-                    diferencia_dias = (f_hito - f_nac).days
-                    edad_decimal_hito = diferencia_dias / 365.25
-                    
-                    # Verificamos que la edad del hito esté dentro de los límites del gráfico actual
-                    if edad_decimal_hito and (lim_x_min <= edad_decimal_hito <= lim_x_max):
-                        es_elegible = hito.get("elegible", True)
+                    # Verificamos si existe la relación y la fecha
+                    if info_competencia and info_competencia.get("fecha_inicio"):
+                        fecha_inicio_str = info_competencia["fecha_inicio"]
+                        f_hito = datetime.date.fromisoformat(fecha_inicio_str)
                         
-                        color_linea = "#2ECC71" if es_elegible else "#E74C3C"
-                        estilo_linea = "--" if es_elegible else ":"
+                        # Cálculo de la edad decimal
+                        diferencia_dias = (f_hito - f_nac).days
+                        edad_decimal_hito = diferencia_dias / 365.25
                         
-                        etiqueta_linea = None
-                        if es_elegible and not leyenda_ok_impresa:
-                            etiqueta_linea = "Hito / Evento Aprobado"
-                            leyenda_ok_impresa = True
-                        elif not es_elegible and not leyenda_fail_impresa:
-                            etiqueta_linea = "Hito / Evento Inelegible"
-                            leyenda_fail_impresa = True
+                        # ⚠️ AMPLIACIÓN TEMPORAL: Quitamos el límite para verificar si se dibujan en cualquier parte de la gráfica
+                        # Esto nos dirá si el problema es el cálculo de límites o la falta de datos
+                        if edad_decimal_hito:
+                            es_elegible = hito.get("elegible", True)
                             
-                        # Dibujamos la línea vertical en el punto exacto del eje X
-                        ax.axvline(x=edad_decimal_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
-                        
+                            color_linea = "#2ECC71" if es_elegible else "#E74C3C"
+                            estilo_linea = "--" if es_elegible else ":"
+                            
+                            etiqueta_linea = None
+                            if es_elegible and not leyenda_ok_impresa:
+                                etiqueta_linea = "Hito / Evento Aprobado"
+                                leyenda_ok_impresa = True
+                            elif not es_elegible and not leyenda_fail_impresa:
+                                etiqueta_linea = "Hito / Evento Inelegible"
+                                leyenda_fail_impresa = True
+                                
+                            # Trazamos la línea vertical
+                            ax.axvline(x=edad_decimal_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
     except Exception as e:
-        st.warning(f"Advertencia al cargar la auditoría visual de hitos: {e}")
+        st.warning(f"Error al cargar auditoría de hitos: {e}")
 
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
