@@ -850,17 +850,13 @@ else:
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     # -------------------------------------------------------------------------
-    # 🟢 DIAGNÓSTICO Y DIBUJO DE LÍNEAS VERTICALES (HITOS / AUDITORÍA)
+    # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS / EVENTOS DE AUDITORÍA - SUPABASE)
     # -------------------------------------------------------------------------
     try:
-        # Consulta a la base de datos Supabase
         hitos_response = supabase.table("historial_hitos") \
             .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
             .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
             .execute()
-            
-        # 🔍 MODO DIAGNÓSTICO: Descomenta la siguiente línea para ver en pantalla lo que devuelve Supabase
-        # st.sidebar.write("Respuesta Supabase Hitos:", hitos_response.data)
             
         if hitos_response.data:
             leyenda_ok_impresa = False
@@ -873,21 +869,19 @@ else:
                 else:
                     f_nac = f_nac_str
                 
+                x_min_actual, x_max_actual = ax.get_xlim()
+                
                 for hito in hitos_response.data:
                     info_competencia = hito.get("catalogo_competencias")
-                    
-                    # Verificamos si existe la relación y la fecha
                     if info_competencia and info_competencia.get("fecha_inicio"):
                         fecha_inicio_str = info_competencia["fecha_inicio"]
                         f_hito = datetime.date.fromisoformat(fecha_inicio_str)
                         
-                        # Cálculo de la edad decimal
-                        diferencia_dias = (f_hito - f_nac).days
-                        edad_decimal_hito = diferencia_dias / 365.25
+                        # Cálculo de edad absoluta del hito (en años decimales)
+                        edad_absoluta_hito = (f_hito - f_nac).days / 365.25
                         
-                        # ⚠️ AMPLIACIÓN TEMPORAL: Quitamos el límite para verificar si se dibujan en cualquier parte de la gráfica
-                        # Esto nos dirá si el problema es el cálculo de límites o la falta de datos
-                        if edad_decimal_hito:
+                        # Verificamos si la edad del hito cae dentro de los límites visuales actuales
+                        if x_min_actual <= edad_absoluta_hito <= x_max_actual:
                             es_elegible = hito.get("elegible", True)
                             
                             color_linea = "#2ECC71" if es_elegible else "#E74C3C"
@@ -901,10 +895,11 @@ else:
                                 etiqueta_linea = "Hito / Evento Inelegible"
                                 leyenda_fail_impresa = True
                                 
-                            # Trazamos la línea vertical
-                            ax.axvline(x=edad_decimal_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
+                            # Trazamos la línea vertical en la coordenada absoluta validada
+                            ax.axvline(x=edad_absoluta_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4, label=etiqueta_linea)
+                            
     except Exception as e:
-        st.warning(f"Error al cargar auditoría de hitos: {e}")
+        st.warning(f"Advertencia al cargar la auditoría visual de hitos: {e}")
 
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
