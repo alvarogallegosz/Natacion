@@ -869,26 +869,18 @@ else:
     #------------------------------------------------------
     # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
     #------------------------------------------------------
-    # === DENTRO DE TU FUNCIÓN DE DIBUJO DEL GRÁFICO ===
-    # (Por favor, revisa cuidadosamente los niveles de sangría al pegar)
-
-    # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR (Esto ya estaba)
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     try:
-        nadador_id = st.session_state.get("nadador_selected_id") # O tu variable de id de atleta
-        
-        # [NUEVO] Inicializamos la lista vacía para la tabla (un solo lugar, antes del bucle)
-        hitos_para_tabla = []
+        nadador_id = st.session_state.get("nadador_seleccionado_id")
         
         if nadador_id:
-            # Invocamos tu función cacheada (la que funciona)
+            # Invocamos la función con caché nativo (Cero impacto y 100% seguro contra loops)
             datos_atleta = obtener_datos_hitos_atleta(nadador_id)
             
             if datos_atleta and datos_atleta.get("fecha_nacimiento"):
                 fecha_nacimiento_real = datetime.date.fromisoformat(str(datos_atleta["fecha_nacimiento"])[:10])
-                fecha_hoy = datetime.date.today()
                 
                 for hito in datos_atleta["hitos"]:
                     comp_info = hito.get("catalogo_competencias")
@@ -896,7 +888,6 @@ else:
                         fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
                         
                         if fecha_comp_str:
-                            # Parseo de fecha (seguro)
                             if isinstance(fecha_comp_str, str):
                                 fecha_evento_real = datetime.date.fromisoformat(fecha_comp_str[:10])
                             elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
@@ -904,82 +895,55 @@ else:
                             else:
                                 continue
                             
-                            # Cálculo de edad exacta
+                            # Cálculo matemático directo (Resta estricta de fechas)
                             dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
                             edad_hito_calculada = dias_de_vida / 365.25
 
-                            # Filtro: Solo lo que entra en la ventana visual del gráfico
+                            # Filtro visual para la ventana del gráfico
                             if lim_x_min <= edad_hito_calculada <= lim_x_max:
-                                # ---------------------------------------------
-                                # --- PARTE A: DIBUJO (LO QUE DESAPARECIÓ) ---
-                                # Nos aseguramos de que esto corra PRIMERO
-                                # ---------------------------------------------
                                 es_elegible = hito.get("elegible", True)
                                 color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
                                 estilo_linea = "--" if es_elegible else ":"
                                 
-                                # Dibujo de líneas verticales ultra sutiles
-                                ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=0.7, alpha=0.5, zorder=5)
+                                # 1. LÍNEAS ULTRA SUTILES: Bajamos el grosor a 0.7 y la opacidad (alpha) a 0.5
+                                ax.axvline(
+                                    x=edad_hito_calculada, 
+                                    color=color_linea, 
+                                    linestyle=estilo_linea, 
+                                    linewidth=0.7, 
+                                    alpha=0.5, 
+                                    zorder=5
+                                )
                                 
+                                # Elevamos la posición Y para que el texto empiece pegado al borde superior
                                 y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
+                                
                                 nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                                 nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
                                 
-                                # Etiquetas verticales livianas y limpias
+                                # 2. ETIQUETAS VERTICALES, LIVIANAS Y SIN RECUADRO
                                 ax.text(
-                                    x=edad_hito_calculada + 0.015, 
+                                    x=edad_hito_calculada + 0.015,  # Separación milimétrica a la derecha de la línea
                                     y=y_pos, 
-                                    s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)", 
+                                    s=f"{nombre_corto} ({edad_hito_calculada:.2f} a)",  # Todo en una sola línea continua
                                     color=color_linea, 
                                     fontsize=7.5, 
-                                    weight="light", 
-                                    rotation=90, 
-                                    va="top", 
-                                    ha="left",
-                                    alpha=0.85, 
+                                    weight="light",     # Fuente delgada / liviana
+                                    rotation=90,        # Rotación vertical paralela a la línea
+                                    va="top",           # Anclaje superior (el texto cae hacia abajo)
+                                    ha="left",          # Alineado a la derecha del punto X
+                                    alpha=0.85,         # Texto ligeramente suave para no competir con la curva principal
                                     zorder=6
+                                    # NOTA: Se eliminó por completo el parámetro 'bbox' para quitar el recuadro blanco
                                 )
-                                # --- FIN PARTE A (DIBUJO) ---
 
-                                # -------------------------------------------------------------
-                                # --- PARTE B: ACUMULACIÓN PARA LA TABLA (EL NUEVO CABLEADO) ---
-                                # Solo si la competencia es futura (por venir), la guardamos
-                                # -------------------------------------------------------------
-                                if fecha_evento_real >= fecha_hoy:
-                                    # Evaluamos la curva con tu función matemática real
-                                    
-                                    # !!! IMPORTANTE !!!
-                                    # He rodeado el cálculo matemático en un try/except extra.
-                                    # Si el cálculo del tiempo falla, la app no se rompe y las líneas no desaparecen.
-                                    try:
-                                        # NOTA: Reemplaza 'calcular_tiempo_curva' por el nombre real de tu función matemática.
-                                        # Si no tienes esa función aún lista, usa temporalmente: tiempo_proyectado = None
-                                        tiempo_proyectado = calcular_tiempo_curva(edad_hito_calculada)
-                                    except Exception as eMath:
-                                        # Si hay error en la mate, guardamos None pero no rompemos el bucle
-                                        print(f"Error calculando tiempo proyectado: {eMath}")
-                                        tiempo_proyectado = None
-                                        
-                                    hitos_para_tabla.append({
-                                        "Competencia / Hito": nombre_evento,
-                                        "Fecha de Inicio": fecha_evento_real.strftime("%d/%m/%Y"),
-                                        "Edad Esperada": f"{edad_hito_calculada:.2f} años",
-                                        "Tiempo Proyectado": f"{tiempo_proyectado:.2f} s" if tiempo_proyectado else "Error Mate"
-                                    })
-                                # --- FIN PARTE B (TABLA) ---
+        # El Candado de los límites se mantiene firme
+        ax.set_xlim(lim_x_min, lim_x_max)
+        ax.set_ylim(lim_y_inferior, lim_y_superior)
+        ax.set_autoscale_on(False)
 
-            # Al terminar el bucle, guardamos el paquete en la sesión (mismo nivel de sangría que el 'if nadador_id')
-            st.session_state["hitos_tabla_actual"] = hitos_para_tabla
-
-            # Aseguramos el candado de los límites visuales
-            ax.set_xlim(lim_x_min, lim_x_max)
-            ax.set_ylim(lim_y_inferior, lim_y_superior)
-            ax.set_autoscale_on(False)
-
-        except Exception as e:
-            # Si desaparecieron las líneas, este error nos dirá por qué.
-            st.warning(f"Error detectado al intentar dibujar hitos: {e}")
-            print(f"Error detallado de hitos: {e}")
+    except Exception as e:
+        print(f"Advertencia menor controlada durante el renderizado visual: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
@@ -1086,31 +1050,6 @@ else:
 
     # AQUÍ ESTÁ LA MAGIA FINAL
     st.pyplot(fig, use_container_width=True)
-
-# === ESTO VA EN TU FLUJO PRINCIPAL DE LA INTERFAZ ===
-# 2. AJUSTE PENDIENTE: Si el usuario seleccionó el modo "Micro", pintamos la tabla abajo
-# (Cambia 'modo_vista' por la variable exacta que uses en tu radio/select de Modo)
-if modo_vista == "Micro":
-    st.write("---") # Línea divisoria sutil
-    st.markdown("### 📋 Planificación de Competencias Futuras (Hitos Proyectados)")
-    
-    # Extraemos la lista que el gráfico dejó empaquetada en la sesión
-    datos_tabla = st.session_state.get("hitos_tabla_actual", [])
-    
-    if datos_tabla:
-        import pandas as pd
-        # Convertimos la lista limpia a un DataFrame de Pandas
-        df_hitos = pd.DataFrame(datos_tabla)
-        
-        # Mostramos la tabla elegante sin índices numéricos invasivos
-        st.dataframe(
-            df_hitos, 
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
-        st.info("No hay competencias o hitos programados a futuro en esta ventana temporal.")
-
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
