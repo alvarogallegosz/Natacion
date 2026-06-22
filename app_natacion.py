@@ -373,7 +373,7 @@ if st.session_state.rol in ["Entrenador", "Administrador"]:
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
     except Exception as e:
-        st.sidebar.error("Error cargando nómina de atletas.")
+        st.error(f"Error cargando nómina de atletas: {e}")
 else:
     st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
     st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
