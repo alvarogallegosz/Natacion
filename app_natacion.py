@@ -841,7 +841,7 @@ else:
     except Exception as e:
         # Si hay algún problema (ej. la relación de foreign keys en la consulta), mostramos advertencia sutil en consola
         print(f"No se pudieron cargar los hitos en el gráfico: {e}")  
-========================================================================    
+    
     # 2. CÁLCULO ESTRICTO DE LÍMITES 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     if not simulacion_externa and len(df_procesado) > 0:
