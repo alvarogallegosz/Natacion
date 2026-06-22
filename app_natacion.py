@@ -57,7 +57,36 @@ def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
         
     fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
     return fecha_alerta
-
+    
+# -------------------------------------------------------------
+# FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
+# -------------------------------------------------------------
+@st.cache_data(show_spinner=False, ttl=600)  # Almacena en caché por 10 minutos
+def obtener_datos_hitos_atleta(nadador_id):
+    """
+    Consulta de forma segura y aislada la información del atleta.
+    Al estar decorada con @st.cache_data, Streamlit garantiza que NO 
+    se generen loops infinitos ni sobrecargas a Supabase.
+    """
+    try:
+        res_atleta = supabase.table("usuarios") \
+            .select("fecha_nacimiento") \
+            .eq("id", nadador_id) \
+            .execute()
+            
+        res_hitos = supabase.table("historial_hitos") \
+            .select("*, catalogo_competencias(*)") \
+            .eq("usuario_id", nadador_id) \
+            .execute()
+            
+        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
+            return {
+                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
+                "hitos": res_hitos.data if res_hitos.data else []
+            }
+    except Exception as e:
+        print(f"Error interno en consulta cacheada de Supabase: {e}")
+    return None
 # -------------------------------------------------------------
 # FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
@@ -799,7 +828,7 @@ else:
         fondogr = fin_superior - alto_grafico
                 
     ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
-
+    #--------------------------------------------------------------
     # 2. CÁLCULO ESTRICTO DE LÍMITES 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     if not simulacion_externa and len(df_procesado) > 0:
@@ -837,40 +866,23 @@ else:
                 
         lim_x_min = max(4.0, t0 - 0.5)
         lim_x_max = t_peak + 1.0
-
+    #------------------------------------------------------
     # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
+    #------------------------------------------------------
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     try:
-        # Validación de seguridad para que no intente consultar si no hay un ID válido
         nadador_id = st.session_state.get("nadador_seleccionado_id")
         
         if nadador_id:
-            # 1. SISTEMA DE CACHÉ: Creamos una llave única para este nadador
-            cache_key = f"hitos_cacheados_{nadador_id}"
+            # Invocamos la función con caché nativo (Cero impacto y 100% seguro contra loops)
+            datos_atleta = obtener_datos_hitos_atleta(nadador_id)
             
-            # Si los datos NO están en memoria, consultamos a Supabase (UNA SOLA VEZ)
-            if cache_key not in st.session_state:
-                res_atleta = supabase.table("usuarios").select("fecha_nacimiento").eq("id", nadador_id).execute()
-                res_hitos = supabase.table("historial_hitos").select("*, catalogo_competencias(*)").eq("usuario_id", nadador_id).execute()
+            if datos_atleta and datos_atleta.get("fecha_nacimiento"):
+                fecha_nacimiento_real = datetime.date.fromisoformat(str(datos_atleta["fecha_nacimiento"])[:10])
                 
-                # Guardamos los resultados en la memoria de la sesión
-                if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
-                    st.session_state[cache_key] = {
-                        "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
-                        "hitos": res_hitos.data if res_hitos.data else []
-                    }
-                else:
-                    st.session_state[cache_key] = None
-
-            # 2. DIBUJAR USANDO EXCLUSIVAMENTE LA MEMORIA CACHÉ (Cero impacto a la base de datos)
-            datos = st.session_state.get(cache_key)
-            
-            if datos:
-                fecha_nacimiento_real = datetime.date.fromisoformat(str(datos["fecha_nacimiento"])[:10])
-                
-                for hito in datos["hitos"]:
+                for hito in datos_atleta["hitos"]:
                     comp_info = hito.get("catalogo_competencias")
                     if comp_info:
                         fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
@@ -883,11 +895,11 @@ else:
                             else:
                                 continue
                             
-                            # CÁLCULO DIRECTO: RESTA DE FECHAS (El que comprobamos que sí funciona)
+                            # Cálculo matemático directo (Resta estricta de fechas)
                             dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
                             edad_hito_calculada = dias_de_vida / 365.25
 
-                            # Filtro de rango Micro
+                            # Filtro visual para la ventana del gráfico
                             if lim_x_min <= edad_hito_calculada <= lim_x_max:
                                 es_elegible = hito.get("elegible", True)
                                 color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
@@ -911,14 +923,13 @@ else:
                                     bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
                                 )
 
-        # EL CANDADO: Forzamos y congelamos los límites
+        # El Candado de los límites se mantiene firme
         ax.set_xlim(lim_x_min, lim_x_max)
         ax.set_ylim(lim_y_inferior, lim_y_superior)
         ax.set_autoscale_on(False)
 
     except Exception as e:
-        # En lugar de mostrar un error rojo gigante en el app, imprimimos sutilmente en la consola
-        print(f"Silencio - Advertencia menor en visualización de hitos: {e}")
+        print(f"Advertencia menor controlada durante el renderizado visual: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
