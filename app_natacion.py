@@ -846,109 +846,83 @@ else:
     # =========================================================================
     st.markdown("### 🐛 Diagnóstico de Hitos de Competencia")
     try:
-        res_diag = supabase.table("historial_hitos") \
+    # 1. OBTENER LA FECHA DE NACIMIENTO DIRECTAMENTE DE LA FUENTE (Ignorando la sesión por seguridad)
+    res_atleta = supabase.table("usuarios") \
+        .select("fecha_nacimiento") \
+        .eq("id", st.session_state.nadador_seleccionado_id) \
+        .execute()
+
+    if not res_atleta.data or not res_atleta.data[0].get("fecha_nacimiento"):
+        st.error("Error: No se encontró la fecha de nacimiento en la base de datos para este nadador.")
+    else:
+        # Parseo estricto a objeto DATE (Año, Mes, Día)
+        fecha_nacimiento_real = datetime.date.fromisoformat(str(res_atleta.data[0]["fecha_nacimiento"])[:10])
+
+        # 2. OBTENER LOS HITOS
+        res_hitos = supabase.table("historial_hitos") \
             .select("*, catalogo_competencias(*)") \
             .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
             .execute()
-            
-        if not res_diag.data:
-            st.warning("⚠️ Supabase no devolvió ningún hito para este atleta.")
-        else:
-            f_nac_str = st.session_state.get("fecha_nacimiento")
-            if f_nac_str:
-                f_nac_obj = datetime.date.fromisoformat(str(f_nac_str)[:10]) if isinstance(f_nac_str, str) else f_nac_str
-                
-                for hito in res_diag.data:
-                    comp = hito.get("catalogo_competencias")
-                    if comp and comp.get("fecha_inicio"):
-                        f_evento_str = str(comp["fecha_inicio"])[:10]
-                        f_evento_obj = datetime.date.fromisoformat(f_evento_str)
-                        
-                        edad_calc = calcular_edad_decimal(f_nac_obj, f_evento_obj)
-                        
-                        st.write(f"**Evento:** {comp.get('nombre_evento')}")
-                        st.write(f"- Fecha del evento: `{f_evento_str}` | Edad calculada: `{edad_calc:.2f} años`")
-                        
-                        if lim_x_min <= edad_calc <= lim_x_max:
-                            st.success(f"✅ DENTRO DEL RANGO. Este hito DEBE aparecer en el gráfico (Límites actuales: {lim_x_min:.2f} a {lim_x_max:.2f}).")
-                        else:
-                            st.error(f"❌ FUERA DE RANGO. La ventana Micro actual va de {lim_x_min:.2f} a {lim_x_max:.2f}. El hito se descartó.")
-            else:
-                st.warning("⚠️ El atleta no tiene registrada una fecha de nacimiento válida en la sesión.")
-    except Exception as e:
-        st.error(f"🛑 Error en la consulta de diagnóstico: {e}")
-    # =========================================================================
-    # -------------------------------------------------------------------------
-    # 🟢 DIBUJO DE LÍNEAS VERTICALES (HITOS DE COMPETENCIAS - CORREGIDO)
-    # -------------------------------------------------------------------------
-    try:
-        res_hitos = supabase.table("historial_hitos") \
-            .select("*, catalogo_competencias(*) ") \
-            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-            .execute()
-            
+
         if res_hitos.data:
-            f_nac_str = st.session_state.get("fecha_nacimiento")
-            
-            if f_nac_str:
-                if isinstance(f_nac_str, str):
-                    f_nac = datetime.datetime.strptime(f_nac_str[:10], '%Y-%m-%d').date()
-                else:
-                    f_nac = f_nac_str
-
-                for hito in res_hitos.data:
-                    comp_info = hito.get("catalogo_competencias")
-                    if comp_info:
-                        fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
+            for hito in res_hitos.data:
+                comp_info = hito.get("catalogo_competencias")
+                if comp_info:
+                    fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
+                    
+                    if fecha_comp_str:
+                        # Parseo estricto de la fecha del evento a objeto DATE
+                        if isinstance(fecha_comp_str, str):
+                            fecha_evento_real = datetime.date.fromisoformat(fecha_comp_str[:10])
+                        elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
+                            fecha_evento_real = fecha_comp_str if isinstance(fecha_comp_str, datetime.date) else fecha_comp_str.date()
+                        else:
+                            continue
                         
-                        if fecha_comp_str:
-                            if isinstance(fecha_comp_str, str):
-                                f_evento = datetime.date.fromisoformat(fecha_comp_str[:10])
-                            elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
-                                f_evento = fecha_comp_str if isinstance(fecha_comp_str, datetime.date) else fecha_comp_str.date()
-                            else:
-                                continue
-                            
-                            # =========================================================
-                            # 🔥 CÁLCULO DIRECTO: RESTA DE FECHAS (TIPO DATE)
-                            # =========================================================
-                            diferencia_dias = (f_evento - f_nac).days
-                            edad_hito_calculada = diferencia_dias / 365.25
-                            # =========================================================
-                            
-                            # CONDICIONAL: Evaluar si el valor decimal entra en la ventana
-                            if edad_hito_calculada and (lim_x_min <= edad_hito_calculada <= lim_x_max):
-                                es_elegible = hito.get("elegible", True)
-                                color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
-                                estilo_linea = "--" if es_elegible else ":"
-                                
-                                ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, alpha=0.8, zorder=5)
-                                
-                                y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.12)
-                                nombre_evento = comp_info.get("nombre_evento") or "Competencia"
-                                nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
-                                
-                                ax.text(
-                                    edad_hito_calculada + 0.03, 
-                                    y_pos, 
-                                    f"{nombre_corto}\n({edad_hito_calculada:.2f} a)", 
-                                    color=color_linea, 
-                                    fontsize=7, 
-                                    va="top", 
-                                    ha="left",
-                                    zorder=6,
-                                    bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
-                                )
-            else:
-                st.warning("⚠️ No se encontró una fecha de nacimiento válida en la sesión para el atleta seleccionado.")
-                
-        # EL CANDADO: Forzamos y congelamos los límites
-        ax.set_xlim(lim_x_min, lim_x_max)
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-        ax.set_autoscale_on(False)
+                        # =====================================================================
+                        # 🔥 LA RESTA ABSOLUTA DE FECHAS (Objeto Date - Objeto Date)
+                        # =====================================================================
+                        # .days extrae el número entero de días de diferencia entre ambos eventos
+                        dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
+                        
+                        # Conversión a edad decimal exacta
+                        edad_hito_calculada = dias_de_vida / 365.25
+                        # =====================================================================
 
-    except Exception as e:
-        st.warning(f"Advertencia al cargar la visualización de hitos: {e}")
+                        # Filtro de rango Micro
+                        if lim_x_min <= edad_hito_calculada <= lim_x_max:
+                            es_elegible = hito.get("elegible", True)
+                            color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
+                            estilo_linea = "--" if es_elegible else ":"
+                            
+                            ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=1.5, alpha=0.8, zorder=5)
+                            
+                            y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.12)
+                            nombre_evento = comp_info.get("nombre_evento") or "Competencia"
+                            nombre_corto = nombre_evento[:15] + "..." if len(nombre_evento) > 15 else nombre_evento
+                            
+                            ax.text(
+                                edad_hito_calculada + 0.03, 
+                                y_pos, 
+                                f"{nombre_corto}\n({edad_hito_calculada:.2f} a)", 
+                                color=color_linea, 
+                                fontsize=7, 
+                                va="top", 
+                                ha="left",
+                                zorder=6,
+                                bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
+                            )
+                        else:
+                            # Print temporal opcional en consola para que veas el éxito
+                            print(f"Descartado (fuera de gráfica): {comp_info.get('nombre_evento')} | Edad real: {edad_hito_calculada:.2f}")
+
+    # Asegurar los límites de la gráfica
+    ax.set_xlim(lim_x_min, lim_x_max)
+    ax.set_ylim(lim_y_inferior, lim_y_superior)
+    ax.set_autoscale_on(False)
+
+except Exception as e:
+    st.warning(f"Advertencia al procesar visualización de hitos: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
