@@ -843,32 +843,39 @@ else:
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     try:
-        # 1. OBTENER LA FECHA DE NACIMIENTO DIRECTAMENTE DE LA FUENTE
-        res_atleta = supabase.table("usuarios") \
-            .select("fecha_nacimiento") \
-            .eq("id", st.session_state.nadador_seleccionado_id) \
-            .execute()
+        # Validación de seguridad para que no intente consultar si no hay un ID válido
+        nadador_id = st.session_state.get("nadador_seleccionado_id")
+        
+        if nadador_id:
+            # 1. SISTEMA DE CACHÉ: Creamos una llave única para este nadador
+            cache_key = f"hitos_cacheados_{nadador_id}"
+            
+            # Si los datos NO están en memoria, consultamos a Supabase (UNA SOLA VEZ)
+            if cache_key not in st.session_state:
+                res_atleta = supabase.table("usuarios").select("fecha_nacimiento").eq("id", nadador_id).execute()
+                res_hitos = supabase.table("historial_hitos").select("*, catalogo_competencias(*)").eq("usuario_id", nadador_id).execute()
+                
+                # Guardamos los resultados en la memoria de la sesión
+                if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
+                    st.session_state[cache_key] = {
+                        "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
+                        "hitos": res_hitos.data if res_hitos.data else []
+                    }
+                else:
+                    st.session_state[cache_key] = None
 
-        if not res_atleta.data or not res_atleta.data[0].get("fecha_nacimiento"):
-            st.error("Error: No se encontró la fecha de nacimiento en la base de datos para este nadador.")
-        else:
-            # Parseo estricto a objeto DATE (Año, Mes, Día)
-            fecha_nacimiento_real = datetime.date.fromisoformat(str(res_atleta.data[0]["fecha_nacimiento"])[:10])
-
-            # 2. OBTENER LOS HITOS
-            res_hitos = supabase.table("historial_hitos") \
-                .select("*, catalogo_competencias(*)") \
-                .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-                .execute()
-
-            if res_hitos.data:
-                for hito in res_hitos.data:
+            # 2. DIBUJAR USANDO EXCLUSIVAMENTE LA MEMORIA CACHÉ (Cero impacto a la base de datos)
+            datos = st.session_state.get(cache_key)
+            
+            if datos:
+                fecha_nacimiento_real = datetime.date.fromisoformat(str(datos["fecha_nacimiento"])[:10])
+                
+                for hito in datos["hitos"]:
                     comp_info = hito.get("catalogo_competencias")
                     if comp_info:
                         fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
                         
                         if fecha_comp_str:
-                            # Parseo estricto de la fecha del evento a objeto DATE
                             if isinstance(fecha_comp_str, str):
                                 fecha_evento_real = datetime.date.fromisoformat(fecha_comp_str[:10])
                             elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
@@ -876,7 +883,7 @@ else:
                             else:
                                 continue
                             
-                            # CÁLCULO DIRECTO: RESTA DE FECHAS (TIPO DATE)
+                            # CÁLCULO DIRECTO: RESTA DE FECHAS (El que comprobamos que sí funciona)
                             dias_de_vida = (fecha_evento_real - fecha_nacimiento_real).days
                             edad_hito_calculada = dias_de_vida / 365.25
 
@@ -904,13 +911,14 @@ else:
                                     bbox=dict(boxstyle="round,pad=0.2", fc="#FFFFFF", ec=color_linea, lw=0.5, alpha=0.85)
                                 )
 
-        # Asegurar los límites de la gráfica
+        # EL CANDADO: Forzamos y congelamos los límites
         ax.set_xlim(lim_x_min, lim_x_max)
         ax.set_ylim(lim_y_inferior, lim_y_superior)
         ax.set_autoscale_on(False)
 
     except Exception as e:
-        st.warning(f"Advertencia al procesar visualización de hitos: {e}")
+        # En lugar de mostrar un error rojo gigante en el app, imprimimos sutilmente en la consola
+        print(f"Silencio - Advertencia menor en visualización de hitos: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
