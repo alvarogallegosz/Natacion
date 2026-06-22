@@ -869,17 +869,21 @@ else:
     #------------------------------------------------------
     # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR
     #------------------------------------------------------
+    # === DENTRO DE TU FUNCIÓN DE DIBUJO DEL GRÁFICO ===
+    # (Por favor, revisa cuidadosamente los niveles de sangría al pegar)
+
+    # ASIGNAMOS LOS LÍMITES ANTES DE DIBUJAR (Esto ya estaba)
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
 
     try:
         nadador_id = st.session_state.get("nadador_selected_id") # O tu variable de id de atleta
         
-        # [PASO A] Inicializamos la lista vacía aquí (mismo nivel que el try)
+        # [NUEVO] Inicializamos la lista vacía para la tabla (un solo lugar, antes del bucle)
         hitos_para_tabla = []
         
         if nadador_id:
-            # Invocamos tu función cacheada (la de la línea 64)
+            # Invocamos tu función cacheada (la que funciona)
             datos_atleta = obtener_datos_hitos_atleta(nadador_id)
             
             if datos_atleta and datos_atleta.get("fecha_nacimiento"):
@@ -892,6 +896,7 @@ else:
                         fecha_comp_str = comp_info.get("fecha_inicio") or comp_info.get("fecha")
                         
                         if fecha_comp_str:
+                            # Parseo de fecha (seguro)
                             if isinstance(fecha_comp_str, str):
                                 fecha_evento_real = datetime.date.fromisoformat(fecha_comp_str[:10])
                             elif isinstance(fecha_comp_str, (datetime.date, datetime.datetime)):
@@ -905,18 +910,22 @@ else:
 
                             # Filtro: Solo lo que entra en la ventana visual del gráfico
                             if lim_x_min <= edad_hito_calculada <= lim_x_max:
+                                # ---------------------------------------------
+                                # --- PARTE A: DIBUJO (LO QUE DESAPARECIÓ) ---
+                                # Nos aseguramos de que esto corra PRIMERO
+                                # ---------------------------------------------
                                 es_elegible = hito.get("elegible", True)
                                 color_linea = "#2ECC71" if es_elegible else "#E74C3C" 
                                 estilo_linea = "--" if es_elegible else ":"
                                 
-                                # 1. Dibujo de líneas verticales ultra sutiles
+                                # Dibujo de líneas verticales ultra sutiles
                                 ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle=estilo_linea, linewidth=0.7, alpha=0.5, zorder=5)
                                 
                                 y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
                                 nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                                 nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
                                 
-                                # 2. Etiquetas verticales livianas y limpias
+                                # Etiquetas verticales livianas y limpias
                                 ax.text(
                                     x=edad_hito_calculada + 0.015, 
                                     y=y_pos, 
@@ -930,33 +939,47 @@ else:
                                     alpha=0.85, 
                                     zorder=6
                                 )
+                                # --- FIN PARTE A (DIBUJO) ---
 
-                                # [PASO B] Si la competencia es futura (por venir), la guardamos para la tabla
+                                # -------------------------------------------------------------
+                                # --- PARTE B: ACUMULACIÓN PARA LA TABLA (EL NUEVO CABLEADO) ---
+                                # Solo si la competencia es futura (por venir), la guardamos
+                                # -------------------------------------------------------------
                                 if fecha_evento_real >= fecha_hoy:
-                                    # Evaluamos la curva con tu función matemática para obtener el tiempo teórico
-                                    # NOTA: Reemplaza 'calcular_tiempo_curva' por el nombre real de tu función matemática
+                                    # Evaluamos la curva con tu función matemática real
+                                    
+                                    # !!! IMPORTANTE !!!
+                                    # He rodeado el cálculo matemático en un try/except extra.
+                                    # Si el cálculo del tiempo falla, la app no se rompe y las líneas no desaparecen.
                                     try:
+                                        # NOTA: Reemplaza 'calcular_tiempo_curva' por el nombre real de tu función matemática.
+                                        # Si no tienes esa función aún lista, usa temporalmente: tiempo_proyectado = None
                                         tiempo_proyectado = calcular_tiempo_curva(edad_hito_calculada)
-                                    except:
+                                    except Exception as eMath:
+                                        # Si hay error en la mate, guardamos None pero no rompemos el bucle
+                                        print(f"Error calculando tiempo proyectado: {eMath}")
                                         tiempo_proyectado = None
                                         
                                     hitos_para_tabla.append({
                                         "Competencia / Hito": nombre_evento,
                                         "Fecha de Inicio": fecha_evento_real.strftime("%d/%m/%Y"),
                                         "Edad Esperada": f"{edad_hito_calculada:.2f} años",
-                                        "Tiempo Proyectado": f"{tiempo_proyectado:.2f} s" if tiempo_proyectado else "Por calcular"
+                                        "Tiempo Proyectado": f"{tiempo_proyectado:.2f} s" if tiempo_proyectado else "Error Mate"
                                     })
+                                # --- FIN PARTE B (TABLA) ---
 
-        # [PASO C] Al terminar el bucle, guardamos todo el paquete en la sesión
-        st.session_state["hitos_tabla_actual"] = hitos_para_tabla
+            # Al terminar el bucle, guardamos el paquete en la sesión (mismo nivel de sangría que el 'if nadador_id')
+            st.session_state["hitos_tabla_actual"] = hitos_para_tabla
 
-        # Aseguramos el candado de los límites visuales
-        ax.set_xlim(lim_x_min, lim_x_max)
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-        ax.set_autoscale_on(False)
+            # Aseguramos el candado de los límites visuales
+            ax.set_xlim(lim_x_min, lim_x_max)
+            ax.set_ylim(lim_y_inferior, lim_y_superior)
+            ax.set_autoscale_on(False)
 
-    except Exception as e:
-        print(f"Advertencia menor en renderizado: {e}")
+        except Exception as e:
+            # Si desaparecieron las líneas, este error nos dirá por qué.
+            st.warning(f"Error detectado al intentar dibujar hitos: {e}")
+            print(f"Error detallado de hitos: {e}")
     # -------------------------------------------------------------------------
     # 3. DIBUJO DE CURVAS
     # -------------------------------------------------------------------------
