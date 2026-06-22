@@ -828,7 +828,7 @@ else:
         fondogr = fin_superior - alto_grafico
                 
     ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
-    #--------------------------------------------------------------
+#--------------------------------------------------------------
         # 2. CÁLCULO DE LÍMITES Y EJES DEL GRÁFICO INDIVIDUAL
         #--------------------------------------------------------------
         todos_los_tiempos_ind = [T0, T_pb, T_target]
