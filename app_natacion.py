@@ -1027,7 +1027,7 @@ else:
         ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
 
         # =========================================================================
-        # 5. RENDERIZADO DE TABLA DINÁMICA DENTRO DEL LIENZO CARTA
+        # 5. RENDERIZADO DE TABLA DINÁMICA DENTRO DEL LIENZO CARTA (Protección Vacíos)
         # =========================================================================
         df_table_render = None
         es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
@@ -1037,16 +1037,30 @@ else:
                 df_table_render = pd.DataFrame(datos_tabla_micro)
                 anchos_columnas = [0.46, 0.18, 0.16, 0.20]
             else:
-                df_table_render = pd.DataFrame(columns=["Competencia / Evento", "Fecha", "Edad", "Tiempo Prog."])
-                anchos_columnas = [0.46, 0.18, 0.16, 0.20]
+                # Si está vacío, creamos una estructura con una fila informativa para evitar el IndexError
+                df_table_render = pd.DataFrame([{
+                    "Competencia / Evento": "No hay hitos o competencias en este rango de edad",
+                    "Fecha": "-",
+                    "Edad": "-",
+                    "Tiempo Prog.": "-"
+                }])
+                anchos_columnas = [0.52, 0.16, 0.16, 0.16]
         else:
             if not simulacion_externa and len(df_procesado) > 0:
                 df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
                 df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
                 df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
                 anchos_columnas = [0.15, 0.15, 0.70]
+            else:
+                # Fallback macro vacío
+                df_table_render = pd.DataFrame([{
+                    "Edad": "-", 
+                    "Tiempo": "-", 
+                    "Evento / Fecha": "Sin marcas históricas registradas"
+                }])
+                anchos_columnas = [0.15, 0.15, 0.70]
 
-        if df_table_render is not None:
+        if df_table_render is not None and not df_table_render.empty:
             total_filas = len(df_table_render)
             limite_filas_por_bloque = 16
             
