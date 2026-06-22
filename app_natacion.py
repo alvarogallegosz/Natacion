@@ -784,15 +784,28 @@ else:
     ancho_grafico = 0.76
     margen_izq = 0.12
 
+  # ========================= 
     # 1. CREACIÓN DEL EJE SEGÚN VISTA
+    # =========================
+    
+    # Margen izquierdo constante
+    margen_izq = 0.09 
+    ancho_grafico = 0.82
+    
+    # RESTRICIDENCIA DE LÍMITES PARA MARGEN SUPERIOR FIJO (2 cm / 11" = 7.1% de margen superior)
+    # Es decir, la gráfica termina en 1.0 - 0.071 = 0.929 (92.9% de la altura total)
+    fin_superior = 0.929
+    
     if tipo_vista == "Micro (Ventana Anual)":
-        alto_grafico = 0.45
-        fondo_grafico = 0.48
-        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
-    else:
-        alto_grafico = 0.33
-        fondo_grafico = 0.52  
-        ax = fig.add_axes([margen_izq, fondo_grafico, ancho_grafico, alto_grafico])
+        alto_grafico = 0.42  # Un tamaño prudente para que quepa en la mitad superior
+        # El origen inferior se calcula restando el alto del gráfico desde el punto superior
+        fondogr = fin_superior - alto_grafico  
+        
+    else: # Vista Macro o generales
+        alto_grafico = 0.35
+        fondogr = fin_superior - alto_grafico
+        
+    ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
 
     # 2. CÁLCULO ESTRICTO DE LÍMITES 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
