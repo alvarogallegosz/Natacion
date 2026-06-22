@@ -830,7 +830,7 @@ else:
     ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
     #--------------------------------------------------------------
         # 2. CÁLCULO ESTRICTO DE LÍMITES 
-        todos_los_tiempos_ind = [T0, T_pb, T_target]
+    todos_los_tiempos_ind = [T0, T_pb, T_target]
         if not simulacion_externa and len(df_procesado) > 0:
             todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
 
