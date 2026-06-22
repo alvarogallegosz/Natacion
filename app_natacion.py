@@ -806,7 +806,42 @@ else:
         fondogr = fin_superior - alto_grafico
         
     ax = fig.add_axes([margen_izq, fondogr, ancho_grafico, alto_grafico])
-
+# =========================================================================
+# 🟢 DIBUJAR LÍNEAS VERTICALES (HITOS / EVENTOS DE AUDITORÍA)
+# =========================================================================
+    try:
+        # Consultamos la tabla historial_hitos y unimos las fechas de inicio de la competencia
+        hitos_response = supabase.table("historial_hitos") \
+            .select("elegible, temporada_auditada, catalogo_competencias(fecha_inicio)") \
+            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
+            .execute()
+                
+        if hitos_response.data:
+            for hito in hitos_response.data:
+                # Obtenemos la fecha de la competencia
+                info_competencia = hito.get("catalogo_competencias")
+                if info_competencia and info_competencia.get("fecha_inicio"):
+                    fecha_inicio_str = info_competencia["fecha_inicio"]
+                        
+                    # Calculamos la edad exacta del nadador en formato decimal para el hito
+                    edad_hito = calcular_edad_decimal(st.session_state.fecha_nacimiento, datetime.date.fromisoformat(fecha_inicio_str))
+                        
+                    if edad_hito:
+                        # Asignamos color según si es elegible o no
+                        color_linea = "#2ECC71" if hito.get("elegible", True) else "#E74C3C"
+                        estilo_linea = "--" if hito.get("elegible", True) else ":"
+                        etiqueta_linea = "Hito Aprobado" if hito.get("elegible", True) else "Hito Inelegible"
+                            
+                        # Dibujamos la línea vertical en la gráfica
+                        ax.axvline(x=edad_hito, color=color_linea, linestyle=estilo_linea, linewidth=1.5, zorder=4)
+                            
+                        # Opcional: añadimos una pequeña etiqueta o anotación arriba
+                        ax.text(edad_hito, ax.get_ylim()[1] - 0.5, '🎯' if hito.get("elegible", True) else '❌', 
+                                rotation=0, verticalalignment='bottom', horizontalalignment='center', fontsize=10)
+    except Exception as e:
+        # Si hay algún problema (ej. la relación de foreign keys en la consulta), mostramos advertencia sutil en consola
+        print(f"No se pudieron cargar los hitos en el gráfico: {e}")  
+========================================================================    
     # 2. CÁLCULO ESTRICTO DE LÍMITES 
     todos_los_tiempos_ind = [T0, T_pb, T_target]
     if not simulacion_externa and len(df_procesado) > 0:
