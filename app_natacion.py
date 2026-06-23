@@ -522,8 +522,6 @@ st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 try:
-    # AQUÍ ESTABA EL ERROR PRINCIPAL: Se ordenaba por "nota" (el nombre del evento). 
-    # Ahora ordenamos estrictamente de forma cronológica por "edad".
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
         .eq("prueba", titulo_grafico) \
@@ -534,7 +532,6 @@ try:
         df_procesado = pd.DataFrame(response.data)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
         
-        # Aseguramos que los valores sean numéricos y forzamos el reordenamiento del DataFrame
         df_procesado["Edad"] = pd.to_numeric(df_procesado["Edad"])
         df_procesado["Tiempo"] = pd.to_numeric(df_procesado["Tiempo"])
         df_procesado = df_procesado.sort_values("Edad").reset_index(drop=True)
@@ -815,7 +812,6 @@ else:
         lim_y_inferior = m_wr * 0.92 if m_wr > 0 else min(todos_los_tiempos_ind) * 0.90
         lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.08)
         
-        # En Macro, nos aseguramos que el inicio abarque tanto a t0 como al primer evento registrado
         if len(df_procesado) > 0:
             min_edad_real = float(df_procesado["Edad"].min())
             lim_x_min = min(float(t0), min_edad_real) - 0.5
@@ -831,7 +827,6 @@ else:
     datos_tabla_micro = []
     nadador_id = st.session_state.get("nadador_seleccionado_id")
     
-    # DIBUJAR LÍNEAS VERTICALES DE HITOS Y TEXTOS ESTRICTAMENTE EN MODO MICRO (VENTANA ANUAL)
     if nadador_id and tipo_vista == "Micro (Ventana Anual)":
         datos_atleta = obtener_datos_hitos_atleta(nadador_id)
         if datos_atleta and datos_atleta.get("fecha_nacimiento"):
@@ -875,7 +870,8 @@ else:
                                 zorder=5
                             )
                             
-                            y_pos = lim_y_superior - ((lim_y_superior - lim_y_inferior) * 0.03)
+                            # Anclamos el texto en la base del gráfico para no chocar con la leyenda
+                            y_pos = lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.03)
                             nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                             nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
                             
@@ -887,7 +883,7 @@ else:
                                 fontsize=7.5, 
                                 weight="light",
                                 rotation=90, 
-                                va="top", 
+                                va="bottom", 
                                 ha="left", 
                                 alpha=0.85, 
                                 zorder=6
@@ -906,14 +902,12 @@ else:
                     except Exception as e_hito:
                         print(f"Advertencia procesando hito individual: {e_hito}")
 
-    # ORDENAMIENTO CRONOLÓGICO POR EDAD DE LA TABLA MICRO (VENTANA ANUAL)
     if datos_tabla_micro:
         datos_tabla_micro.sort(key=lambda x: float(x["Edad"].replace(" a", "").strip()))
 
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
     if not simulacion_externa and len(df_procesado) > 0:
-        # Al estar ordenado por edad, la línea naranja se trazará fluida y no en forma de telaraña/zigzag.
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
         ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
@@ -969,7 +963,10 @@ else:
     ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
     ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
     ax.set_axisbelow(True) 
-    ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
+    
+    # Leyenda dinámica más pequeña si estamos en modo Micro
+    tamano_leyenda = 6.5 if tipo_vista == "Micro (Ventana Anual)" else 8
+    ax.legend(loc="upper right", fontsize=tamano_leyenda, framealpha=0.8)
 
     df_table_render = None
     es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
