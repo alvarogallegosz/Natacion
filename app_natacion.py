@@ -418,7 +418,14 @@ st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:
 if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
-
+# Agrega esto en tu sidebar o cerca de los controles de selección
+with st.sidebar:
+    st.markdown("---")
+    if st.button("🔄 Refrescar Datos (Limpiar Caché)"):
+        # Limpia toda la caché de datos
+        st.cache_data.clear()
+        # Fuerza una recarga inmediata de la página para aplicar los cambios
+        st.rerun()
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
