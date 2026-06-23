@@ -807,17 +807,23 @@ else:
         lim_y_inferior = m_wr * 0.95
         lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
         
-        # Corrección: El eje x de la vista macro inicia en t0 (o un pequeño margen antes de la base)
-        lim_x_min = max(4.0, t0 - 0.5)
+        # EL EJE X EN MODO MACRO INICIALMENTE SE CONFIGURA ADECUADAMENTE
+        if len(df_procesado) > 0:
+            # Comienza con un ligero margen de seguridad antes del primer registro histórico
+            lim_x_min = max(4.0, float(df_procesado["Edad"].min()) - 0.5)
+        else:
+            lim_x_min = max(4.0, t0 - 0.5)
+            
         lim_x_max = t_peak + 1.0
 
     ax.set_xlim(lim_x_min, lim_x_max)
     ax.set_ylim(lim_y_inferior, lim_y_superior)
+    ax.set_autoscale_on(False)
 
     datos_tabla_micro = []
     nadador_id = st.session_state.get("nadador_seleccionado_id")
     
-    # DIBUJAR LÍNEAS DE HITOS SOLO EN LA VISTA MICRO
+    # DIBUJAR LÍNEAS VERTICALES DE HITOS Y TEXTOS ESTRICTAMENTE EN MODO MICRO (VENTANA ANUAL)
     if nadador_id and tipo_vista == "Micro (Ventana Anual)":
         datos_atleta = obtener_datos_hitos_atleta(nadador_id)
         if datos_atleta and datos_atleta.get("fecha_nacimiento"):
@@ -895,10 +901,6 @@ else:
     # ORDENAMIENTO CRONOLÓGICO POR EDAD DE LA TABLA MICRO (VENTANA ANUAL)
     if datos_tabla_micro:
         datos_tabla_micro.sort(key=lambda x: float(x["Edad"].replace(" a", "").strip()))
-
-    ax.set_xlim(lim_x_min, lim_x_max)
-    ax.set_ylim(lim_y_inferior, lim_y_superior)
-    ax.set_autoscale_on(False)
 
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
