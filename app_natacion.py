@@ -58,14 +58,13 @@ def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
     return fecha_alerta
     
 # -------------------------------------------------------------
-# FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
+# FUNCIÓN DE CALCULO DE EDAD_HITO Y REFERENCIAS (CACHEDAS)
 # -------------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=600)
 def obtener_datos_hitos_atleta(nadador_id):
     """
     Consulta de forma segura y aislada la información del atleta.
-    Al estar decorada con @st.cache_data, Streamlit garantiza que NO 
-    se generen loops infinitos ni sobrecargas a Supabase.
+    Decorada con @st.cache_data para evitar llamadas repetitivas al servidor.
     """
     try:
         res_atleta = supabase.table("usuarios") \
@@ -74,7 +73,7 @@ def obtener_datos_hitos_atleta(nadador_id):
             .execute()
             
         res_hitos = supabase.table("historial_hitos") \
-            .select("*, catalogo_competencias(*)") \
+            .select("elegible, catalogo_competencias(fecha_inicio, fecha, nombre_evento)") \
             .eq("usuario_id", nadador_id) \
             .execute()
             
@@ -85,6 +84,22 @@ def obtener_datos_hitos_atleta(nadador_id):
             }
     except Exception as e:
         print(f"Error interno en consulta cacheada de Supabase: {e}")
+    return None
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def cargar_marcas_referencia_optimizadas(prueba, genero, categoria):
+    """
+    Carga de marcas de referencia minimizando el payload y cacheadas por 1 hora.
+    """
+    try:
+        ref_resp = supabase.table("marcas_referencia").select("m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr")\
+            .eq("prueba", prueba)\
+            .eq("genero", genero)\
+            .eq("categoria", categoria).execute()
+        if ref_resp.data:
+            return ref_resp.data[0]
+    except Exception as e:
+        print(f"Error extrayendo marcas optimizadas: {e}")
     return None
 
 # -------------------------------------------------------------
@@ -123,11 +138,11 @@ st.markdown(
     }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_html=True
 )
 
 def spc():
-    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 4px;'></div>", unsafe_html=True)
 
 # -------------------------------------------------------------
 # CONEXIÓN SEGURA CON SUPABASE
@@ -471,12 +486,9 @@ m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.
 if es_preinfantil:
     def get_m_ano_infantil_a(prueba_str):
         try:
-            resp = supabase.table("marcas_referencia").select("m_ano")\
-                .eq("prueba", prueba_str)\
-                .eq("genero", st.session_state.nadador_seleccionado_genero)\
-                .eq("categoria", "Infantil A").execute()
-            if resp.data and resp.data[0].get("m_ano"):
-                return float(resp.data[0]["m_ano"])
+            data_ref = cargar_marcas_referencia_optimizadas(prueba_str, st.session_state.nadador_seleccionado_genero, "Infantil A")
+            if data_ref and data_ref.get("m_ano"):
+                return float(data_ref["m_ano"])
         except Exception:
             pass
         return 0.0
@@ -501,27 +513,25 @@ if es_preinfantil:
             m_ano = 0.0
         m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
 else:
-    try:
-        ref_resp = supabase.table("marcas_referencia").select("*")\
-            .eq("prueba", titulo_grafico)\
-            .eq("genero", st.session_state.nadador_seleccionado_genero)\
-            .eq("categoria", st.session_state.nadador_seleccionado_categoria).execute()
-        if ref_resp.data:
-            ref_data = ref_resp.data[0]
-            m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] else 0.0
-            m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] else 0.0
-            m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] else 0.0
-            m_wa_b = float(ref_data["m_wa_b"]) if ref_data["m_wa_b"] else 0.0
-            m_wa_a = float(ref_data["m_wa_a"]) if ref_data["m_wa_a"] else 0.0
-            m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] else 25.0
-    except Exception as e:
-        st.error(f"Error extrayendo marcas de la categoría: {e}")
+    data_ref = cargar_marcas_referencia_optimizadas(
+        titulo_grafico, 
+        st.session_state.nadador_seleccionado_genero, 
+        st.session_state.nadador_seleccionado_categoria
+    )
+    if data_ref:
+        m_ano = float(data_ref["m_ano"]) if data_ref["m_ano"] else 0.0
+        m_panam_b = float(data_ref["m_panam_b"]) if data_ref["m_panam_b"] else 0.0
+        m_panam_a = float(data_ref["m_panam_a"]) if data_ref["m_panam_a"] else 0.0
+        m_wa_b = float(data_ref["m_wa_b"]) if data_ref["m_wa_b"] else 0.0
+        m_wa_a = float(data_ref["m_wa_a"]) if data_ref["m_wa_a"] else 0.0
+        m_wr = float(data_ref["m_wr"]) if data_ref["m_wr"] else 25.0
 
 spc()
 st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 try:
+    # Payload minimizado en la consulta de marcas históricas
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
         .eq("prueba", titulo_grafico) \
@@ -687,7 +697,6 @@ if modo_equipo:
             todos_los_tiempos_colectivo = []
             datos_atletas_cargados = []
             
-            # Recolección de datos de los atletas seleccionados
             for idx, atl in enumerate(atletas_filtrados):
                 a_id = atl["id"]
                 a_nom = atl["nombre"]
@@ -716,35 +725,24 @@ if modo_equipo:
                 
                 peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
                 
-                # --- NUEVA CONSULTA DE MARCAS DE REFERENCIA PARA EL EQUIPO ---
                 ref_gen_target = "F" if filtro_genero == "Femenino (F)" else "M"
                 ref_cat_target = cat_sel if (tipo_filtro == "Categoría Etaria" and cat_sel) else st.session_state.nadador_seleccionado_categoria
                 
                 m_ano_e, m_panam_b_e, m_panam_a_e, m_wa_b_e, m_wa_a_e, m_wr_e = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
                 
-                try:
-                    ref_resp_e = supabase.table("marcas_referencia").select("*")\
-                        .eq("prueba", titulo_grafico)\
-                        .eq("genero", ref_gen_target)\
-                        .eq("categoria", ref_cat_target).execute()
-                        
-                    if ref_resp_e.data:
-                        rd = ref_resp_e.data[0]
-                        m_ano_e = float(rd.get("m_ano") or 0.0)
-                        m_panam_b_e = float(rd.get("m_panam_b") or 0.0)
-                        m_panam_a_e = float(rd.get("m_panam_a") or 0.0)
-                        m_wa_b_e = float(rd.get("m_wa_b") or 0.0)
-                        m_wa_a_e = float(rd.get("m_wa_a") or 0.0)
-                        m_wr_e = float(rd.get("m_wr") or 25.0)
-                except Exception as e_ref:
-                    print(f"Error cargando marcas de referencia para el equipo: {e_ref}")
+                ref_data_e = cargar_marcas_referencia_optimizadas(titulo_grafico, ref_gen_target, ref_cat_target)
+                if ref_data_e:
+                    m_ano_e = float(ref_data_e.get("m_ano") or 0.0)
+                    m_panam_b_e = float(ref_data_e.get("m_panam_b") or 0.0)
+                    m_panam_a_e = float(ref_data_e.get("m_panam_a") or 0.0)
+                    m_wa_b_e = float(ref_data_e.get("m_wa_b") or 0.0)
+                    m_wa_a_e = float(ref_data_e.get("m_wa_a") or 0.0)
+                    m_wr_e = float(ref_data_e.get("m_wr") or 25.0)
                 
-                # Configuramos los límites Y en base a los datos correctos del equipo
                 lim_y_inferior = m_wr_e * 0.95
                 lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
                 ax.set_ylim(lim_y_inferior, lim_y_superior)
                 
-                # Bucle de dibujo de curvas por cada atleta
                 for item in datos_atletas_cargados:
                     df_atl_m = item["df"]
                     color_curr = item["color"]
@@ -769,7 +767,6 @@ if modo_equipo:
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
                     
-                # Dibujo de las líneas de referencia del equipo
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
@@ -897,7 +894,6 @@ else:
                                 zorder=5
                             )
                             
-                            # Anclamos el texto en la base del gráfico para no chocar con la leyenda
                             y_pos = lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.03)
                             nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                             nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
@@ -991,7 +987,6 @@ else:
     ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
     ax.set_axisbelow(True) 
     
-    # Leyenda dinámica más pequeña si estamos en modo Micro
     tamano_leyenda = 6.5 if tipo_vista == "Micro (Ventana Anual)" else 8
     ax.legend(loc="upper right", fontsize=tamano_leyenda, framealpha=0.8)
 
