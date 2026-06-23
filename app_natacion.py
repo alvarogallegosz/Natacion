@@ -883,7 +883,7 @@ else:
                                 fontsize=7.5, 
                                 weight="light",
                                 rotation=90, 
-                                va="bottom", 
+                                va="center", 
                                 ha="left", 
                                 alpha=0.85, 
                                 zorder=6
