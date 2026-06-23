@@ -522,15 +522,23 @@ st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 try:
+    # AQUÍ ESTABA EL ERROR PRINCIPAL: Se ordenaba por "nota" (el nombre del evento). 
+    # Ahora ordenamos estrictamente de forma cronológica por "edad".
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
         .eq("prueba", titulo_grafico) \
         .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-        .order("nota", desc=False).execute() # Ordenado por Fecha/Evento
+        .order("edad", desc=False).execute() 
         
     if response.data:
         df_procesado = pd.DataFrame(response.data)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
+        
+        # Aseguramos que los valores sean numéricos y forzamos el reordenamiento del DataFrame
+        df_procesado["Edad"] = pd.to_numeric(df_procesado["Edad"])
+        df_procesado["Tiempo"] = pd.to_numeric(df_procesado["Tiempo"])
+        df_procesado = df_procesado.sort_values("Edad").reset_index(drop=True)
+        
         db_t0 = float(df_procesado.iloc[0]["Edad"])
         db_T0 = float(df_procesado.iloc[0]["Tiempo"])
         n_registros = len(df_procesado)
@@ -804,15 +812,15 @@ else:
         lim_x_max = edad_max_zoom
     else:
         peor_tiempo_ind = max(todos_los_tiempos_ind)
-        lim_y_inferior = m_wr * 0.95
-        lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.05)
+        lim_y_inferior = m_wr * 0.92 if m_wr > 0 else min(todos_los_tiempos_ind) * 0.90
+        lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.08)
         
-        # EL EJE X EN MODO MACRO INICIALMENTE SE CONFIGURA ADECUADAMENTE
+        # En Macro, nos aseguramos que el inicio abarque tanto a t0 como al primer evento registrado
         if len(df_procesado) > 0:
-            # Comienza con un ligero margen de seguridad antes del primer registro histórico
-            lim_x_min = max(4.0, float(df_procesado["Edad"].min()) - 0.5)
+            min_edad_real = float(df_procesado["Edad"].min())
+            lim_x_min = min(float(t0), min_edad_real) - 0.5
         else:
-            lim_x_min = max(4.0, t0 - 0.5)
+            lim_x_min = max(4.0, float(t0) - 0.5)
             
         lim_x_max = t_peak + 1.0
 
@@ -905,6 +913,7 @@ else:
     ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
     if not simulacion_externa and len(df_procesado) > 0:
+        # Al estar ordenado por edad, la línea naranja se trazará fluida y no en forma de telaraña/zigzag.
         ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
         ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
