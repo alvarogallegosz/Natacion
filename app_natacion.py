@@ -877,7 +877,7 @@ else:
                             
                             ax.text(
                                 x=edad_hito_calculada + 0.015, 
-                                y=y_pos + 1, 
+                                y=y_pos + 1.5, 
                                 s=f"{nombre_corto} {fecha_evento_real.strftime('%d/%m/%Y')}", 
                                 color=color_linea, 
                                 fontsize=7.5, 
