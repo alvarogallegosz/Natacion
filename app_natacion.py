@@ -20,83 +20,6 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 # -------------------------------------------------------------
-# CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
-# -------------------------------------------------------------
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def obtener_marcas_referencia_cache(prueba, genero, categoria):
-    """Marca de referencia: Cambia ~1 vez al año. Caché por 24h."""
-    try:
-        supabase = st.session_state.get("supabase_client")
-        if not supabase:
-            return []
-        ref_resp = supabase.table("marcas_referencia").select("*") \
-            .eq("prueba", prueba) \
-            .eq("genero", genero) \
-            .eq("categoria", categoria).execute()
-        return ref_resp.data if ref_resp.data else []
-    except Exception:
-        return []
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def obtener_usuario_por_id_cache(usuario_id):
-    """Datos de usuario (fecha_nacimiento, nombre, etc.): No cambian. Caché 1h."""
-    try:
-        supabase = st.session_state.get("supabase_client")
-        if not supabase:
-            return None
-        response = supabase.table("usuarios") \
-            .select("id, nombre, genero, rol, estatus, fecha_nacimiento") \
-            .eq("id", usuario_id) \
-            .execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def obtener_catalogo_competencias_cache():
-    """Catálogo de competencias: Rara vez cambia. Caché 1h."""
-    try:
-        supabase = st.session_state.get("supabase_client")
-        if not supabase:
-            return []
-        response = supabase.table("catalogo_competencias").select("*").execute()
-        return response.data if response.data else []
-    except Exception:
-        return []
-
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_historial_hitos_cache(nadador_id):
-    """Historial de hitos: Vinculado a competiciones. Caché 5 min para fluidez."""
-    try:
-        supabase = st.session_state.get("supabase_client")
-        if not supabase:
-            return []
-        res_hitos = supabase.table("historial_hitos") \
-            .select("*, catalogo_competencias(*)") \
-            .eq("usuario_id", nadador_id) \
-            .execute()
-        return res_hitos.data if res_hitos.data else []
-    except Exception:
-        return []
-
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_marcas_historicas_cache(prueba, usuario_id):
-    """Marcas históricas: Se actualizan cada 2-3 meses tras cada hito. Caché 5 min."""
-    try:
-        supabase = st.session_state.get("supabase_client")
-        if not supabase:
-            return []
-        response = supabase.table("marcas_historicas") \
-            .select("id, edad, tiempo, nota") \
-            .eq("prueba", prueba) \
-            .eq("usuario_id", usuario_id) \
-            .order("edad", desc=False).execute()
-        return response.data if response.data else []
-    except Exception:
-        return []
-
-# -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
 
@@ -116,13 +39,23 @@ def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
     Verifica si el nadador cumple con la edad mínima para eventos internacionales.
     Retorna: (Booleano de elegibilidad, Motivo de rechazo o None)
     """
-    entes_internacionales = ["PANAM AQUATICS", "WORLD AQUATICS"]
+    entes_internacionales = ["PANAM", "SURAM", "WA"]
+    
     if ente_rector in entes_internacionales:
-        if edad_tecnica < 12:
-            return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 12 años."
-    return True, None
+        if edad_tecnica < 14:
+            return False, f"Ineligible: Edad técnica ({edad_tecnica} años) menor a 14 años exigidos para {ente_rector}."
+            
+    return True, "Elegible"
 
-# ... (El resto de tu script continúa exactamente igual a partir de aquí) ...
+def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
+    """
+    Calcula la fecha exacta en la que el cron/sistema debe notificar al atleta.
+    """
+    if isinstance(fecha_inicio_competencia, str):
+        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
+        
+    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
+    return fecha_alerta
     
 # -------------------------------------------------------------
 # FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
@@ -418,14 +351,7 @@ st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:
 if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
-# Agrega esto en tu sidebar o cerca de los controles de selección
-with st.sidebar:
-    st.markdown("---")
-    if st.button("🔄 Refrescar Datos (Limpiar Caché)"):
-        # Limpia toda la caché de datos
-        st.cache_data.clear()
-        # Fuerza una recarga inmediata de la página para aplicar los cambios
-        st.rerun()
+
 if st.session_state.rol in ["Entrenador", "Administrador"]:
     spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
