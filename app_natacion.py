@@ -14,8 +14,99 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # -------------------------------------------------------------
-# 1. CONFIGURACIÓN INICIAL DE LA PÁGINA (Debe ir primero)
+# FUNCIÓN DE ENCRIPTACIÓN DE CONTRASEÑAS
 # -------------------------------------------------------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# -------------------------------------------------------------
+# MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
+# -------------------------------------------------------------
+
+def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
+    """
+    Calcula la edad del nadador al 31 de diciembre del año en curso, 
+    según la normativa técnica para categorización.
+    """
+    if isinstance(fecha_nacimiento, str):
+        fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
+        
+    edad_tecnica = temporada_activa - fecha_nacimiento.year
+    return edad_tecnica
+
+def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
+    """
+    Verifica si el nadador cumple con la edad mínima para eventos internacionales.
+    Retorna: (Booleano de elegibilidad, Motivo de rechazo o None)
+    """
+    entes_internacionales = ["PANAM", "SURAM", "WA"]
+    
+    if ente_rector in entes_internacionales:
+        if edad_tecnica < 14:
+            return False, f"Ineligible: Edad técnica ({edad_tecnica} años) menor a 14 años exigidos para {ente_rector}."
+            
+    return True, "Elegible"
+
+def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
+    """
+    Calcula la fecha exacta en la que el cron/sistema debe notificar al atleta.
+    """
+    if isinstance(fecha_inicio_competencia, str):
+        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
+        
+    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
+    return fecha_alerta
+    
+# -------------------------------------------------------------
+# FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
+# -------------------------------------------------------------
+@st.cache_data(show_spinner=False, ttl=600)
+def obtener_datos_hitos_atleta(nadador_id):
+    """
+    Consulta de forma segura y aislada la información del atleta.
+    Al estar decorada con @st.cache_data, Streamlit garantiza que NO 
+    se generen loops infinitos ni sobrecargas a Supabase.
+    """
+    try:
+        res_atleta = supabase.table("usuarios") \
+            .select("fecha_nacimiento") \
+            .eq("id", nadador_id) \
+            .execute()
+            
+        res_hitos = supabase.table("historial_hitos") \
+            .select("*, catalogo_competencias(*)") \
+            .eq("usuario_id", nadador_id) \
+            .execute()
+            
+        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
+            return {
+                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
+                "hitos": res_hitos.data if res_hitos.data else []
+            }
+    except Exception as e:
+        print(f"Error interno en consulta cacheada de Supabase: {e}")
+    return None
+
+# -------------------------------------------------------------
+# FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
+# -------------------------------------------------------------
+def enviar_email(asunto, cuerpo, destinatario):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = st.secrets["EMAIL_REMITE"]
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo, 'plain'))
+
+        with smtplib.SMTP_SSL(st.secrets["EMAIL_SMTP_SERVER"], int(st.secrets["EMAIL_SMTP_PORT"])) as server:
+            server.login(st.secrets["EMAIL_REMITE"], st.secrets["EMAIL_PASSWORD"])
+            server.sendmail(st.secrets["EMAIL_REMITE"], destinatario, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"Error al enviar email: {e}")
+        return False
+
+# 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador de proyección de rendimiento para natación", layout="wide")
 
 st.markdown(
@@ -39,48 +130,7 @@ def spc():
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 2. FUNCIONES UTILITARIAS Y DE LÓGICA PURA
-# -------------------------------------------------------------
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
-    if isinstance(fecha_nacimiento, str):
-        fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
-    edad_tecnica = temporada_activa - fecha_nacimiento.year
-    return edad_tecnica
-
-def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
-    entes_internacionales = ["PANAM", "SURAM", "WA"]
-    if ente_rector in entes_internacionales:
-        if edad_tecnica < 14:
-            return False, f"Ineligible: Edad técnica ({edad_tecnica} años) menor a 14 años exigidos para {ente_rector}."
-    return True, "Elegible"
-
-def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
-    if isinstance(fecha_inicio_competencia, str):
-        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
-    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
-    return fecha_alerta
-
-def enviar_email(asunto, cuerpo, destinatario):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = st.secrets["EMAIL_REMITE"]
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        msg.attach(MIMEText(cuerpo, 'plain'))
-
-        with smtplib.SMTP_SSL(st.secrets["EMAIL_SMTP_SERVER"], int(st.secrets["EMAIL_SMTP_PORT"])) as server:
-            server.login(st.secrets["EMAIL_REMITE"], st.secrets["EMAIL_PASSWORD"])
-            server.sendmail(st.secrets["EMAIL_REMITE"], destinatario, msg.as_string())
-        return True
-    except Exception as e:
-        print(f"Error al enviar email: {e}")
-        return False
-
-# -------------------------------------------------------------
-# 3. CONEXIÓN SEGURA CON SUPABASE (Garantizado antes de la caché)
+# CONEXIÓN SEGURA CON SUPABASE
 # -------------------------------------------------------------
 try:
     url: str = st.secrets["SUPABASE_URL"]
@@ -89,45 +139,6 @@ try:
 except Exception as e:
     st.error("Faltan las credenciales de Supabase en los Secrets de la aplicación.")
     st.stop()
-
-# -------------------------------------------------------------
-# 4. MOTORES DE CONSULTAS CACHEADAS (Ahora con scope correcto)
-# -------------------------------------------------------------
-# Renombrada estratégicamente para romper la caché corrupta anterior
-@st.cache_data(show_spinner=False, ttl=60)
-def obtener_historial_hitos_atleta(nadador_id):
-    try:
-        res_atleta = supabase.table("usuarios") \
-            .select("fecha_nacimiento") \
-            .eq("id", nadador_id) \
-            .execute()
-            
-        res_hitos = supabase.table("historial_hitos") \
-            .select("*, catalogo_competencias(*)") \
-            .eq("usuario_id", nadador_id) \
-            .execute()
-            
-        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
-            return {
-                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
-                "hitos": res_hitos.data if res_hitos.data else []
-            }
-    except Exception as e:
-        print(f"Error interno en consulta cacheada de Supabase: {e}")
-    return None
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def cargar_marcas_referencia_optimizadas(prueba, genero, categoria):
-    try:
-        ref_resp = supabase.table("marcas_referencia").select("m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr")\
-            .eq("prueba", prueba)\
-            .eq("genero", genero)\
-            .eq("categoria", categoria).execute()
-        if ref_resp.data:
-            return ref_resp.data[0]
-    except Exception as e:
-        print(f"Error extrayendo marcas optimizadas: {e}")
-    return None
 
 # -------------------------------------------------------------
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
@@ -460,9 +471,12 @@ m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.
 if es_preinfantil:
     def get_m_ano_infantil_a(prueba_str):
         try:
-            data_ref = cargar_marcas_referencia_optimizadas(prueba_str, st.session_state.nadador_seleccionado_genero, "Infantil A")
-            if data_ref and data_ref.get("m_ano"):
-                return float(data_ref["m_ano"])
+            resp = supabase.table("marcas_referencia").select("m_ano")\
+                .eq("prueba", prueba_str)\
+                .eq("genero", st.session_state.nadador_seleccionado_genero)\
+                .eq("categoria", "Infantil A").execute()
+            if resp.data and resp.data[0].get("m_ano"):
+                return float(resp.data[0]["m_ano"])
         except Exception:
             pass
         return 0.0
@@ -487,18 +501,21 @@ if es_preinfantil:
             m_ano = 0.0
         m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
 else:
-    data_ref = cargar_marcas_referencia_optimizadas(
-        titulo_grafico, 
-        st.session_state.nadador_seleccionado_genero, 
-        st.session_state.nadador_seleccionado_categoria
-    )
-    if data_ref:
-        m_ano = float(data_ref["m_ano"]) if data_ref["m_ano"] else 0.0
-        m_panam_b = float(data_ref["m_panam_b"]) if data_ref["m_panam_b"] else 0.0
-        m_panam_a = float(data_ref["m_panam_a"]) if data_ref["m_panam_a"] else 0.0
-        m_wa_b = float(data_ref["m_wa_b"]) if data_ref["m_wa_b"] else 0.0
-        m_wa_a = float(data_ref["m_wa_a"]) if data_ref["m_wa_a"] else 0.0
-        m_wr = float(data_ref["m_wr"]) if data_ref["m_wr"] else 25.0
+    try:
+        ref_resp = supabase.table("marcas_referencia").select("*")\
+            .eq("prueba", titulo_grafico)\
+            .eq("genero", st.session_state.nadador_seleccionado_genero)\
+            .eq("categoria", st.session_state.nadador_seleccionado_categoria).execute()
+        if ref_resp.data:
+            ref_data = ref_resp.data[0]
+            m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] else 0.0
+            m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] else 0.0
+            m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] else 0.0
+            m_wa_b = float(ref_data["m_wa_b"]) if ref_data["m_wa_b"] else 0.0
+            m_wa_a = float(ref_data["m_wa_a"]) if ref_data["m_wa_a"] else 0.0
+            m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] else 25.0
+    except Exception as e:
+        st.error(f"Error extrayendo marcas de la categoría: {e}")
 
 spc()
 st.sidebar.subheader("🚨 Simulación de Escenarios")
@@ -670,6 +687,7 @@ if modo_equipo:
             todos_los_tiempos_colectivo = []
             datos_atletas_cargados = []
             
+            # Recolección de datos de los atletas seleccionados
             for idx, atl in enumerate(atletas_filtrados):
                 a_id = atl["id"]
                 a_nom = atl["nombre"]
@@ -698,24 +716,35 @@ if modo_equipo:
                 
                 peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
                 
+                # --- NUEVA CONSULTA DE MARCAS DE REFERENCIA PARA EL EQUIPO ---
                 ref_gen_target = "F" if filtro_genero == "Femenino (F)" else "M"
                 ref_cat_target = cat_sel if (tipo_filtro == "Categoría Etaria" and cat_sel) else st.session_state.nadador_seleccionado_categoria
                 
                 m_ano_e, m_panam_b_e, m_panam_a_e, m_wa_b_e, m_wa_a_e, m_wr_e = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
                 
-                ref_data_e = cargar_marcas_referencia_optimizadas(titulo_grafico, ref_gen_target, ref_cat_target)
-                if ref_data_e:
-                    m_ano_e = float(ref_data_e.get("m_ano") or 0.0)
-                    m_panam_b_e = float(ref_data_e.get("m_panam_b") or 0.0)
-                    m_panam_a_e = float(ref_data_e.get("m_panam_a") or 0.0)
-                    m_wa_b_e = float(ref_data_e.get("m_wa_b") or 0.0)
-                    m_wa_a_e = float(ref_data_e.get("m_wa_a") or 0.0)
-                    m_wr_e = float(ref_data_e.get("m_wr") or 25.0)
+                try:
+                    ref_resp_e = supabase.table("marcas_referencia").select("*")\
+                        .eq("prueba", titulo_grafico)\
+                        .eq("genero", ref_gen_target)\
+                        .eq("categoria", ref_cat_target).execute()
+                        
+                    if ref_resp_e.data:
+                        rd = ref_resp_e.data[0]
+                        m_ano_e = float(rd.get("m_ano") or 0.0)
+                        m_panam_b_e = float(rd.get("m_panam_b") or 0.0)
+                        m_panam_a_e = float(rd.get("m_panam_a") or 0.0)
+                        m_wa_b_e = float(rd.get("m_wa_b") or 0.0)
+                        m_wa_a_e = float(rd.get("m_wa_a") or 0.0)
+                        m_wr_e = float(rd.get("m_wr") or 25.0)
+                except Exception as e_ref:
+                    print(f"Error cargando marcas de referencia para el equipo: {e_ref}")
                 
+                # Configuramos los límites Y en base a los datos correctos del equipo
                 lim_y_inferior = m_wr_e * 0.95
                 lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
                 ax.set_ylim(lim_y_inferior, lim_y_superior)
                 
+                # Bucle de dibujo de curvas por cada atleta
                 for item in datos_atletas_cargados:
                     df_atl_m = item["df"]
                     color_curr = item["color"]
@@ -740,6 +769,7 @@ if modo_equipo:
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
                     
+                # Dibujo de las líneas de referencia del equipo
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
@@ -824,9 +854,8 @@ else:
     datos_tabla_micro = []
     nadador_id = st.session_state.get("nadador_seleccionado_id")
     
-    # RESTAURADO: Se respeta estrictamente la regla de negocio de la vista Micro
     if nadador_id and tipo_vista == "Micro (Ventana Anual)":
-        datos_atleta = obtener_historial_hitos_atleta(nadador_id)
+        datos_atleta = obtener_datos_hitos_atleta(nadador_id)
         if datos_atleta and datos_atleta.get("fecha_nacimiento"):
             try:
                 fecha_nacimiento_real = datetime.date.fromisoformat(str(datos_atleta["fecha_nacimiento"])[:10])
@@ -868,6 +897,7 @@ else:
                                 zorder=5
                             )
                             
+                            # Anclamos el texto en la base del gráfico para no chocar con la leyenda
                             y_pos = lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.03)
                             nombre_evento = comp_info.get("nombre_evento") or "Competencia"
                             nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
@@ -961,6 +991,7 @@ else:
     ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
     ax.set_axisbelow(True) 
     
+    # Leyenda dinámica más pequeña si estamos en modo Micro
     tamano_leyenda = 6.5 if tipo_vista == "Micro (Ventana Anual)" else 8
     ax.legend(loc="upper right", fontsize=tamano_leyenda, framealpha=0.8)
 
