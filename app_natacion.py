@@ -695,147 +695,38 @@ else:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
-# =====================================================================
-# INICIO DE MÓDULOS POR PESTAÑAS (SOLO PARA ENTRENADORES/ADMINISTRADORES)
-# =====================================================================
-if st.session_state.rol in ["Entrenador", "Administrador"]:
-    tab_analisis, tab_pizarra = st.tabs(["📈 Análisis de Rendimiento", "📝 Pizarra de Entrenamiento Diario"])
-else:
-    # Si es solo nadador, forzamos un tab único transparente para no romper la indentación
-    tab_analisis = st.container()
 
-# ---------------------------------------------------------------------
-# PESTAÑA 2: PIZARRA DE ENTRENAMIENTO DIARIO
-# ---------------------------------------------------------------------
-if st.session_state.rol in ["Entrenador", "Administrador"]:
-    with tab_pizarra:
-        st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
-        st.caption("Diseña la sesión agregando bloques. Al finalizar, genera el texto para compartir.")
-        
-        # 1. Inicializar la pizarra en la memoria de sesión si no existe
-        if "pizarra_entrenamiento" not in st.session_state:
-            st.session_state.pizarra_entrenamiento = []
+def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
+    if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
+        tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
+        def ecuacion_k_eq(k_val):
+            ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / (1 - np.exp(-k_val))
+            return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
+        k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
+        return k_opt_eq[0]
+    return 0.4
 
-        # 2. Formulario de ingreso rápido (El "Carrito de Compras")
-        with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
-            c_rep, c_dist, c_est = st.columns(3)
-            with c_rep:
-                repeticiones = st.number_input("Repeticiones", min_value=1, value=1, step=1)
-            with c_dist:
-                distancia = st.number_input("Distancia (m)", min_value=15, value=100, step=25)
-            with c_est:
-                estilo = st.selectbox("Estilo / Foco", ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Piernas", "Brazos", "Técnica / Drills", "Afloje"])
-                
-            c_int, c_imp, c_not = st.columns(3)
-            with c_int:
-                intensidad = st.selectbox("Intensidad / Ritmo", ["Suave (Aeróbico Ligero)", "Medio (Aeróbico Medio)", "Fuerte (Umbral)", "Sprint (Máximo)", "Ritmo de Competencia"])
-            with c_imp:
-                implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"])
-            with c_not:
-                notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3")
+def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
+    tiempos = []
+    D_eq = eq_T_pb - eq_T_target
+    for t in edades_arr:
+        if t < eq_t_pb:
+            tau_t = (t - eq_t0) / (eq_t_peak - eq_t0)
+            ter_exp = (np.exp(-k_eq * tau_t) - np.exp(-k_eq)) / (1 - np.exp(-k_eq))
+            T_t = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
+        else:
+            T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
+        tiempos.append(T_t)
+    return np.array(tiempos)
 
-            if st.button("Añadir a la sesión", use_container_width=True):
-                bloque = {
-                    "reps": repeticiones,
-                    "dist": distancia,
-                    "estilo": estilo,
-                    "intensidad": intensidad,
-                    "implementos": implementos,
-                    "notas": notas
-                }
-                st.session_state.pizarra_entrenamiento.append(bloque)
-                st.rerun()
+k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
 
-        # 3. Procesamiento y Estadísticas de la Pizarra Actual
-        if st.session_state.pizarra_entrenamiento:
-            st.markdown("---")
-            
-            volumen_total = 0
-            texto_exportacion = f"🏊‍♂️ *Entrenamiento del Día - Club Centro Gallego*\n📅 Fecha: {datetime.date.today().strftime('%d/%m/%Y')}\n\n*RUTINA:*\n"
-            
-            # Recorremos la pizarra para calcular y generar texto
-            for i, blk in enumerate(st.session_state.pizarra_entrenamiento):
-                subtotal = blk['reps'] * blk['dist']
-                volumen_total += subtotal
-                
-                # Formateo de elementos opcionales
-                txt_impl = f" [{', '.join(blk['implementos'])}]" if blk['implementos'] else ""
-                txt_not = f" - _{blk['notas']}_" if blk['notas'] else ""
-                
-                linea = f"• {blk['reps']} x {blk['dist']}m {blk['estilo']} | {blk['intensidad']}{txt_impl}{txt_not}"
-                texto_exportacion += linea + "\n"
-
-            texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total} metros\n💪 ¡A darle con todo!"
-
-            # 4. Lienzo Visual y Botones de Control
-            c_lienzo, c_stats = st.columns([2, 1])
-            
-            with c_lienzo:
-                st.info(texto_exportacion.replace('\n', '  \n')) # Renderizado visual para la pantalla
-                
-                c_btn1, c_btn2 = st.columns(2)
-                with c_btn1:
-                    if st.button("⏪ Deshacer último bloque", use_container_width=True):
-                        st.session_state.pizarra_entrenamiento.pop()
-                        st.rerun()
-                with c_btn2:
-                    if st.button("🗑️ Limpiar pizarra completa", use_container_width=True):
-                        st.session_state.pizarra_entrenamiento = []
-                        st.rerun()
-                        
-            with c_stats:
-                st.metric("Volumen Total", f"{volumen_total} m")
-                # Analítica rápida en memoria
-                st.caption("Distribución por intensidad:")
-                conteos = {}
-                for b in st.session_state.pizarra_entrenamiento:
-                    conteos[b['intensidad']] = conteos.get(b['intensidad'], 0) + (b['reps'] * b['dist'])
-                for k, v in conteos.items():
-                    porcentaje = (v / volumen_total) * 100
-                    st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
-
-            # 5. Exportación a WhatsApp
-            st.markdown("📲 **Exportar a WhatsApp o Correo**")
-            st.text_area("Copia el texto list para enviar:", value=texto_exportacion, height=200, label_visibility="collapsed")
-
-# ---------------------------------------------------------------------
-# PESTAÑA 1: ANÁLISIS DE RENDIMIENTO (Tu código actual va aquí adentro)
-# ---------------------------------------------------------------------
-with tab_analisis:
-    # A PARTIR DE AQUÍ CONTINÚA TODO TU CÓDIGO ORIGINAL SIN MODIFICAR
-    def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
-        # ... resto de tu código matemático y gráficos ...
-    def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
-        if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
-            tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
-            def ecuacion_k_eq(k_val):
-                ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-                return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
-            k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
-            return k_opt_eq[0]
-        return 0.4
-
-    def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
-        tiempos = []
-        D_eq = eq_T_pb - eq_T_target
-        for t in edades_arr:
-            if t < eq_t_pb:
-                tau_t = (t - eq_t0) / (eq_t_peak - eq_t0)
-                ter_exp = (np.exp(-k_eq * tau_t) - np.exp(-k_eq)) / (1 - np.exp(-k_eq))
-                T_t = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
-            else:
-                T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
-            tiempos.append(T_t)
-        return np.array(tiempos)
-
-    k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-
-    c1, c2, c3 = st.columns(3)
-    with c1: st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k:.4f}")
-    with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{(T_pb - T_target):.2f} s")
-    with c3: 
-        T_intermedia_val = float(calcular_curva_atleta([t_intermedia], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
-        st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
+c1, c2, c3 = st.columns(3)
+with c1: st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k:.4f}")
+with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{(T_pb - T_target):.2f} s")
+with c3: 
+    T_intermedia_val = float(calcular_curva_atleta([t_intermedia], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
+    st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=f"{T_intermedia_val:.2f} s")
 
 # -------------------------------------------------------------
 # RENDIMIENTO GRÁFICO: MODO EQUIPO
