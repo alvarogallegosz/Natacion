@@ -658,6 +658,23 @@ with c3:
 # RENDIMIENTO GRÁFICO: MODO EQUIPO
 # -------------------------------------------------------------
 if modo_equipo:
+    categoria_a_usar = cat_sel if tipo_filtro == "Categoría Etaria" and cat_sel else st.session_state.nadador_seleccionado_categoria
+    
+    # 2. Re-consultamos las marcas de referencia para esa categoría, NO para el individuo
+    try:
+        ref_resp = supabase.table("marcas_referencia").select("*")\
+            .eq("prueba", titulo_grafico)\
+            .eq("genero", filtro_genero.split(" ")[0] if filtro_genero != "Todos" else "F")\
+            .eq("categoria", categoria_a_usar).execute()
+        
+        if ref_resp.data:
+            ref_data = ref_resp.data[0]
+            # Sobrescribimos las variables globales para que el gráfico use estas
+            m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] else 0.0
+            m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] else 25.0
+            # ... (agrega aquí el resto de marcas como m_wa_a, etc.)
+    except Exception as e:
+        st.error(f"Error ajustando marcas de referencia para el equipo: {e}")
     try:
         resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
         atletas_lista = resp_todos.data if resp_todos.data else []
