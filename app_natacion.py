@@ -14,114 +14,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # -------------------------------------------------------------
-# FUNCIÓN DE ENCRIPTACIÓN DE CONTRASEÑAS
+# 1. CONFIGURACIÓN INICIAL DE LA PÁGINA (Debe ir primero)
 # -------------------------------------------------------------
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-# -------------------------------------------------------------
-# MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
-# -------------------------------------------------------------
-
-def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
-    """
-    Calcula la edad del nadador al 31 de diciembre del año en curso, 
-    según la normativa técnica para categorización.
-    """
-    if isinstance(fecha_nacimiento, str):
-        fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
-        
-    edad_tecnica = temporada_activa - fecha_nacimiento.year
-    return edad_tecnica
-
-def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
-    """
-    Verifica si el nadador cumple con la edad mínima para eventos internacionales.
-    Retorna: (Booleano de elegibilidad, Motivo de rechazo o None)
-    """
-    entes_internacionales = ["PANAM", "SURAM", "WA"]
-    
-    if ente_rector in entes_internacionales:
-        if edad_tecnica < 14:
-            return False, f"Ineligible: Edad técnica ({edad_tecnica} años) menor a 14 años exigidos para {ente_rector}."
-            
-    return True, "Elegible"
-
-def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
-    """
-    Calcula la fecha exacta en la que el cron/sistema debe notificar al atleta.
-    """
-    if isinstance(fecha_inicio_competencia, str):
-        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
-        
-    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
-    return fecha_alerta
-    
-# -------------------------------------------------------------
-# FUNCIÓN DE CALCULO DE EDAD_HITO Y REFERENCIAS (CACHEDAS)
-# -------------------------------------------------------------
-@st.cache_data(show_spinner=False, ttl=600)
-def obtener_datos_hitos_atleta(nadador_id):
-    """
-    Consulta de forma segura y aislada la información del atleta.
-    Decorada con @st.cache_data para evitar llamadas repetitivas al servidor.
-    """
-    try:
-        res_atleta = supabase.table("usuarios") \
-            .select("fecha_nacimiento") \
-            .eq("id", nadador_id) \
-            .execute()
-            
-        res_hitos = supabase.table("historial_hitos") \
-            .select("elegible, catalogo_competencias(fecha_inicio, fecha, nombre_evento)") \
-            .eq("usuario_id", nadador_id) \
-            .execute()
-            
-        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
-            return {
-                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
-                "hitos": res_hitos.data if res_hitos.data else []
-            }
-    except Exception as e:
-        print(f"Error interno en consulta cacheada de Supabase: {e}")
-    return None
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def cargar_marcas_referencia_optimizadas(prueba, genero, categoria):
-    """
-    Carga de marcas de referencia minimizando el payload y cacheadas por 1 hora.
-    """
-    try:
-        ref_resp = supabase.table("marcas_referencia").select("m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr")\
-            .eq("prueba", prueba)\
-            .eq("genero", genero)\
-            .eq("categoria", categoria).execute()
-        if ref_resp.data:
-            return ref_resp.data[0]
-    except Exception as e:
-        print(f"Error extrayendo marcas optimizadas: {e}")
-    return None
-
-# -------------------------------------------------------------
-# FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
-# -------------------------------------------------------------
-def enviar_email(asunto, cuerpo, destinatario):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = st.secrets["EMAIL_REMITE"]
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        msg.attach(MIMEText(cuerpo, 'plain'))
-
-        with smtplib.SMTP_SSL(st.secrets["EMAIL_SMTP_SERVER"], int(st.secrets["EMAIL_SMTP_PORT"])) as server:
-            server.login(st.secrets["EMAIL_REMITE"], st.secrets["EMAIL_PASSWORD"])
-            server.sendmail(st.secrets["EMAIL_REMITE"], destinatario, msg.as_string())
-        return True
-    except Exception as e:
-        print(f"Error al enviar email: {e}")
-        return False
-
-# 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador de proyección de rendimiento para natación", layout="wide")
 
 st.markdown(
@@ -145,7 +39,48 @@ def spc():
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# CONEXIÓN SEGURA CON SUPABASE
+# 2. FUNCIONES UTILITARIAS Y DE LÓGICA PURA
+# -------------------------------------------------------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
+    if isinstance(fecha_nacimiento, str):
+        fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
+    edad_tecnica = temporada_activa - fecha_nacimiento.year
+    return edad_tecnica
+
+def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
+    entes_internacionales = ["PANAM", "SURAM", "WA"]
+    if ente_rector in entes_internacionales:
+        if edad_tecnica < 14:
+            return False, f"Ineligible: Edad técnica ({edad_tecnica} años) menor a 14 años exigidos para {ente_rector}."
+    return True, "Elegible"
+
+def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
+    if isinstance(fecha_inicio_competencia, str):
+        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
+    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
+    return fecha_alerta
+
+def enviar_email(asunto, cuerpo, destinatario):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = st.secrets["EMAIL_REMITE"]
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo, 'plain'))
+
+        with smtplib.SMTP_SSL(st.secrets["EMAIL_SMTP_SERVER"], int(st.secrets["EMAIL_SMTP_PORT"])) as server:
+            server.login(st.secrets["EMAIL_REMITE"], st.secrets["EMAIL_PASSWORD"])
+            server.sendmail(st.secrets["EMAIL_REMITE"], destinatario, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"Error al enviar email: {e}")
+        return False
+
+# -------------------------------------------------------------
+# 3. CONEXIÓN SEGURA CON SUPABASE (Garantizado antes de la caché)
 # -------------------------------------------------------------
 try:
     url: str = st.secrets["SUPABASE_URL"]
@@ -154,6 +89,45 @@ try:
 except Exception as e:
     st.error("Faltan las credenciales de Supabase en los Secrets de la aplicación.")
     st.stop()
+
+# -------------------------------------------------------------
+# 4. MOTORES DE CONSULTAS CACHEADAS (Ahora con scope correcto)
+# -------------------------------------------------------------
+# Renombrada estratégicamente para romper la caché corrupta anterior
+@st.cache_data(show_spinner=False, ttl=60)
+def obtener_historial_hitos_atleta(nadador_id):
+    try:
+        res_atleta = supabase.table("usuarios") \
+            .select("fecha_nacimiento") \
+            .eq("id", nadador_id) \
+            .execute()
+            
+        res_hitos = supabase.table("historial_hitos") \
+            .select("*, catalogo_competencias(*)") \
+            .eq("usuario_id", nadador_id) \
+            .execute()
+            
+        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
+            return {
+                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
+                "hitos": res_hitos.data if res_hitos.data else []
+            }
+    except Exception as e:
+        print(f"Error interno en consulta cacheada de Supabase: {e}")
+    return None
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def cargar_marcas_referencia_optimizadas(prueba, genero, categoria):
+    try:
+        ref_resp = supabase.table("marcas_referencia").select("m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr")\
+            .eq("prueba", prueba)\
+            .eq("genero", genero)\
+            .eq("categoria", categoria).execute()
+        if ref_resp.data:
+            return ref_resp.data[0]
+    except Exception as e:
+        print(f"Error extrayendo marcas optimizadas: {e}")
+    return None
 
 # -------------------------------------------------------------
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
@@ -531,7 +505,6 @@ st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 try:
-    # Payload minimizado en la consulta de marcas históricas
     response = supabase.table("marcas_historicas") \
         .select("id, edad, tiempo, nota") \
         .eq("prueba", titulo_grafico) \
@@ -851,8 +824,9 @@ else:
     datos_tabla_micro = []
     nadador_id = st.session_state.get("nadador_seleccionado_id")
     
+    # RESTAURADO: Se respeta estrictamente la regla de negocio de la vista Micro
     if nadador_id and tipo_vista == "Micro (Ventana Anual)":
-        datos_atleta = obtener_datos_hitos_atleta(nadador_id)
+        datos_atleta = obtener_historial_hitos_atleta(nadador_id)
         if datos_atleta and datos_atleta.get("fecha_nacimiento"):
             try:
                 fecha_nacimiento_real = datetime.date.fromisoformat(str(datos_atleta["fecha_nacimiento"])[:10])
