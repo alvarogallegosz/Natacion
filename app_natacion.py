@@ -1842,7 +1842,8 @@ else:
     # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
     # -------------------------------------------------------------
     with tab_reportes:
-        st.markdown("### 📊 Panel de Control y Análisis de Carga")
+        if st.session_state.rol in ["Entrenador", "Administrador"]:        
+            st.markdown("### 📊 Panel de Control y Análisis de Carga")
         st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y la distribución del entrenamiento.")
 
         # =============================================================================
@@ -2161,5 +2162,5 @@ else:
                 except Exception as e:
                     st.error(f"Error al computar el reporte analítico: {e}")
                     
-    else:
-        st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
+        else:
+            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
