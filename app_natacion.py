@@ -1763,121 +1763,189 @@ else:
                         st.balloons()
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
-# ---------------------------------------------------------------------
-# MÓDULO: CENTRO DE REPORTES DE ENTRENAMIENTO (INDEPENDIENTE)
-# ---------------------------------------------------------------------
-st.markdown("## 📊 Centro de Reportes de Entrenamiento")
-st.caption("Consolida y audita el volumen total de metros, estilos e intensidades acumuladas sin alterar los gráficos de rendimiento.")
+# -------------------------------------------------------------
+    # PESTAÑA: CENTRO DE REPORTES Y PROYECCIONES (ETAPA 2 - RECONSTRUIDA)
+    # -------------------------------------------------------------
+    with tab_reportes:
+        if st.session_state.rol in ["Entrenador", "Administrador"]:
+            st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
+            st.caption("Analiza el volumen acumulado y genera informes de progresión trimestral (requerido para marcas mínimas y postulaciones de becas).")
 
-# Contenedor local para la configuración de la consulta
-with st.container(border=True):
-    st.markdown("#### 🔍 Filtros Locales de Consulta")
-    c_rep1, c_rep2, c_rep3 = st.columns(3)
-    
-    with c_rep1:
-        tipo_filtro_rep = st.selectbox(
-            "Filtrar reporte por:",
-            options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"],
-            key="rep_tipo_filtro"
-        )
-        
-    with c_rep2:
-        # Consulta rápida local a Supabase solo para alimentar los selectores inferiores si es necesario
-        try:
-            resp_rep_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-            atletas_rep_data = resp_rep_preload.data if resp_rep_preload.data else []
-        except:
-            atletas_rep_data = []
-            
-        # Despliegue condicional de sub-filtros según la selección local
-        ids_filtrados_rep = []
-        
-        if tipo_filtro_rep == "Todos los Atletas":
-            st.info("🎯 Reporte global del equipo activo.")
-            ids_filtrados_rep = [a["id"] for a in atletas_rep_data]
-            
-        elif tipo_filtro_rep == "Categoría Etaria":
-            if atletas_rep_data:
-                cats_rep = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_rep_data])))
-                cat_sel_rep = st.selectbox("Seleccione Categoría:", options=cats_rep, key="rep_cat_sel")
-                ids_filtrados_rep = [a["id"] for a in atletas_rep_data if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel_rep]
+            # Inicialización segura de variables para evitar NameError
+            correos_destino = []
+            texto_reporte = ""
+
+            # 1. Filtros de Consulta Segregados / Globales
+            c_fil1, c_fil2, c_fil3 = st.columns(3)
+            with c_fil1:
+                filtro_periodo = st.selectbox(
+                    "Seleccionar Período de Análisis", 
+                    ["Últimos 30 días", "Trimestral (Últimos 90 días)", "Semestral", "Anual", "Todo el histórico"],
+                    key="rep_periodo"
+                )
+            with c_fil2:
+                categorias_etarias = ["Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+                # Permite vista global (Administración) o segregada (Entrenador por categoría)
+                filtro_grupo = st.selectbox(
+                    "Filtro por Categoría / Grupo", 
+                    ["Todos los Grupos (Reporte Global)"] + categorias_etarias,
+                    key="rep_grupo"
+                )
+            with c_fil3:
+                modo_envio = st.selectbox(
+                    "Acción rápida", 
+                    ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"],
+                    key="rep_modo_envio"
+                )
+
+            st.markdown("---")
+
+            # 2. Verificación y Procesamiento de la Bitácora Histórica en Memoria
+            if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
+                st.info("💡 No hay jornadas consolidadas en la bitácora histórica todavía. Ve a la pestaña '📝 Pizarra Diaria', diseña una rutina y haz clic en 'Guardar y Consolidar Jornada' para acumular datos.")
+            else:
+                # Filtrar registros por fecha según el período (simulación basada en días para control temporal)
+                registros_cronologicos = []
+                hoy = datetime.date.today()
                 
-        elif tipo_filtro_rep == "Atletas Específicos":
-            if atletas_rep_data:
-                dict_rep = {a["id"]: a["nombre"] for a in atletas_rep_data}
-                ids_sel_rep = st.multiselect("Seleccione Nadadores:", options=list(dict_rep.keys()), format_func=lambda x: dict_rep[x], key="rep_atletas_sel")
-                ids_filtrados_rep = ids_sel_rep
+                for reg in st.session_state.bitacora_historica:
+                    try:
+                        f_reg = datetime.date.fromisoformat(reg["fecha"])
+                        delta_dias = (hoy - f_reg).days
+                        
+                        if filtro_periodo == "Últimos 30 días" and delta_dias > 30:
+                            continue
+                        elif filtro_periodo == "Trimestral (Últimos 90 días)" and delta_dias > 90:
+                            continue
+                        elif filtro_periodo == "Semestral" and delta_dias > 180:
+                            continue
+                        elif filtro_periodo == "Anual" and delta_dias > 365:
+                            continue
+                        
+                        # Filtro de grupo o categoría
+                        if filtro_grupo != "Todos los Grupos (Reporte Global)" and reg["grupo"] != filtro_grupo:
+                            continue
+                            
+                        registros_cronologicos.append(reg)
+                    except Exception:
+                        pass
 
-    with c_rep3:
-        rango_tiempo_rep = st.selectbox(
-            "Ventana de tiempo:",
-            options=["Últimos 30 días", "Trimestral", "Semestral", "Historial Anual"],
-            key="rep_rango_tiempo"
-        )
-        
-    # Botón de acción local para disparar la consulta (Evita la reactividad infinita)
-    btn_consultar = st.button("🔍 Generar Informe de Cargas", type="primary", use_container_width=True)
-
-# ---------------------------------------------------------------------
-# LÓGICA DE PROCESAMIENTO (SOLO CORRE AL HACER CLIC EN EL BOTÓN LOCAL)
-# ---------------------------------------------------------------------
-if btn_consultar:
-    if not ids_filtrados_rep:
-        st.warning("⚠️ Por favor, seleccione al menos un atleta o categoría para consultar.")
-    else:
-        # Cálculo del horizonte temporal basado en el selector local
-        fecha_hoy = datetime.date.today()
-        if rango_tiempo_rep == "Últimos 30 días":
-            fecha_limite = fecha_hoy - datetime.timedelta(days=30)
-        elif rango_tiempo_rep == "Trimestral":
-            fecha_limite = fecha_hoy - datetime.timedelta(days=90)
-        elif rango_tiempo_rep == "Semestral":
-            fecha_limite = fecha_hoy - datetime.timedelta(days=180)
-        else:
-            fecha_limite = fecha_hoy - datetime.timedelta(days=365)
-            
-        with st.spinner("Consolidando métricas de la pizarra..."):
-            try:
-                # Consulta indexada directa por el lote de IDs locales
-                resp_db = supabase.table("bitacora_entrenamientos")\
-                    .select("*")\
-                    .in_("atleta_id", ids_filtrados_rep)\
-                    .gte("fecha", str(fecha_limite))\
-                    .execute()
+                if not registros_cronologicos:
+                    st.warning(f"⚠️ No se encontraron entrenamientos consolidados para el período '{filtro_periodo}' en la categoría '{filtro_grupo}'.")
+                else:
+                    # 3. Consolidación de métricas matemáticas macro
+                    v_total_acumulado = sum(r["metros_totales"] for r in registros_cronologicos)
                     
-                df_rep = pd.DataFrame(resp_db.data) if resp_db.data else pd.DataFrame()
-            except Exception as e:
-                st.error(f"Error al conectar con la bitácora: {e}")
-                df_rep = pd.DataFrame()
+                    estilos_acumulados = {}
+                    intensidades_acumuladas = {}
+                    jornadas_contadas = len(registros_cronologicos)
 
-        # Renderizado de resultados sumarizados
-        if not df_rep.empty:
-            total_metros = df_rep["metros_totales"].sum()
-            total_sesiones = df_rep["fecha"].nunique()
-            
-            # Bloque visual de KPIs de Trabajo
-            c_kpi1, c_kpi2, c_kpi3 = st.columns(3)
-            with c_kpi1:
-                st.metric(label="🏊‍♂️ Volumen Total Sumado", value=f"{total_metros:,} metros")
-            with c_kpi2:
-                st.metric(label="📋 Sesiones Registradas", value=f"{total_sesiones} jornadas")
-            with c_kpi3:
-                promedio = int(total_metros / total_sesiones) if total_sesiones > 0 else 0
-                st.metric(label="⏱️ Promedio por Jornada", value=f"{promedio:,} m")
-                
-            st.markdown("### 📋 Detalle de Entrenamientos Sumados")
-            
-            # Eliminamos IDs internos para la exportación limpia en pantalla
-            df_mostrar = df_rep.drop(columns=["id", "atleta_id"], errors="ignore")
-            st.dataframe(df_mostrar, use_container_width=True)
-            
-            # Descarga protegida local
-            csv_data = df_mostrar.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Descargar Reporte de Cargas (CSV)",
-                data=csv_data,
-                file_name=f"reporte_pizarra_{rango_tiempo_rep.lower()}.csv",
-                mime="text/csv"
-            )
+                    for r in registros_cronologicos:
+                        for est, mts in r.get("desglose_estilos", {}).items():
+                            estilos_acumulados[est] = estilos_acumulados.get(est, 0) + mts
+                        for inte, mts in r.get("desglose_intensidad", {}).items():
+                            intensidades_acumuladas[inte] = intensidades_acumuladas.get(inte, 0) + mts
+
+                    # 4. Construcción limpia del texto estructurado del reporte
+                    texto_reporte = f"📈 *REPORTE DE RENDIMIENTO ACUMULADO Y MACRO-VOLUMEN*\n"
+                    texto_reporte += f"🏫 *Club de Natación Centro Gallego*\n"
+                    texto_reporte += f"📅 Período: {filtro_periodo}\n"
+                    texto_reporte += f"🎯 Grupo/Categoría: {filtro_grupo}\n"
+                    texto_reporte += f"🔢 Sesiones consolidadas: {jornadas_contadas}\n"
+                    texto_reporte += f"🏁 *Volumen Total Nadado:* {v_total_acumulado:,} metros\n\n"
+                    
+                    texto_reporte += f"🏊‍♂️ *Desglose Acumulado por Estilos:*\n"
+                    for est, mts in estilos_acumulados.items():
+                        pct = (mts / v_total_acumulado) * 100 if v_total_acumulado > 0 else 0
+                        texto_reporte += f"• {est}: {mts:,}m ({pct:.1f}%)\n"
+                        
+                    texto_reporte += f"\n⚡ *Distribución de Zonas de Intensidad:*\n"
+                    for inte, mts in intensidades_acumuladas.items():
+                        pct = (mts / v_total_acumulado) * 100 if v_total_acumulado > 0 else 0
+                        texto_reporte += f"• {inte}: {mts:,}m ({pct:.1f}%)\n"
+                    
+                    # Alertas de proyección estratégica para menores de 18 años
+                    texto_reporte += f"\n📋 *Nota del Equipo Técnico:*\n"
+                    if filtro_periodo == "Trimestral (Últimos 90 días)":
+                        texto_reporte += f"✓ Control de volumen trimestral completado. Datos válidos para la verificación de marcas mínimas competitivas y desarrollo de currículum para becas universitarias.\n"
+                    else:
+                        texto_reporte += f"✓ Información recopilada para el monitoreo de constancia y planificación macrobásica del ciclo.\n"
+
+                    # 5. Visualización e Interfaz según la Acción Seleccionada
+                    if modo_envio == "Visualizar reporte":
+                        st.success("✅ Reporte generado con éxito en memoria.")
+                        c_rep_izq, c_rep_der = st.columns([2, 1])
+                        with c_rep_izq:
+                            st.info(texto_reporte.replace('\n', '  \n'))
+                        with c_rep_der:
+                            st.metric("Total Metros", f"{v_total_acumulado:,} m")
+                            st.metric("Sesiones", f"{jornadas_contadas}")
+                            
+                            if estilos_acumulados:
+                                df_estilos = pd.DataFrame(list(estilos_acumulados.items()), columns=["Estilo", "Metros"])
+                                st.caption("Proporción por Estilo")
+                                st.bar_chart(df_estilos.set_index("Estilo"))
+
+                    elif modo_envio == "Preparar envío por WhatsApp":
+                        st.caption("Genera un enlace directo para enviar el balance consolidado al grupo de la categoría o a la junta directiva.")
+                        import urllib.parse
+                        texto_url_rep = urllib.parse.quote(texto_reporte)
+                        link_wa_rep = f"https://wa.me/?text={texto_url_rep}"
+                        
+                        st.link_button("🚀 Compartir Reporte por WhatsApp", url=link_wa_rep, use_container_width=True)
+                        st.text_area("Copia manual del Reporte:", value=texto_reporte, height=250)
+
+                    elif modo_envio == "Enviar por Correo Electrónico":
+                        st.markdown("✉️ **Configuración de Envío Masivo por Categoría**")
+                        
+                        # Extraer dinámicamente correos de atletas desde Supabase
+                        todos_los_atletas = []
+                        try:
+                            supabase_es = st.session_state.get("supabase_client")
+                            if supabase_es:
+                                resp_sb = supabase_es.table("usuarios").select("nombre, email, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                                if resp_sb.data:
+                                    for u in resp_sb.data:
+                                        cat_calc, _ = calcular_categoria_competencia(u.get("fecha_nacimiento"))
+                                        todos_los_atletas.append({
+                                            "email": u.get("email", ""),
+                                            "categoria": cat_calc
+                                        })
+                        except Exception:
+                            pass
+
+                        # Determinar destinatarios según el filtro seleccionado
+                        if filtro_grupo == "Todos los Grupos (Reporte Global)":
+                            correos_destino = [a["email"] for a in todos_los_atletas if a["email"]]
+                            st.info("📢 Modo Global: El correo se enviará a todos los nadadores activos registrados (ideal para la administración).")
+                        else:
+                            correos_destino = [a["email"] for a in todos_los_atletas if a["categoria"] == filtro_grupo and a["email"]]
+                            st.info(f"📢 Modo Segregado: El correo se enviará a los {len(correos_destino)} atletas de la categoría `{filtro_grupo}` (ideal para entrenadores).")
+
+                        destinatarios_input = st.text_input("Destinatarios confirmados (puedes editar manualmente)", value=", ".join(correos_destino), key="dest_rep_input")
+                        asunto_correo = st.text_input("Asunto del Informe", value=f"Reporte de Rendimiento Volumétrico ({filtro_periodo}) - {filtro_grupo}", key="asunto_rep_input")
+
+                        if st.button("📧 Disparar Correos de Progresión", type="primary", use_container_width=True):
+                            if not destinatarios_input:
+                                st.error("No hay destinatarios definidos para este reporte.")
+                            else:
+                                lista_final_correos = [c.strip() for c in destinatarios_input.split(",")]
+                                try:
+                                    remitente = "notificaciones@natacion.com"
+                                    msg = MIMEMultipart()
+                                    msg['From'] = remitente
+                                    msg['Subject'] = asunto_correo
+                                    msg.attach(MIMEText(texto_reporte, 'plain'))
+                                    
+                                    server = smtplib.SMTP('smtp.gmail.com', 587)
+                                    server.starttls()
+                                    # server.login("tucorreo@gmail.com", "tu-app-password")
+                                    server.sendmail(remitente, lista_final_correos, msg.as_string())
+                                    server.quit()
+                                    
+                                    st.success(f"¡Reporte macro enviado exitosamente a {len(lista_final_correos)} dirección(es) de correo!")
+                                except Exception:
+                                    st.warning("No se pudo conectar con el servidor SMTP automáticamente. Copia el contenido estructurado inferior para su distribución manual:")
+                                    st.text_area("Contenido del Reporte:", value=texto_reporte, height=200)
         else:
-            st.warning("⚠️ No existen entrenamientos imputados para la selección y ventana de tiempo indicadas.")
+            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
