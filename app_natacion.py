@@ -1722,7 +1722,7 @@ else:
                 else:
                     st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
 
-                # =============================================================================
+# =============================================================================
                 # 4. BLOQUE DE CONSOLIDACIÓN FINAL (REGISTRO HISTÓRICO)
                 # =============================================================================
                 st.markdown("#### 💾 Consolidar y Registrar Jornada")
@@ -1733,7 +1733,7 @@ else:
                     identificador_carril = st.text_input("Identificador / Carril (Opcional):", placeholder="Ej: Carril 3, Grupo Avanzado", key="piz_carril_input_save")
 
                 if st.button("💾 Consolidar Metros e Intensidades por Atleta", type="primary", use_container_width=True, key="btn_consolidar_piz"):
-                        # [Tu lógica actual de desglose de estilos e intensidades queda EXACTAMENTE IGUAL]
+                        # Procesamiento de desgloses
                         desglose_estilos = {}
                         for blk in st.session_state.pizarra_entrenamiento:
                             est = blk['estilo']
@@ -1746,42 +1746,37 @@ else:
                             mts = blk['reps'] * blk['dist']
                             desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
 
-                        # Lista de diccionarios para inserción masiva (Bulk Insert) en Supabase
+                        # Lista de diccionarios para inserción masiva usando 'atletas_finales'
                         registros_supabase = []
                         
-                        for nom in atletas_validados_asistencia:
-                            if nom in dict_atletas_global:
-                                at_obj = dict_atletas_global[nom]
-                                
-                                # Construimos la fila correspondiente a este atleta para la BD
-                                fila = {
-                                    "fecha": str(fecha_jornada),
-                                    "atleta_id": at_obj.get("id"),
-                                    "identificador_carril": identificador_carril,
-                                    "metros_totales": int(volumen_total),
-                                    "desglose_estilos": desglose_estilos,
-                                    "desglose_intensidad": desglose_intensidad,
-                                    "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
-                                }
-                                registros_supabase.append(fila)
+                        # CAMBIO CRÍTICO: Iteramos directo sobre los atletas filtrados en la Sección 3
+                        for at_obj in atletas_finales:
+                            fila = {
+                                "fecha": str(fecha_jornada),
+                                "atleta_id": at_obj.get("id"),  # Mapeo directo del BIGINT
+                                "identificador_carril": identificador_carril if identificador_carril else "Carril Único",
+                                "metros_totales": int(volumen_total),
+                                "desglose_estilos": desglose_estilos,
+                                "desglose_intensidad": desglose_intensidad,
+                                "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
+                            }
+                            registros_supabase.append(fila)
 
                         # Inserción real en la base de datos externa
                         if registros_supabase:
                             try:
                                 supabase_es = st.session_state.get("supabase_client")
                                 if supabase_es:
-                                    # Despachamos el lote completo de una sola vez
                                     supabase_es.table("bitacora_entrenamientos").insert(registros_supabase).execute()
                                     
                                     st.success(f"💥 ¡Base de datos actualizada! Se grabaron con éxito las cargas individuales para los {len(registros_supabase)} atleta(s) en Supabase.")
                                     st.balloons()
-                                    
-                                    # Opcional: Limpiar la pizarra tras el éxito definitivo para cerrar el ciclo del día
-                                    # st.session_state.pizarra_entrenamiento = []
                                 else:
                                     st.error("Error: El cliente de Supabase no está inicializado en la sesión.")
                             except Exception as e:
                                 st.error(f"Error crítico al escribir en Supabase: {e}")
+                        else:
+                            st.warning("⚠️ No hay atletas seleccionados en el grupo para consolidar.")
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 # -------------------------------------------------------------
