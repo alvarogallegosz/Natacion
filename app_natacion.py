@@ -1746,14 +1746,12 @@ else:
                             mts = blk['reps'] * blk['dist']
                             desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
 
-                        # Lista de diccionarios para inserción masiva usando 'atletas_finales'
+                        # Lista de diccionarios para inserción masiva
                         registros_supabase = []
-                        
-                        # CAMBIO CRÍTICO: Iteramos directo sobre los atletas filtrados en la Sección 3
                         for at_obj in atletas_finales:
                             fila = {
                                 "fecha": str(fecha_jornada),
-                                "atleta_id": at_obj.get("id"),  # Mapeo directo del BIGINT
+                                "atleta_id": at_obj.get("id"),
                                 "identificador_carril": identificador_carril if identificador_carril else "Carril Único",
                                 "metros_totales": int(volumen_total),
                                 "desglose_estilos": desglose_estilos,
@@ -1762,17 +1760,17 @@ else:
                             }
                             registros_supabase.append(fila)
 
-                        # Inserción real en la base de datos externa
+                        # Inserción utilizando el cliente unificado de la Sección 3
                         if registros_supabase:
                             try:
-                                supabase_es = st.session_state.get("supabase_client")
-                                if supabase_es:
-                                    supabase_es.table("bitacora_entrenamientos").insert(registros_supabase).execute()
+                                # CAMBIO AQUÍ: Usamos directo 'ctx_supabase' que ya sabemos que funciona
+                                if ctx_supabase:
+                                    ctx_supabase.table("bitacora_entrenamientos").insert(registros_supabase).execute()
                                     
                                     st.success(f"💥 ¡Base de datos actualizada! Se grabaron con éxito las cargas individuales para los {len(registros_supabase)} atleta(s) en Supabase.")
                                     st.balloons()
                                 else:
-                                    st.error("Error: El cliente de Supabase no está inicializado en la sesión.")
+                                    st.error("Error: El cliente de Supabase no pudo ser detectado en el entorno.")
                             except Exception as e:
                                 st.error(f"Error crítico al escribir en Supabase: {e}")
                         else:
