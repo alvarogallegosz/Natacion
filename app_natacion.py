@@ -2116,8 +2116,11 @@ else:
                                     df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
                                     
                                     # Aplicar modelo de cálculo de cargas científicas estables (Ventanas científicas de 42 y 7 días)
-                                    df_cargas["CTL"] = df_cargas["Volumen"].rolling(window=42, min_periods=1).mean()
-                                    df_cargas["ATL"] = df_cargas["Volumen"].rolling(window=7, min_periods=1).mean()
+                                    # =============================================================================
+                                    # CORRECCIÓN DE MOTOR: CARGAS CIENTÍFICAS CON DECAIMIENTO EXPONENCIAL (EWMA)
+                                    # =============================================================================
+                                    df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
+                                    df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
                                     df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
                                     
                                     # Extraer métricas actuales (último día de la serie)
