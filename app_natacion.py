@@ -1784,7 +1784,7 @@ with st.container(border=True):
     with c_rep2:
         # Consulta rápida local a Supabase solo para alimentar los selectores inferiores si es necesario
         try:
-            resp_rep_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq(\"rol\", \"Nadador\").eq(\"estatus\", \"Activo\").execute()
+            resp_rep_preload = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
             atletas_rep_data = resp_rep_preload.data if resp_rep_preload.data else []
         except:
             atletas_rep_data = []
