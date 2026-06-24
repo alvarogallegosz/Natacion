@@ -789,7 +789,7 @@ if modo_equipo:
             atletas_lista = [a for a in atletas_lista if a["genero"] == "F"]
         elif filtro_genero == "Masculino (M)":
             atletas_lista = [a for a in atletas_lista if a["genero"] == "M"]
-            
+
         atletas_filtrados = []
         if tipo_filtro == "Todos los Atletas":
             atletas_filtrados = atletas_lista
@@ -797,40 +797,45 @@ if modo_equipo:
             atletas_filtrados = [a for a in atletas_lista if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
         elif tipo_filtro == "Atletas Específicos" and ids_sel:
             atletas_filtrados = [a for a in atletas_lista if a["id"] in ids_sel]
-            
+
         if not atletas_filtrados:
             st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
         else:
             fig = plt.figure(figsize=(8.5, 11.0))
             ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+            
             colores = plt.get_cmap("tab10", len(atletas_filtrados))
             hay_datos_visibles = False
             linea_fisiologica_anotada = False
+            
             todas_las_edades_0 = []
             todos_los_tiempos_colectivo = []
             datos_atletas_cargados = []
             
-            # Recolección de datos de los atletas seleccionados
             for idx, atl in enumerate(atletas_filtrados):
                 a_id = atl["id"]
                 a_nom = atl["nombre"]
+                
                 res_marcas = supabase.table("marcas_historicas")\
                     .select("edad, tiempo, nota")\
                     .eq("prueba", titulo_grafico)\
                     .eq("usuario_id", a_id)\
                     .order("edad", desc=False).execute()
+                
                 if res_marcas.data:
                     df_atl_m = pd.DataFrame(res_marcas.data)
                     df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
                     hay_datos_visibles = True
+                    
                     todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
                     todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
+                    
                     datos_atletas_cargados.append({
                         "nom": a_nom,
                         "df": df_atl_m,
                         "color": colores(idx)
                     })
-                    
+
             if hay_datos_visibles:
                 edad_0_min_colectivo = min(todas_las_edades_0)
                 lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
@@ -838,47 +843,22 @@ if modo_equipo:
                 ax.set_xlim(lim_x_min, lim_x_max)
                 
                 peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-                
-                # --- NUEVA CONSULTA DE MARCAS DE REFERENCIA PARA EL EQUIPO ---
-                ref_gen_target = "F" if filtro_genero == "Femenino (F)" else "M"
-                ref_cat_target = cat_sel if (tipo_filtro == "Categoría Etaria" and cat_sel) else st.session_state.nadador_seleccionado_categoria
-                
-                m_ano_e, m_panam_b_e, m_panam_a_e, m_wa_b_e, m_wa_a_e, m_wr_e = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
-                
-                try:
-                    ref_resp_e = supabase.table("marcas_referencia").select("*")\
-                        .eq("prueba", titulo_grafico)\
-                        .eq("genero", ref_gen_target)\
-                        .eq("categoria", ref_cat_target).execute()
-                        
-                    if ref_resp_e.data:
-                        rd = ref_resp_e.data[0]
-                        m_ano_e = float(rd.get("m_ano") or 0.0)
-                        m_panam_b_e = float(rd.get("m_panam_b") or 0.0)
-                        m_panam_a_e = float(rd.get("m_panam_a") or 0.0)
-                        m_wa_b_e = float(rd.get("m_wa_b") or 0.0)
-                        m_wa_a_e = float(rd.get("m_wa_a") or 0.0)
-                        m_wr_e = float(rd.get("m_wr") or 25.0)
-                except Exception as e_ref:
-                    print(f"Error cargando marcas de referencia para el equipo: {e_ref}")
-                
-                # Configuramos los límites Y en base a los datos correctos del equipo
-                lim_y_inferior = m_wr_e * 0.95
+                lim_y_inferior = m_wr * 0.95
                 lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
                 ax.set_ylim(lim_y_inferior, lim_y_superior)
                 
-                # Bucle de dibujo de curvas por cada atleta
                 for item in datos_atletas_cargados:
                     df_atl_m = item["df"]
                     color_curr = item["color"]
                     a_nom = item["nom"]
+                    
                     t0_i = float(df_atl_m.iloc[0]["Edad"])
                     T0_i = float(df_atl_m.iloc[0]["Tiempo"])
                     idx_pb_i = df_atl_m["Tiempo"].idxmin()
                     t_pb_i = float(df_atl_m.loc[idx_pb_i, "Edad"])
                     T_pb_i = float(df_atl_m.loc[idx_pb_i, "Tiempo"])
-                    k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
                     
+                    k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
                     edades_curva_i = np.linspace(t0_i, t_peak, 300)
                     tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
                     
@@ -887,37 +867,43 @@ if modo_equipo:
                         linea_fisiologica_anotada = True
                     else:
                         ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
-                        
+                    
                     ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"Evolución real - {a_nom}")
                     ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                     ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
-                    
-                # Dibujo de las líneas de referencia del equipo
+
                 x_texto = lim_x_min + 0.1
                 if not es_preinfantil:
                     referencias = [
-                        {"val": m_ano_e, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-                        {"val": m_panam_b_e, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
-                        {"val": m_panam_a_e, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                        {"val": m_wa_b_e, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
-                        {"val": m_wa_a_e, "lbl": "WA A", "col": "#883963", "va": "top"},            
-                        {"val": m_wr_e, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
+                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
+                        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
+                        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
+                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
+                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
+                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
                     ]
                     for r in referencias:
                         if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
                             ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                             desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
                             ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
-                            
-                ax.set_title("Comparativa de Rendimiento de Equipo", fontsize=13, pad=10)
+                else:
+                    if m_ano > 0:
+                        ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
+                        ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
+                
+                ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
                 ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
                 ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
                 ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
-                ax.legend(loc="upper right", fontsize=7, framealpha=0.8)
-                st.pyplot(fig, use_container_width=True)
+                ax.set_axisbelow(True)
+                ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
                 
+                st.pyplot(fig)
+            else:
+                st.info("No se hallaron marcas en la base de datos para los nadadores seleccionados en esta prueba.")
     except Exception as e:
-        st.error(f"Error procesando el análisis por equipo: {e}")
+        st.error(f"Error procesando los segmentos de equipo: {e}")
 # -------------------------------------------------------------
 # RENDIMIENTO GRÁFICO: MODO INDIVIDUAL O SIMULACIÓN
 # -------------------------------------------------------------
