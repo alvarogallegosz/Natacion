@@ -1768,26 +1768,78 @@ with tab_reportes:
         with c_fil1:
             filtro_periodo = st.selectbox("Seleccionar Período", ["Últimos 30 días", "Trimestral (Últimos 90 días)", "Semestral", "Anual", "Todo el histórico"])
         with c_fil2:
-            filtro_grupo = st.text_input("Filtrar por Atleta o Categoría", placeholder="Ej: Infantil B o Juan Pérez", value=f"{st.session_state.get('nadador_seleccionado_categoria', '')}")
+            filtro_grupo = st.text_input("Filtrar por Atleta o Categoría (Histórico)", placeholder="Ej: Infantil B o Juan Pérez", value=f"{st.session_state.get('nadador_seleccionado_categoria', '')}")
         with c_fil3:
             modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
 
         st.markdown("---")
 
-        # Verificar si existen datos en la bitácora
+        # =====================================================================
+        # MÓDULO DE SEGMENTACIÓN DINÁMICA DE DESTINATARIOS (SUPABASE)
+        # =====================================================================
+        if modo_envio == "Enviar por Correo Electrónico":
+            st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
+            st.caption("Puedes enviar a un grupo por categoría/género o seleccionar atletas específicos de la lista.")
+            
+            # Obtenemos la data fresca de Supabase
+            todos_los_atletas = obtener_atletas_filtrados_supabase()
+            
+            if not todos_los_atletas:
+                st.warning("No se encontraron atletas con correos registrados en la base de datos.")
+            else:
+                # Extraer listas únicas para los selectores
+                categorias_disponibles = sorted(list(set(a["categoria"] for a in todos_los_atletas)))
+                
+                c_sel1, c_sel2 = st.columns(2)
+                with c_sel1:
+                    sel_categoria = st.selectbox("Filtrar por Categoría", ["Todas"] + categorias_disponibles)
+                with c_sel2:
+                    sel_genero = st.selectbox("Filtrar por Género", ["Todos", "Masculino", "Femenino"])
+                
+                # Filtrar en memoria según los selectores anteriores
+                atletas_filtrados = todos_los_atletas
+                if sel_categoria != "Todas":
+                    atletas_filtrados = [a for a in atletas_filtrados if a["categoria"] == sel_categoria]
+                if sel_genero != "Todos":
+                    atletas_filtrados = [a for a in atletas_filtrados if a["genero"] == sel_genero]
+                
+                # Mapeo de nombres e emails
+                opciones_nombres = [f"{a['nombre']} ({a['categoria']} - {a['genero']})" for a in atletas_filtrados]
+                
+                st.caption(f"Se encontraron {len(atletas_filtrados)} atletas que cumplen con el filtro.")
+                
+                # Selección directa/múltiple
+                atletas_seleccionados = st.multiselect("Seleccionar atletas específicos (Opcional, sobrescribe filtros)", opciones_nombres)
+                
+                # Lógica para determinar a quiénes se enviará finalmente
+                if atletas_seleccionados:
+                    # Extraemos correos de los seleccionados en el multiselect
+                    correos_destino = [
+                        a['email'] for a in atletas_filtrados 
+                        if f"{a['nombre']} ({a['categoria']} - {a['genero']})" in atletas_seleccionados
+                    ]
+                else:
+                    # Enviamos a todos los que pasaron el filtro de categoría y género
+                    correos_destino = [a['email'] for a in atletas_filtrados]
+                
+                st.write(f"📧 **Correos a enviar ({len(correos_destino)} destinatarios):**", correos_destino)
+
+        st.markdown("---")
+
+        # Verificar si existen datos en la bitácora para generar el reporte de metros
         if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
             st.info("No hay jornadas de entrenamiento guardadas aún. Ve a la 'Pizarra Diaria' y consolida una jornada para generar reportes.")
         else:
-            # Filtrar registros en memoria según grupo/atleta
+            # Filtrar registros en memoria según grupo/atleta histórico
             registros_filtrados = [
                 reg for reg in st.session_state.bitacora_historica 
                 if filtro_grupo.lower() in reg['grupo'].lower() or filtro_grupo == ""
             ]
 
             if not registros_filtrados:
-                st.warning(f"No se encontraron registros para el grupo o atleta: `{filtro_grupo}`")
+                st.warning(f"No se encontraron registros de volumen para el grupo o atleta: `{filtro_grupo}`")
             else:
-                # Consolidar métricas del conjunto filtrado
+                # Consolidar métricas del conjunto filtrado (metros, estilos, intensidad)
                 mts_totales_periodo = sum(r['metros_totales'] for r in registros_filtrados)
                 
                 estilos_periodo = {}
@@ -1818,7 +1870,7 @@ with tab_reportes:
                 
                 texto_reporte += f"\n💪 ¡Constancia para cumplir con los objetivos del ciclo!"
 
-                # 2. Manejo de vistas según acción seleccionada
+                # Manejo de vistas según acción seleccionada
                 if modo_envio == "Visualizar reporte":
                     st.success("Reporte procesado correctamente en base al volumen acumulado.")
                     st.markdown("### 📄 Lienzo del Informe")
@@ -1841,7 +1893,6 @@ with tab_reportes:
                     st.markdown("### 📲 Enlace directo para WhatsApp")
                     st.caption("Haz clic en el botón inferior para abrir WhatsApp Web / App con el reporte precargado y enviarlo a tu grupo.")
                     
-                    # Codificar el texto para URL de WhatsApp
                     import urllib.parse
                     texto_url = urllib.parse.quote(texto_reporte)
                     link_whatsapp = f"https://wa.me/?text={texto_url}"
@@ -1851,36 +1902,30 @@ with tab_reportes:
                     st.text_area("Copia el texto por si falla el enlace:", value=texto_reporte, height=200)
 
                 elif modo_envio == "Enviar por Correo Electrónico":
-                    st.markdown("### ✉️ Envío por Correo Electrónico")
-                    st.caption("Utiliza el servidor SMTP configurado en la app para enviar este reporte de forma masiva o directa.")
+                    st.markdown("### ✉️ Motor de Envío de Reporte")
                     
-                    destinatarios_input = st.text_input("Destinatarios (Separados por comas)", placeholder="entrenador@club.com, atleta@gmail.com")
                     asunto_correo = st.text_input("Asunto del correo", value=f"Reporte de Volumen Acumulado - {filtro_grupo}")
                     
-                    if st.button("📧 Enviar Correo Electrónico", type="primary", use_container_width=True):
-                        if not destinatarios_input:
-                            st.error("Por favor ingresa al menos un correo electrónico de destino.")
+                    if st.button("📧 Enviar Reporte por Correo Masivo", type="primary", use_container_width=True):
+                        if not correos_destino:
+                            st.error("Por favor selecciona al menos un destinatario (por filtro o manualmente).")
                         else:
-                            lista_correos = [c.strip() for c in destinatarios_input.split(',')]
                             try:
-                                # Configuración servidor SMTP (heredada de la app principal)
-                                remitente = "notificaciones@natacion.com" # Ajusta si tienes una variable de entorno o config específica
-                                
+                                remitente = "notificaciones@natacion.com"
                                 msg = MIMEMultipart()
                                 msg['From'] = remitente
                                 msg['Subject'] = asunto_correo
                                 msg.attach(MIMEText(texto_reporte, 'plain'))
                                 
-                                # Servidor SMTP de prueba/ejemplo integrado en tu app (reemplazar por servidor real si aplica)
                                 server = smtplib.SMTP('smtp.gmail.com', 587)
                                 server.starttls()
                                 # server.login("tucorreo@gmail.com", "tu-app-password")
-                                server.sendmail(remitente, lista_correos, msg.as_string())
+                                server.sendmail(remitente, correos_destino, msg.as_string())
                                 server.quit()
                                 
-                                st.success(f"¡Reporte enviado por correo a {len(lista_correos)} destinatario(s) exitosamente!")
+                                st.success(f"¡Reporte enviado exitosamente a {len(correos_destino)} atleta(s) en base a tu selección!")
                             except Exception as e:
-                                st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Te dejamos el texto plano para respaldar:")
-                                st.text_area("Respaldo de correo:", value=texto_reporte, height=200)
+                                st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
+                                st.text_area("Respaldo:", value=texto_reporte, height=200)
     else:
         st.warning("🔒 Sección restringida al equipo técnico.")
