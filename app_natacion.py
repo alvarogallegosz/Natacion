@@ -1836,7 +1836,32 @@ with tab_reportes:
             modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
 
         st.markdown("---")
+        with tab_reportes:
+    if st.session_state.rol in ["Entrenador", "Administrador"]:
+        st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
+        st.caption("Filtra y procesa el volumen acumulado mensual o trimestral...")
+        
+        # 1. Filtros principales de consulta
+        c_fil1, c_fil2, c_fil3 = st.columns(3)
+        with c_fil1:
+            filtro_periodo = st.selectbox(...)
+        with c_fil2:
+            filtro_grupo = st.text_input(...)
+        with c_fil3:
+            modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
 
+        st.markdown("---")
+
+        # 🟢 INICIALIZACIÓN SEGURA DE LA VARIABLE (AÑADE ESTA LÍNEA AQUÍ)
+        correos_destino = []
+
+        # =====================================================================
+        # DESPLEGABLES DE SEGMENTACIÓN DE ENVÍOS (CORREO ELECTRÓNICO)
+        # =====================================================================
+        if modo_envio == "Enviar por Correo Electrónico":
+            st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
+            ...
+            # Aquí dentro se llenará correos_destino si el usuario escoge esta opción
         # 2. Verificación de datos en memoria (Bitácora histórica)
         if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
             st.info("No hay jornadas de entrenamiento guardadas aún. Ve a la 'Pizarra Diaria' y consolida una jornada para generar reportes.")
