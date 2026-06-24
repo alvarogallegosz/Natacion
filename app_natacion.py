@@ -1615,55 +1615,9 @@ else:
                         porcentaje = (v / volumen_total) * 100
                         st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
 
-# 5. Centro de Exportación y Envío Diario (WhatsApp / Correo)
-                st.markdown("---")
-                st.markdown("📲 **Centro de Envío y Exportación - Rutina de Hoy**")
-                
-                # Selector de canal para la pizarra del día
-                canal_envio = st.selectbox("Elija cómo enviar la pizarra de hoy", ["Copiar texto / Usar lienzo", "Enviar por WhatsApp (Enlace directo)", "Enviar por Correo Electrónico"], key="canal_pizarra")
-                
-                if canal_envio == "Copiar texto / Usar lienzo":
-                    st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=180, label_visibility="collapsed")
-                    st.info("Puedes pegar este texto directamente en tu grupo de WhatsApp o aplicación de mensajería.")
-
-                elif canal_envio == "Enviar por WhatsApp (Enlace directo)":
-                    st.caption("Haz clic en el botón inferior para abrir WhatsApp Web / App con la rutina precargada.")
-                    import urllib.parse
-                    texto_url = urllib.parse.quote(texto_exportacion)
-                    link_whatsapp = f"https://wa.me/?text={texto_url}"
-                    
-                    st.link_button("Enviar rutina por WhatsApp 🚀", url=link_whatsapp, use_container_width=True)
-                    st.divider()
-                    st.text_area("Respaldo de texto (por si falla el enlace):", value=texto_exportacion, height=120)
-
-                elif canal_envio == "Enviar por Correo Electrónico":
-                    st.caption("Envía esta sesión directamente a tus atletas utilizando el servidor configurado.")
-                    destinatarios_pizarra = st.text_input("Destinatarios (Separados por comas)", placeholder="nadador1@club.com, nadador2@club.com", key="dest_p")
-                    asunto_pizarra = st.text_input("Asunto del correo", value=f"Rutina de Entrenamiento - {datetime.date.today().strftime('%d/%m/%Y')}", key="asunto_p")
-                    
-                    if st.button("📧 Enviar Rutina por Correo", type="primary", use_container_width=True):
-                        if not destinatarios_pizarra:
-                            st.error("Por favor ingresa al menos un correo electrónico de destino.")
-                        else:
-                            lista_correos_p = [c.strip() for c in destinatarios_pizarra.split(',')]
-                            try:
-                                remitente = "notificaciones@natacion.com"
-                                msg = MIMEMultipart()
-                                msg['From'] = remitente
-                                msg['Subject'] = asunto_pizarra
-                                msg.attach(MIMEText(texto_exportacion, 'plain'))
-                                
-                                server = smtplib.SMTP('smtp.gmail.com', 587)
-                                server.starttls()
-                                # server.login("tucorreo@gmail.com", "tu-app-password")
-                                server.sendmail(remitente, lista_correos_p, msg.as_string())
-                                server.quit()
-                                
-                                st.success(f"¡Rutina enviada por correo a {len(lista_correos_p)} destinatario(s) exitosamente!")
-                            except Exception as e:
-                                st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
-                                st.text_area("Respaldo:", value=texto_exportacion, height=150)
-
+# 5. Exportación a WhatsApp
+                st.markdown("📲 **Exportar a WhatsApp o Correo**")
+                st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=200, label_visibility="collapsed")
                 # -------------------------------------------------------------
                 # MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO (EVALUACIÓN Y PROYECCIÓN)
                 # -------------------------------------------------------------
