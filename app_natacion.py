@@ -1191,9 +1191,7 @@ if len(df_procesado) > 0 or modo_equipo:
     txt_string = export_df.to_string(index=False)
     
     img_buffer = io.BytesIO()
-    if fig is not None:
-        fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
-    else st.warning("🔒 No hay atletas seleccionados.")
+    fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
     img_buffer.seek(0)
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
