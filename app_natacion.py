@@ -1189,12 +1189,18 @@ if len(df_procesado) > 0 or modo_equipo:
     export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
     csv_data = export_df.to_csv(index=False).encode('utf-8')
     txt_string = export_df.to_string(index=False)
-    if not atletas_filtrados:
+    
+    # 1. Creamos el "escudo" inicializando la variable en None
+    img_buffer = None
+    
+    if modo_equipo and not atletas_filtrados:
         st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
     else:
-        img_buffer = io.BytesIO()
-        fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
-        img_buffer.seek(0)
+        # Solo intentamos guardar si la figura realmente existe en esta ejecución
+        if 'fig' in locals() and fig is not None:
+            img_buffer = io.BytesIO()
+            fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
+            img_buffer.seek(0)
     
     c_exp1, c_exp2, c_exp3 = st.columns(3)
     with c_exp1:
