@@ -1569,8 +1569,9 @@ else:
                 st.error(f"Error en panel de control: {e}")
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
+
 # -------------------------------------------------------------
-    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (ETAPA 1)
+    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (ETAPA 1 - RECONSTRUIDA)
     # -------------------------------------------------------------
     with tab_pizarra:
         if st.session_state.rol in ["Entrenador", "Administrador"]:
@@ -1581,7 +1582,7 @@ else:
             if "pizarra_entrenamiento" not in st.session_state:
                 st.session_state.pizarra_entrenamiento = []
 
-            # 2. Formulario de ingreso rápido (El "Carrito de Compras")
+            # 2. Formulario de ingreso rápido
             with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
                 c_rep, c_dist, c_est = st.columns(3)
                 with c_rep:
@@ -1631,18 +1632,20 @@ else:
                     texto_exportacion += linea + "\n"
 
                 texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total} metros\n💪 ¡A darle con todo!"
-# -------------------------------------------------------------
+
+                # -------------------------------------------------------------
                 # SEGMENTACIÓN DE DESTINATARIOS PARA LA PIZARRA DIARIA
                 # -------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("🎯 **Segmentación de Destinatarios (Pizarra de Hoy)**")
                 
-                # Extraemos la base de datos de usuarios de Supabase
                 todos_los_nadadores = []
                 try:
                     supabase_es = st.session_state.get("supabase_client")
                     if supabase_es:
-                        resp_sb = supabase_es.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").execute()
+                        # Descarga limpia filtrando únicamente Nadadores Activos
+                        resp_sb = supabase_es.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                       
                         if resp_sb.data:
                             for u in resp_sb.data:
                                 cat_calc, _ = calcular_categoria_competencia(u.get("fecha_nacimiento"))
@@ -1654,17 +1657,17 @@ else:
                                     "categoria": cat_calc
                                 })
                 except Exception as e:
-                    pass # Silenciamos error de carga previo
+                    pass
 
                 categorias_pizarra = sorted(list(set(n["categoria"] for n in todos_los_nadadores))) if todos_los_nadadores else []
-                
+     
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
                     sel_cat_pizarra = st.selectbox("Categoría para envío", ["Todas las categorías"] + categorias_pizarra, key="cat_piz")
                 with col_p2:
                     sel_gen_pizarra = st.selectbox("Género para envío", ["Todos los géneros", "Masculino", "Femenino"], key="gen_piz")
                 
-                # Filtramos correos en memoria para la pizarra
+                # Filtramos nadadores en memoria según los selectboxes
                 nadadores_piz_filtrados = todos_los_nadadores
                 if sel_cat_pizarra != "Todas las categorías":
                     nadadores_piz_filtrados = [n for n in nadadores_piz_filtrados if n["categoria"] == sel_cat_pizarra]
@@ -1674,18 +1677,18 @@ else:
                 correos_pizarra_destino = [n["email"] for n in nadadores_piz_filtrados if n["email"]]
                 st.caption(f"La pizarra se enviará a **{len(correos_pizarra_destino)}** atletas filtrados.")
 
-                # (Aquí abajo irían tus opciones actuales de canal_envio: Copiar, WhatsApp, Correo usando 'correos_pizarra_destino')
                 # 4. Lienzo Visual y Botones de Control
                 c_lienzo, c_stats = st.columns([2, 1])
                 
                 with c_lienzo:
-                    st.info(texto_exportacion.replace('\n', '  \n')) # Renderizado visual para la pantalla
+                    st.info(texto_exportacion.replace('\n', '  \n')) # Renderizado visual adaptado a Streamlit
                     
                     c_btn1, c_btn2 = st.columns(2)
                     with c_btn1:
                         if st.button("⏪ Deshacer último bloque", use_container_width=True):
-                            st.session_state.pizarra_entrenamiento.pop()
-                            st.rerun()
+                            if st.session_state.pizarra_entrenamiento:
+                                st.session_state.pizarra_entrenamiento.pop()
+                                st.rerun()
                     with c_btn2:
                         if st.button("🗑️ Limpiar pizarra completa", use_container_width=True):
                             st.session_state.pizarra_entrenamiento = []
@@ -1693,22 +1696,20 @@ else:
                             
                 with c_stats:
                     st.metric("Volumen Total", f"{volumen_total} m")
-                    # Analítica rápida en memoria
                     st.caption("Distribución por intensidad:")
                     conteos = {}
                     for b in st.session_state.pizarra_entrenamiento:
                         conteos[b['intensidad']] = conteos.get(b['intensidad'], 0) + (b['reps'] * b['dist'])
                     for k, v in conteos.items():
-                        porcentaje = (v / volumen_total) * 100
+                        porcentaje = (v / volumen_total) * 100 if volumen_total > 0 else 0
                         st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
 
-# -------------------------------------------------------------
+                # -------------------------------------------------------------
                 # 5. CENTRO DE ENVÍO Y EXPORTACIÓN DIARIA (WHATSAPP / CORREO)
                 # -------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("📲 **Centro de Envío y Exportación - Rutina de Hoy**")
-                
-                # Selector de canal para la pizarra del día
+       
                 canal_envio = st.selectbox("Elija cómo enviar la pizarra de hoy", ["Copiar texto", "Enviar por WhatsApp (Enlace directo)", "Enviar por Correo Electrónico"], key="canal_pizarra")
                 
                 if canal_envio == "Copiar texto":
@@ -1728,19 +1729,9 @@ else:
                 elif canal_envio == "Enviar por Correo Electrónico":
                     st.caption("Envía esta sesión directamente a tus atletas.")
                     
-                    # Extraemos los correos de tu base de usuarios en memoria (o sesión actual)
-                    correos_destinos_piz = []
-                    try:
-                        # Asumiendo que guardas la data de usuarios en st.session_state o ejecutas la consulta
-                        resp_usr = st.session_state.get("supabase_client").table("usuarios").select("email").execute()
-                        if resp_usr and resp_usr.data:
-                            correos_destinos_piz = [u["email"] for u in resp_usr.data if u.get("email")]
-                    except Exception:
-                        pass # Evita interrupción si no se ha cargado la tabla aún
-                    
-                    destinatarios_pizarra = st.text_input("Destinatarios (Separados por comas)", value=", ".join(correos_destinos_piz), key="dest_p")
+                    destinatarios_pizarra = st.text_input("Destinatarios (Separados por comas)", value=", ".join(correos_pizarra_destino), key="dest_p")
                     asunto_pizarra = st.text_input("Asunto del correo", value=f"Rutina de Entrenamiento - {datetime.date.today().strftime('%d/%m/%Y')}", key="asunto_p")
-                    
+             
                     if st.button("📧 Enviar Rutina por Correo", type="primary", use_container_width=True):
                         if not destinatarios_pizarra:
                             st.error("Por favor ingresa al menos un correo electrónico de destino.")
@@ -1761,22 +1752,19 @@ else:
                                 
                                 st.success(f"¡Rutina enviada por correo a {len(lista_correos_p)} destinatario(s) exitosamente!")
                             except Exception as e:
-                                st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
+                                st.warning("No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
                                 st.text_area("Respaldo:", value=texto_exportacion, height=150)
 
                 # -------------------------------------------------------------
-                # MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO (EVALUACIÓN Y PROYECCIÓN)
+                # MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO
                 # -------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("### 💾 Respaldo de la Jornada de Entrenamiento")
                 st.caption("Consolida los datos de hoy para sumarlos al historial de reportes mensuales y trimestrales (necesario para verificar cumplimiento de marcas, becas y torneos).")
                 
-                # Selectbox independiente para clasificar el volumen por Categoría
                 c_grupo, c_fecha = st.columns(2)
                 with c_grupo:
-                    # Desplegable para evitar errores de tipeo manual
-                    categorias_etarias = ["Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", 
-                                          "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+                    categorias_etarias = ["Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
                     grupo_asociado = st.selectbox("Categoría o Grupo de Entrenamiento", ["General"] + categorias_etarias, help="Selecciona la categoría para segregar este volumen.")
                 with c_fecha:
                     fecha_jornada = st.date_input("Fecha de la sesión", value=datetime.date.today())
@@ -1796,10 +1784,10 @@ else:
                         mts = blk['reps'] * blk['dist']
                         desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
 
-                    # Estructura del registro diario consolidado
+                    # Estructura limpia de registro diario consolidado
                     registro_diario = {
                         "fecha": str(fecha_jornada),
-                        "grupo": grupo_asociado, # La categoría queda registrada exactamente igual a como la filtraremos luego
+                        "grupo": grupo_asociado, 
                         "metros_totales": volumen_total,
                         "desglose_estilos": desglose_estilos,
                         "desglose_intensidad": desglose_intensidad,
@@ -1812,12 +1800,8 @@ else:
                     st.session_state.bitacora_historica.append(registro_diario)
                     st.success(f"¡Jornada guardada exitosamente! Se han consolidado {volumen_total} metros para la categoría `{grupo_asociado}`.")
                     st.balloons()
-
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
-# -------------------------------------------------------------
-# PESTAÑA: REPORTES Y ENVÍO (ETAPA 2)
-# -------------------------------------------------------------
 with tab_reportes:
     if st.session_state.rol in ["Entrenador", "Administrador"]:
         st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
