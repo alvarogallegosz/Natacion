@@ -208,6 +208,48 @@ except Exception as e:
     st.stop()
 
 # -------------------------------------------------------------
+# FUNCIÓN AUXILIAR: CONSULTA Y FILTRADO DE ATLETAS (ETAPA 2)
+# -------------------------------------------------------------
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_atletas_filtrados_supabase():
+    """Consulta la base de datos y devuelve una lista de diccionarios con la data de los atletas."""
+    try:
+        supabase = st.session_state.get("supabase_client")
+        if not supabase:
+            return []
+        
+        # Consulta la tabla 'usuarios' en Supabase
+        response = supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").execute()
+        if not response.data:
+            return []
+            
+        lista_atletas = []
+        for usuario in response.data:
+            nombre = usuario.get("nombre", "Sin Nombre")
+            email = usuario.get("email", "")
+            genero = usuario.get("genero", "M") # 'M' o 'F'
+            fecha_nac = usuario.get("fecha_nacimiento")
+            
+            # Llama a tu función nativa para calcular categoría y edad
+            categoria, edad = calcular_categoria_competencia(fecha_nac)
+            
+            # Solo se agrega si tiene un correo electrónico válido
+            if email and email.strip() != "":
+                lista_atletas.append({
+                    "id": usuario.get("id"),
+                    "nombre": nombre,
+                    "email": email,
+                    "genero": "Masculino" if genero == "M" else "Femenino",
+                    "genero_codigo": genero,
+                    "categoria": categoria,
+                    "edad": edad
+                })
+        return lista_atletas
+    except Exception as e:
+        st.error(f"Error al consultar base de datos de atletas: {e}")
+        return []
+
+# -------------------------------------------------------------
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
 # -------------------------------------------------------------
 def calcular_categoria_competencia(fecha_nac_str):
@@ -1763,70 +1805,71 @@ with tab_reportes:
         st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
         st.caption("Filtra y procesa el volumen acumulado mensual o trimestral para verificar el cumplimiento de marcas competitivas.")
         
-        # 1. Filtros de consulta
+        # 1. Filtros principales de consulta
         c_fil1, c_fil2, c_fil3 = st.columns(3)
         with c_fil1:
-            filtro_periodo = st.selectbox("Seleccionar Período", ["Últimos 30 días", "Trimestral (Últimos 90 días)", "Semestral", "Anual", "Todo el histórico"])
+            filtro_periodo = st.selectbox("Seleccionar Período", ["Últimos 30 días", "Trimestral (Últimos 90 días)", "Semestral", "Anual", "Todo el histórico"], key="rep_periodo")
         with c_fil2:
-            filtro_grupo = st.text_input("Filtrar por Atleta o Categoría (Histórico)", placeholder="Ej: Infantil B o Juan Pérez", value=f"{st.session_state.get('nadador_seleccionado_categoria', '')}")
+            filtro_grupo = st.text_input("Filtrar por Atleta o Categoría (Histórico)", placeholder="Ej: Infantil B o Juan Pérez", value=f"{st.session_state.get('nadador_seleccionado_categoria', '')}", key="rep_grupo")
         with c_fil3:
-            modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
+            modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"], key="rep_accion")
 
         st.markdown("---")
 
         # =====================================================================
-        # MÓDULO DE SEGMENTACIÓN DINÁMICA DE DESTINATARIOS (SUPABASE)
+        # DESPLEGABLES DE SEGMENTACIÓN DE ENVÍOS (CORREO ELECTRÓNICO)
         # =====================================================================
         if modo_envio == "Enviar por Correo Electrónico":
             st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
             st.caption("Puedes enviar a un grupo por categoría/género o seleccionar atletas específicos de la lista.")
             
-            # Obtenemos la data fresca de Supabase
+            # Obtenemos la lista fresca desde Supabase
             todos_los_atletas = obtener_atletas_filtrados_supabase()
             
             if not todos_los_atletas:
-                st.warning("No se encontraron atletas con correos registrados en la base de datos.")
+                st.warning("No se encontraron atletas con correos registrados en la base de datos de Supabase.")
             else:
-                # Extraer listas únicas para los selectores
+                # Extraer categorías únicas para el primer desplegable
                 categorias_disponibles = sorted(list(set(a["categoria"] for a in todos_los_atletas)))
                 
                 c_sel1, c_sel2 = st.columns(2)
                 with c_sel1:
-                    sel_categoria = st.selectbox("Filtrar por Categoría", ["Todas"] + categorias_disponibles)
+                    sel_categoria = st.selectbox("Filtrar por Categoría", ["Todas"] + categorias_disponibles, key="fil_cat")
                 with c_sel2:
-                    sel_genero = st.selectbox("Filtrar por Género", ["Todos", "Masculino", "Femenino"])
+                    sel_genero = st.selectbox("Filtrar por Género", ["Todos", "Masculino", "Femenino"], key="fil_gen")
                 
-                # Filtrar en memoria según los selectores anteriores
+                # Filtrado en memoria en base a los selectbox anteriores
                 atletas_filtrados = todos_los_atletas
                 if sel_categoria != "Todas":
                     atletas_filtrados = [a for a in atletas_filtrados if a["categoria"] == sel_categoria]
                 if sel_genero != "Todos":
                     atletas_filtrados = [a for a in atletas_filtrados if a["genero"] == sel_genero]
                 
-                # Mapeo de nombres e emails
+                # Construir las opciones para el multiselect
                 opciones_nombres = [f"{a['nombre']} ({a['categoria']} - {a['genero']})" for a in atletas_filtrados]
                 
-                st.caption(f"Se encontraron {len(atletas_filtrados)} atletas que cumplen con el filtro.")
+                st.caption(f"Se encontraron {len(atletas_filtrados)} atletas que cumplen con los filtros.")
                 
-                # Selección directa/múltiple
-                atletas_seleccionados = st.multiselect("Seleccionar atletas específicos (Opcional, sobrescribe filtros)", opciones_nombres)
+                # Selección directa o múltiple
+                atletas_seleccionados = st.multiselect("Seleccionar atletas específicos (Opcional, sobrescribe filtros)", opciones_nombres, key="sel_multi_atletas")
                 
-                # Lógica para determinar a quiénes se enviará finalmente
+                # Asignación de correos de destino
                 if atletas_seleccionados:
-                    # Extraemos correos de los seleccionados en el multiselect
+                    # Extraer solo los correos de los que fueron seleccionados en el multiselect
                     correos_destino = [
                         a['email'] for a in atletas_filtrados 
                         if f"{a['nombre']} ({a['categoria']} - {a['genero']})" in atletas_seleccionados
                     ]
                 else:
-                    # Enviamos a todos los que pasaron el filtro de categoría y género
+                    # Enviar a todos los que pasaron el filtro de categoría y género
                     correos_destino = [a['email'] for a in atletas_filtrados]
                 
                 st.write(f"📧 **Correos a enviar ({len(correos_destino)} destinatarios):**", correos_destino)
+                st.markdown("---")
 
-        st.markdown("---")
-
-        # Verificar si existen datos en la bitácora para generar el reporte de metros
+        # =====================================================================
+        # MOTOR DE GENERACIÓN DE REPORTES (METROS, ESTILOS, INTENSIDAD)
+        # =====================================================================
         if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
             st.info("No hay jornadas de entrenamiento guardadas aún. Ve a la 'Pizarra Diaria' y consolida una jornada para generar reportes.")
         else:
@@ -1839,7 +1882,7 @@ with tab_reportes:
             if not registros_filtrados:
                 st.warning(f"No se encontraron registros de volumen para el grupo o atleta: `{filtro_grupo}`")
             else:
-                # Consolidar métricas del conjunto filtrado (metros, estilos, intensidad)
+                # Consolidar métricas del conjunto filtrado
                 mts_totales_periodo = sum(r['metros_totales'] for r in registros_filtrados)
                 
                 estilos_periodo = {}
@@ -1852,7 +1895,7 @@ with tab_reportes:
                     for inte, mts in r['desglose_intensidad'].items():
                         intensidades_periodo[inte] = intensidades_periodo.get(inte, 0) + mts
 
-                # Armar el texto estructurado del reporte
+                # Estructura del reporte en texto
                 texto_reporte = f"📈 *REPORTE DE ENTRENAMIENTO Y VOLUMEN*\n"
                 texto_reporte += f"👤 *Atleta/Categoría:* {filtro_grupo if filtro_grupo else 'General'}\n"
                 texto_reporte += f"📅 *Período:* {filtro_periodo}\n\n"
@@ -1870,7 +1913,7 @@ with tab_reportes:
                 
                 texto_reporte += f"\n💪 ¡Constancia para cumplir con los objetivos del ciclo!"
 
-                # Manejo de vistas según acción seleccionada
+                # Mostrar según la opción seleccionada en "Acción rápida"
                 if modo_envio == "Visualizar reporte":
                     st.success("Reporte procesado correctamente en base al volumen acumulado.")
                     st.markdown("### 📄 Lienzo del Informe")
@@ -1902,13 +1945,12 @@ with tab_reportes:
                     st.text_area("Copia el texto por si falla el enlace:", value=texto_reporte, height=200)
 
                 elif modo_envio == "Enviar por Correo Electrónico":
-                    st.markdown("### ✉️ Motor de Envío de Reporte")
+                    st.markdown("### ✉️ Motor de Envío Masivo")
+                    asunto_correo = st.text_input("Asunto del correo", value=f"Reporte de Volumen Acumulado - {filtro_grupo}", key="asunto_rep_final")
                     
-                    asunto_correo = st.text_input("Asunto del correo", value=f"Reporte de Volumen Acumulado - {filtro_grupo}")
-                    
-                    if st.button("📧 Enviar Reporte por Correo Masivo", type="primary", use_container_width=True):
+                    if st.button("📧 Enviar Reporte por Correo", type="primary", use_container_width=True):
                         if not correos_destino:
-                            st.error("Por favor selecciona al menos un destinatario (por filtro o manualmente).")
+                            st.error("Por favor selecciona al menos un destinatario (por filtro o manualmente en el multiselect).")
                         else:
                             try:
                                 remitente = "notificaciones@natacion.com"
@@ -1929,44 +1971,3 @@ with tab_reportes:
                                 st.text_area("Respaldo:", value=texto_reporte, height=200)
     else:
         st.warning("🔒 Sección restringida al equipo técnico.")
-# -------------------------------------------------------------
-# FUNCIÓN AUXILIAR: CONSULTA Y FILTRADO DE ATLETAS (ETAPA 2)
-# -------------------------------------------------------------
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_atletas_filtrados_supabase():
-    """Consulta la base de datos y devuelve una lista de diccionarios con la data de los atletas."""
-    try:
-        supabase = st.session_state.get("supabase_client")
-        if not supabase:
-            return []
-        
-        # Consulta la tabla 'usuarios' en Supabase
-        response = supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").execute()
-        if not response.data:
-            return []
-            
-        lista_atletas = []
-        for usuario in response.data:
-            nombre = usuario.get("nombre", "Sin Nombre")
-            email = usuario.get("email", "")
-            genero = usuario.get("genero", "M") # 'M' o 'F'
-            fecha_nac = usuario.get("fecha_nacimiento")
-            
-            # Llama a tu función nativa para calcular categoría y edad
-            categoria, edad = calcular_categoria_competencia(fecha_nac)
-            
-            # Solo se agrega si tiene un correo electrónico válido
-            if email and email.strip() != "":
-                lista_atletas.append({
-                    "id": usuario.get("id"),
-                    "nombre": nombre,
-                    "email": email,
-                    "genero": "Masculino" if genero == "M" else "Femenino",
-                    "genero_codigo": genero,
-                    "categoria": categoria,
-                    "edad": edad
-                })
-        return lista_atletas
-    except Exception as e:
-        st.error(f"Error al consultar base de datos de atletas: {e}")
-        return []
