@@ -1571,7 +1571,7 @@ else:
             st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (CORREGIDA)
+    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (WIDGETS GARANTIZADOS)
     # -------------------------------------------------------------
     with tab_pizarra:
         if st.session_state.rol in ["Entrenador", "Administrador"]:
@@ -1639,12 +1639,12 @@ else:
                         st.rerun()
 
                 # =============================================================================
-                # 3. SECCIÓN DE SEGMENTACIÓN (CON DISPOSICIÓN REAL DE LA IMAGEN)
+                # 3. SECCIÓN DE SEGMENTACIÓN (WIDGETS FORZADOS A APARECER EN PANTALLA)
                 # =============================================================================
                 st.markdown("---")
                 st.markdown("### 🔍 Segmentación de Destinatarios (Asistencia/Carga)")
                 
-                # Fila de botones de opción (FOTO: Género y Adicional de forma horizontal)
+                # Fila de botones de opción horizontales (Disposición de tu foto)
                 col_foto1, col_foto2 = st.columns(2)
                 with col_foto1:
                     filtro_genero = st.radio(
@@ -1661,66 +1661,66 @@ else:
                         key="piz_radio_tipo_idx"
                     )
 
-                # Consulta limpia a la base de datos de atletas activos
-                supabase_es = st.session_state.get("supabase_client")
+                # RESOLUCIÓN DEL CLIENTE DE SUPABASE (Busca la variable global directa de tu app)
+                ctx_supabase = None
+                try:
+                    ctx_supabase = supabase
+                except NameError:
+                    ctx_supabase = st.session_state.get("supabase_client")
+
                 atletas_pool = []
-                if supabase_es:
+                if ctx_supabase:
                     try:
-                        resp_sb = supabase_es.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                        resp_sb = ctx_supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
                         if resp_sb.data:
                             atletas_pool = resp_sb.data
                     except Exception as e:
-                        st.error(f"Error al cargar nómina de atletas: {e}")
+                        st.error(f"Error al cargar nómina desde Supabase: {e}")
 
-                # Filtrado Inicial: Género
+                # Filtrar la lista local por el género seleccionado
                 if filtro_genero == "Femenino (F)":
                     atletas_pool = [a for a in atletas_pool if a.get("genero") == "F"]
                 elif filtro_genero == "Masculino (M)":
                     atletas_pool = [a for a in atletas_pool if a.get("genero") == "M"]
 
-                # Preparación segura de diccionarios y colecciones para los selectores
+                # Mapear colecciones de datos seguras para los selectores
                 categorias_disponibles = sorted(list(set([
                     calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
                     for a in atletas_pool if a.get("fecha_nacimiento")
                 ]))) if atletas_pool else []
 
                 dict_nom = {a["id"]: a["nombre"] for a in atletas_pool} if atletas_pool else {}
-                
                 atletas_finales = []
 
-                # --- RENDERIZADO GARANTIZADO DE DESPLEGABLES (Solución Error 2) ---
+                # --- DESPLEGABLES CON RENDERIZADO INCONDICIONAL ---
                 if tipo_filtro == "Categoría Etaria":
+                    cat_sel = st.selectbox(
+                        "Seleccione la Categoría Etaria:", 
+                        options=categorias_disponibles if categorias_disponibles else ["Cargando categorías activos..."], 
+                        key="piz_selectbox_cat"
+                    )
                     if categorias_disponibles:
-                        cat_sel = st.selectbox("Seleccione la Categoría Etaria:", options=categorias_disponibles, key="piz_selectbox_cat")
                         atletas_finales = [
                             a for a in atletas_pool 
                             if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel
                         ]
-                    else:
-                        st.warning("⚠️ No se encontraron categorías con atletas activos para este género.")
                         
                 elif tipo_filtro == "Atletas Específicos":
-                    if dict_nom:
-                        ids_sel = st.multiselect(
-                            "Seleccione Nadador(es) Individual(es):", 
-                            options=list(dict_nom.keys()), 
-                            format_func=lambda x: dict_nom[x],
-                            key="piz_multiselect_atletas"
-                        )
-                        # SALVAGUARDA DE SELECCIÓN VACÍA (Solución Error 1)
-                        if ids_sel:
-                            atletas_finales = [a for a in atletas_pool if a["id"] in ids_sel]
-                        else:
-                            atletas_finales = []
-                    else:
-                        st.warning("⚠️ No hay atletas individuales disponibles bajo este criterio.")
+                    ids_sel = st.multiselect(
+                        "Seleccione Nadador(es) Individual(es):", 
+                        options=list(dict_nom.keys()), 
+                        format_func=lambda x: dict_nom.get(x, "Cargando atleta..."),
+                        key="piz_multiselect_atletas"
+                    )
+                    if ids_sel:
+                        atletas_finales = [a for a in atletas_pool if a["id"] in ids_sel]
                 else:
-                    # Todos los Atletas
-                    atletas_finales = atletas_pool
+                    # Todos los Atletas del género seleccionado
+                    atletas_finales = pool_actual = atletas_pool
 
-                # Mensajes dinámicos de control para evitar ejecuciones nulas en cascada
+                # Alertas visuales dinámicas de control
                 if tipo_filtro == "Atletas Específicos" and not atletas_finales:
-                    st.info("💡 Por favor, selecciona al menos un nadador en el desplegable de arriba para activar la consolidación.")
+                    st.info("💡 Despliega el selector de arriba y marca al menos un nadador para habilitar el botón de consolidación.")
                 else:
                     st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
 
@@ -1735,9 +1735,8 @@ else:
                     identificador_carril = st.text_input("Identificador / Carril (Opcional):", placeholder="Ej: Carril 3, Grupo Avanzado", key="piz_carril_input_save")
 
                 if st.button("🚀 Consolidar Carga de Entrenamiento", type="primary", use_container_width=True, key="piz_btn_consolidar_final"):
-                    # Si la lista final está vacía, bloqueamos la ejecución y evitamos el error null de base de datos
                     if not atletas_finales:
-                        st.error("Error: No se puede consolidar la jornada de entrenamiento porque no hay atletas seleccionados en los filtros.")
+                        st.error("Error: No se puede consolidar la jornada porque no hay atletas seleccionados en los filtros de segmentación.")
                     else:
                         desglose_estilos = {}
                         desglose_intensidad = {}
