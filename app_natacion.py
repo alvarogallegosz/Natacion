@@ -1929,3 +1929,44 @@ with tab_reportes:
                                 st.text_area("Respaldo:", value=texto_reporte, height=200)
     else:
         st.warning("🔒 Sección restringida al equipo técnico.")
+# -------------------------------------------------------------
+# FUNCIÓN AUXILIAR: CONSULTA Y FILTRADO DE ATLETAS (ETAPA 2)
+# -------------------------------------------------------------
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_atletas_filtrados_supabase():
+    """Consulta la base de datos y devuelve una lista de diccionarios con la data de los atletas."""
+    try:
+        supabase = st.session_state.get("supabase_client")
+        if not supabase:
+            return []
+        
+        # Consulta la tabla 'usuarios' en Supabase
+        response = supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").execute()
+        if not response.data:
+            return []
+            
+        lista_atletas = []
+        for usuario in response.data:
+            nombre = usuario.get("nombre", "Sin Nombre")
+            email = usuario.get("email", "")
+            genero = usuario.get("genero", "M") # 'M' o 'F'
+            fecha_nac = usuario.get("fecha_nacimiento")
+            
+            # Llama a tu función nativa para calcular categoría y edad
+            categoria, edad = calcular_categoria_competencia(fecha_nac)
+            
+            # Solo se agrega si tiene un correo electrónico válido
+            if email and email.strip() != "":
+                lista_atletas.append({
+                    "id": usuario.get("id"),
+                    "nombre": nombre,
+                    "email": email,
+                    "genero": "Masculino" if genero == "M" else "Femenino",
+                    "genero_codigo": genero,
+                    "categoria": categoria,
+                    "edad": edad
+                })
+        return lista_atletas
+    except Exception as e:
+        st.error(f"Error al consultar base de datos de atletas: {e}")
+        return []
