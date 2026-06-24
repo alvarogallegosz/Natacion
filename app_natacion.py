@@ -2021,7 +2021,10 @@ else:
             elif isinstance(st.session_state.reporte_calculado, dict):
                 rep = st.session_state.reporte_calculado
                 
-                st.success(f"🎯 Análisis acumulado completado para {len(rep['atletas_dict_filtrados'])} atleta(s).")
+                # Extracción segura: busca la nueva clave, si no la encuentra busca la antigua, y si no hay ninguna, usa un dict vacío
+                atletas_filtrados = rep.get('atletas_dict_filtrados', rep.get('atletas_analizados', {}))
+
+                st.success(f"🎯 Análisis acumulado completado para {len(atletas_filtrados)} atleta(s).")
                 
                 # --- VISUALIZACIÓN MACRO DEL GRUPO ---
                 c_m1, c_m2 = st.columns(2)
