@@ -1541,7 +1541,7 @@ else:
                 st.markdown("---")
                 
                 volumen_total = 0
-                texto_exportacion = f"🏊‍♂️ *Entrenamiento del Día - Club Centro Gallego*\n📅 Fecha: {datetime.date.today().strftime('%d/%m/%Y')}\n\n*RUTINA:*\n"
+                texto_exportacion = f"🏊‍♂️ *Entrenamiento del Día - Club de Natación Centro Gallego*\n📅 Fecha: {datetime.date.today().strftime('%d/%m/%Y')}\n\n*RUTINA:*\n"
                 
                 # Recorremos la pizarra para calcular y generar texto
                 for i, blk in enumerate(st.session_state.pizarra_entrenamiento):
