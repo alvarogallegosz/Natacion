@@ -1702,14 +1702,16 @@ else:
                         porcentaje = (v / volumen_total) * 100
                         st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
 
-# 5. Centro de Exportación y Envío Diario (WhatsApp / Correo)
+# -------------------------------------------------------------
+                # 5. CENTRO DE ENVÍO Y EXPORTACIÓN DIARIA (WHATSAPP / CORREO)
+                # -------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("📲 **Centro de Envío y Exportación - Rutina de Hoy**")
                 
                 # Selector de canal para la pizarra del día
-                canal_envio = st.selectbox("Elija cómo enviar la pizarra de hoy", ["Copiar texto / Usar lienzo", "Enviar por WhatsApp (Enlace directo)", "Enviar por Correo Electrónico"], key="canal_pizarra")
+                canal_envio = st.selectbox("Elija cómo enviar la pizarra de hoy", ["Copiar texto", "Enviar por WhatsApp (Enlace directo)", "Enviar por Correo Electrónico"], key="canal_pizarra")
                 
-                if canal_envio == "Copiar texto / Usar lienzo":
+                if canal_envio == "Copiar texto":
                     st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=180, label_visibility="collapsed")
                     st.info("Puedes pegar este texto directamente en tu grupo de WhatsApp o aplicación de mensajería.")
 
@@ -1724,8 +1726,19 @@ else:
                     st.text_area("Respaldo de texto (por si falla el enlace):", value=texto_exportacion, height=120)
 
                 elif canal_envio == "Enviar por Correo Electrónico":
-                    st.caption("Envía esta sesión directamente a tus atletas utilizando el servidor configurado.")
-                    destinatarios_pizarra = st.text_input("Destinatarios (Separados por comas)", placeholder="nadador1@club.com, nadador2@club.com", key="dest_p")
+                    st.caption("Envía esta sesión directamente a tus atletas.")
+                    
+                    # Extraemos los correos de tu base de usuarios en memoria (o sesión actual)
+                    correos_destinos_piz = []
+                    try:
+                        # Asumiendo que guardas la data de usuarios en st.session_state o ejecutas la consulta
+                        resp_usr = st.session_state.get("supabase_client").table("usuarios").select("email").execute()
+                        if resp_usr and resp_usr.data:
+                            correos_destinos_piz = [u["email"] for u in resp_usr.data if u.get("email")]
+                    except Exception:
+                        pass # Evita interrupción si no se ha cargado la tabla aún
+                    
+                    destinatarios_pizarra = st.text_input("Destinatarios (Separados por comas)", value=", ".join(correos_destinos_piz), key="dest_p")
                     asunto_pizarra = st.text_input("Asunto del correo", value=f"Rutina de Entrenamiento - {datetime.date.today().strftime('%d/%m/%Y')}", key="asunto_p")
                     
                     if st.button("📧 Enviar Rutina por Correo", type="primary", use_container_width=True):
@@ -1756,12 +1769,15 @@ else:
                 # -------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("### 💾 Respaldo de la Jornada de Entrenamiento")
-                st.caption("Consolida los datos de hoy para sumarlos al historial de reportes mensuales y trimestrales (necesario para verificar cumplimiento de marcas y becas).")
+                st.caption("Consolida los datos de hoy para sumarlos al historial de reportes mensuales y trimestrales (necesario para verificar cumplimiento de marcas, becas y torneos).")
                 
-                # Campos para asociar el entrenamiento a un atleta o categoría
+                # Selectbox independiente para clasificar el volumen por Categoría
                 c_grupo, c_fecha = st.columns(2)
                 with c_grupo:
-                    grupo_asociado = st.text_input("Atleta, Categoría o Grupo de Entrenamiento", value=f"{st.session_state.get('nadador_seleccionado_categoria', 'General')}", help="Identificador para agrupar este volumen.")
+                    # Desplegable para evitar errores de tipeo manual
+                    categorias_etarias = ["Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", 
+                                          "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+                    grupo_asociado = st.selectbox("Categoría o Grupo de Entrenamiento", ["General"] + categorias_etarias, help="Selecciona la categoría para segregar este volumen.")
                 with c_fecha:
                     fecha_jornada = st.date_input("Fecha de la sesión", value=datetime.date.today())
 
@@ -1783,7 +1799,7 @@ else:
                     # Estructura del registro diario consolidado
                     registro_diario = {
                         "fecha": str(fecha_jornada),
-                        "grupo": grupo_asociado,
+                        "grupo": grupo_asociado, # La categoría queda registrada exactamente igual a como la filtraremos luego
                         "metros_totales": volumen_total,
                         "desglose_estilos": desglose_estilos,
                         "desglose_intensidad": desglose_intensidad,
@@ -1794,7 +1810,7 @@ else:
                         st.session_state.bitacora_historica = []
                         
                     st.session_state.bitacora_historica.append(registro_diario)
-                    st.success(f"¡Jornada guardada exitosamente! Se han consolidado {volumen_total} metros para `{grupo_asociado}`.")
+                    st.success(f"¡Jornada guardada exitosamente! Se han consolidado {volumen_total} metros para la categoría `{grupo_asociado}`.")
                     st.balloons()
 
         else:
@@ -1807,79 +1823,36 @@ with tab_reportes:
         st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
         st.caption("Filtra y procesa el volumen acumulado mensual o trimestral para verificar el cumplimiento de marcas competitivas.")
         
-        # 1. Filtros principales de consulta
+        # 1. Filtros de consulta (Selectbox puros, sin escritura manual)
         c_fil1, c_fil2, c_fil3 = st.columns(3)
         with c_fil1:
-            filtro_periodo = st.selectbox("Seleccionar Período", ["Últimos 30 días", "Trimestral (Últimos 90 días)", "Semestral", "Anual", "Todo el histórico"], key="rep_periodo")
+            filtro_periodo = st.selectbox("Seleccionar Período", ["Últimos 30 días", "Trimestral (Últimos 90 días)", "Semestral", "Anual", "Todo el histórico"])
         with c_fil2:
-            filtro_grupo = st.text_input("Filtrar por Atleta o Categoría (Histórico)", placeholder="Ej: Infantil B o Juan Pérez", value=f"{st.session_state.get('nadador_seleccionado_categoria', '')}", key="rep_grupo")
+            # Reemplazamos el text_input por un selectbox de categorías reales
+            cats_filtro = ["General", "Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", 
+                           "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+            filtro_grupo = st.selectbox("Filtrar por Categoría (Histórico)", cats_filtro)
         with c_fil3:
-            modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"], key="rep_accion")
+            modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
 
         st.markdown("---")
 
-        # =====================================================================
-        # DESPLEGABLES Y SEGMENTACIÓN DE ENVÍOS (CORREO ELECTRÓNICO)
-        # =====================================================================
-        correos_destino = [] # Inicializamos la lista vacía para evitar errores
-        
-        if modo_envio == "Enviar por Correo Electrónico":
-            st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
-            st.caption("El sistema extraerá los atletas y correos según el filtro de texto o categoría que indicaste arriba.")
-            
-            # Obtenemos la lista fresca desde Supabase usando tu función
-            todos_los_atletas = obtener_atletas_filtrados_supabase()
-            
-            if not todos_los_atletas:
-                st.warning("No se encontraron atletas con correos registrados en la base de datos de Supabase.")
-            else:
-                # Filtrar atletas en memoria basándonos en el st.text_input (filtro_grupo)
-                if filtro_grupo and filtro_grupo.strip() != "":
-                    atletas_filtrados = [
-                        a for a in todos_los_atletas 
-                        if filtro_grupo.lower() in a["categoria"].lower() or filtro_grupo.lower() in a["nombre"].lower()
-                    ]
-                else:
-                    atletas_filtrados = todos_los_atletas
-                    
-                opciones_nombres = [f"{a['nombre']} ({a['categoria']} - {a['genero']})" for a in atletas_filtrados]
-                
-                if not atletas_filtrados:
-                    st.info(f"No hay atletas que coincidan con el texto '{filtro_grupo}'.")
-                else:
-                    st.caption(f"Se encontraron {len(atletas_filtrados)} atletas asociados a ese filtro.")
-                    
-                    # Selección directa o múltiple para mayor precisión
-                    atletas_seleccionados = st.multiselect("Seleccionar atletas específicos (Opcional, anula el filtro superior)", opciones_nombres, key="sel_multi_atletas")
-                    
-                    # Asignación de correos de destino
-                    if atletas_seleccionados:
-                        correos_destino = [
-                            a['email'] for a in atletas_filtrados 
-                            if f"{a['nombre']} ({a['categoria']} - {a['genero']})" in atletas_seleccionados
-                        ]
-                    else:
-                        correos_destino = [a['email'] for a in atletas_filtrados]
-                    
-                    st.write(f"📧 **Correos a enviar ({len(correos_destino)} destinatarios):**", correos_destino)
-            st.markdown("---")
-
-        # =====================================================================
-        # MOTOR DE GENERACIÓN DE REPORTES (METROS, ESTILOS, INTENSIDAD)
-        # =====================================================================
+        # 2. Verificación de datos en memoria (Bitácora histórica)
         if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
             st.info("No hay jornadas de entrenamiento guardadas aún. Ve a la 'Pizarra Diaria' y consolida una jornada para generar reportes.")
         else:
-            # Filtrar registros en memoria según grupo/atleta histórico
+            # Filtrado en memoria utilizando la categoría exacta seleccionada en el desplegable
+            etiqueta_busqueda = "" if filtro_grupo == "General" else filtro_grupo
+            
             registros_filtrados = [
                 reg for reg in st.session_state.bitacora_historica 
-                if filtro_grupo.lower() in reg['grupo'].lower() or filtro_grupo == ""
+                if etiqueta_busqueda.lower() in reg['grupo'].lower()
             ]
 
             if not registros_filtrados:
-                st.warning(f"No se encontraron registros de volumen para el grupo o atleta: `{filtro_grupo}`")
+                st.warning(f"No se encontraron registros de volumen acumulado para la categoría: `{filtro_grupo}`")
             else:
-                # Consolidar métricas del conjunto filtrado
+                # Consolidar métricas matemáticas (metros, estilos, intensidad)
                 mts_totales_periodo = sum(r['metros_totales'] for r in registros_filtrados)
                 
                 estilos_periodo = {}
@@ -1892,9 +1865,9 @@ with tab_reportes:
                     for inte, mts in r['desglose_intensidad'].items():
                         intensidades_periodo[inte] = intensidades_periodo.get(inte, 0) + mts
 
-                # Estructura del reporte en texto
+                # Armar el texto estructurado del reporte
                 texto_reporte = f"📈 *REPORTE DE ENTRENAMIENTO Y VOLUMEN*\n"
-                texto_reporte += f"👤 *Atleta/Categoría:* {filtro_grupo if filtro_grupo else 'General'}\n"
+                texto_reporte += f"👤 *Categoría:* {filtro_grupo}\n"
                 texto_reporte += f"📅 *Período:* {filtro_periodo}\n\n"
                 texto_reporte += f"🏊‍♂️ *Volumen Total Acumulado:* {mts_totales_periodo:,} metros\n\n"
                 
@@ -1909,6 +1882,9 @@ with tab_reportes:
                     texto_reporte += f"• {inte}: {mts:,}m ({pct:.1f}%)\n"
                 
                 texto_reporte += f"\n💪 ¡Constancia para cumplir con los objetivos del ciclo!"
+
+                # Manejo de vistas según acción seleccionada (Visualizar, WhatsApp, Correo)
+                # (Aquí puedes mantener intacto el bloque de visualización, enlaces y motor SMTP que ya tenías operativo)
 
                 # Mostrar según la opción seleccionada en "Acción rápida"
                 if modo_envio == "Visualizar reporte":
