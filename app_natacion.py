@@ -1837,135 +1837,135 @@ with tab_reportes:
 
         st.markdown("---")
         with tab_reportes:
-    if st.session_state.rol in ["Entrenador", "Administrador"]:
-        st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
-        st.caption("Filtra y procesa el volumen acumulado mensual o trimestral...")
+            if st.session_state.rol in ["Entrenador", "Administrador"]:
+                st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
+                st.caption("Filtra y procesa el volumen acumulado mensual o trimestral...")
         
-        # 1. Filtros principales de consulta
-        c_fil1, c_fil2, c_fil3 = st.columns(3)
-        with c_fil1:
-            filtro_periodo = st.selectbox(...)
-        with c_fil2:
-            filtro_grupo = st.text_input(...)
-        with c_fil3:
-            modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
+                # 1. Filtros principales de consulta
+                c_fil1, c_fil2, c_fil3 = st.columns(3)
+                with c_fil1:
+                    filtro_periodo = st.selectbox(...)
+                with c_fil2:
+                    filtro_grupo = st.text_input(...)
+                with c_fil3:
+                    modo_envio = st.selectbox("Acción rápida", ["Visualizar reporte", "Preparar envío por WhatsApp", "Enviar por Correo Electrónico"])
 
-        st.markdown("---")
+                st.markdown("---")
 
         # 🟢 INICIALIZACIÓN SEGURA DE LA VARIABLE (AÑADE ESTA LÍNEA AQUÍ)
-        correos_destino = []
+                correos_destino = []
 
         # =====================================================================
         # DESPLEGABLES DE SEGMENTACIÓN DE ENVÍOS (CORREO ELECTRÓNICO)
         # =====================================================================
-        if modo_envio == "Enviar por Correo Electrónico":
-            st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
+                if modo_envio == "Enviar por Correo Electrónico":
+                    st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
             ...
             # Aquí dentro se llenará correos_destino si el usuario escoge esta opción
         # 2. Verificación de datos en memoria (Bitácora histórica)
-        if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
-            st.info("No hay jornadas de entrenamiento guardadas aún. Ve a la 'Pizarra Diaria' y consolida una jornada para generar reportes.")
-        else:
+                if "bitacora_historica" not in st.session_state or not st.session_state.bitacora_historica:
+                    st.info("No hay jornadas de entrenamiento guardadas aún. Ve a la 'Pizarra Diaria' y consolida una jornada para generar reportes.")
+                else:
             # Filtrado en memoria utilizando la categoría exacta seleccionada en el desplegable
-            etiqueta_busqueda = "" if filtro_grupo == "General" else filtro_grupo
+                    etiqueta_busqueda = "" if filtro_grupo == "General" else filtro_grupo
             
-            registros_filtrados = [
-                reg for reg in st.session_state.bitacora_historica 
-                if etiqueta_busqueda.lower() in reg['grupo'].lower()
+                    registros_filtrados = [
+                        reg for reg in st.session_state.bitacora_historica 
+                        if etiqueta_busqueda.lower() in reg['grupo'].lower()
             ]
 
-            if not registros_filtrados:
-                st.warning(f"No se encontraron registros de volumen acumulado para la categoría: `{filtro_grupo}`")
-            else:
+                    if not registros_filtrados:
+                        st.warning(f"No se encontraron registros de volumen acumulado para la categoría: `{filtro_grupo}`")
+                    else:
                 # Consolidar métricas matemáticas (metros, estilos, intensidad)
-                mts_totales_periodo = sum(r['metros_totales'] for r in registros_filtrados)
+                        mts_totales_periodo = sum(r['metros_totales'] for r in registros_filtrados)
                 
-                estilos_periodo = {}
-                for r in registros_filtrados:
-                    for est, mts in r['desglose_estilos'].items():
-                        estilos_periodo[est] = estilos_periodo.get(est, 0) + mts
+                        estilos_periodo = {}
+                        for r in registros_filtrados:
+                            for est, mts in r['desglose_estilos'].items():
+                                estilos_periodo[est] = estilos_periodo.get(est, 0) + mts
                         
-                intensidades_periodo = {}
-                for r in registros_filtrados:
-                    for inte, mts in r['desglose_intensidad'].items():
-                        intensidades_periodo[inte] = intensidades_periodo.get(inte, 0) + mts
+                        intensidades_periodo = {}
+                        for r in registros_filtrados:
+                            for inte, mts in r['desglose_intensidad'].items():
+                                intensidades_periodo[inte] = intensidades_periodo.get(inte, 0) + mts
 
                 # Armar el texto estructurado del reporte
-                texto_reporte = f"📈 *REPORTE DE ENTRENAMIENTO Y VOLUMEN*\n"
-                texto_reporte += f"👤 *Categoría:* {filtro_grupo}\n"
-                texto_reporte += f"📅 *Período:* {filtro_periodo}\n\n"
-                texto_reporte += f"🏊‍♂️ *Volumen Total Acumulado:* {mts_totales_periodo:,} metros\n\n"
+                        texto_reporte = f"📈 *REPORTE DE ENTRENAMIENTO Y VOLUMEN*\n"
+                        texto_reporte += f"👤 *Categoría:* {filtro_grupo}\n"
+                        texto_reporte += f"📅 *Período:* {filtro_periodo}\n\n"
+                        texto_reporte += f"🏊‍♂️ *Volumen Total Acumulado:* {mts_totales_periodo:,} metros\n\n"
                 
-                texto_reporte += f"*Desglose por Estilos:*\n"
-                for est, mts in estilos_periodo.items():
-                    pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
-                    texto_reporte += f"• {est}: {mts:,}m ({pct:.1f}%)\n"
+                        texto_reporte += f"*Desglose por Estilos:*\n"
+                        for est, mts in estilos_periodo.items():
+                            pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
+                            texto_reporte += f"• {est}: {mts:,}m ({pct:.1f}%)\n"
                     
-                texto_reporte += f"\n*Distribución de Intensidad:*\n"
-                for inte, mts in intensidades_periodo.items():
-                    pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
-                    texto_reporte += f"• {inte}: {mts:,}m ({pct:.1f}%)\n"
+                        texto_reporte += f"\n*Distribución de Intensidad:*\n"
+                        for inte, mts in intensidades_periodo.items():
+                            pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
+                            texto_reporte += f"• {inte}: {mts:,}m ({pct:.1f}%)\n"
                 
-                texto_reporte += f"\n💪 ¡Constancia para cumplir con los objetivos del ciclo!"
+                        texto_reporte += f"\n💪 ¡Constancia para cumplir con los objetivos del ciclo!"
 
                 # Manejo de vistas según acción seleccionada (Visualizar, WhatsApp, Correo)
                 # (Aquí puedes mantener intacto el bloque de visualización, enlaces y motor SMTP que ya tenías operativo)
 
                 # Mostrar según la opción seleccionada en "Acción rápida"
-                if modo_envio == "Visualizar reporte":
-                    st.success("Reporte procesado correctamente en base al volumen acumulado.")
-                    st.markdown("### 📄 Lienzo del Informe")
-                    st.text_area("Copia este resumen tabulado:", value=texto_reporte, height=300)
+                        if modo_envio == "Visualizar reporte":
+                            st.success("Reporte procesado correctamente en base al volumen acumulado.")
+                            st.markdown("### 📄 Lienzo del Informe")
+                            st.text_area("Copia este resumen tabulado:", value=texto_reporte, height=300)
                     
-                    st.markdown("#### Análisis visual de acumulación")
-                    c_est_viz, c_int_viz = st.columns(2)
-                    with c_est_viz:
-                        st.caption("Metros por Estilo")
-                        for est, mts in estilos_periodo.items():
-                            pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
-                            st.progress(int(pct), text=f"{est}: {mts}m ({pct:.1f}%)")
-                    with c_int_viz:
-                        st.caption("Intensidad de Trabajo")
-                        for inte, mts in intensidades_periodo.items():
-                            pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
-                            st.progress(int(pct), text=f"{inte}: {mts}m ({pct:.1f}%)")
+                            st.markdown("#### Análisis visual de acumulación")
+                            c_est_viz, c_int_viz = st.columns(2)
+                            with c_est_viz:
+                                st.caption("Metros por Estilo")
+                                for est, mts in estilos_periodo.items():
+                                    pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
+                                    st.progress(int(pct), text=f"{est}: {mts}m ({pct:.1f}%)")
+                            with c_int_viz:
+                                st.caption("Intensidad de Trabajo")
+                                for inte, mts in intensidades_periodo.items():
+                                    pct = (mts / mts_totales_periodo) * 100 if mts_totales_periodo > 0 else 0
+                                    st.progress(int(pct), text=f"{inte}: {mts}m ({pct:.1f}%)")
 
-                elif modo_envio == "Preparar envío por WhatsApp":
-                    st.markdown("### 📲 Enlace directo para WhatsApp")
-                    st.caption("Haz clic en el botón inferior para abrir WhatsApp Web / App con el reporte precargado y enviarlo a tu grupo.")
+                        elif modo_envio == "Preparar envío por WhatsApp":
+                            st.markdown("### 📲 Enlace directo para WhatsApp")
+                            st.caption("Haz clic en el botón inferior para abrir WhatsApp Web / App con el reporte precargado y enviarlo a tu grupo.")
                     
-                    import urllib.parse
-                    texto_url = urllib.parse.quote(texto_reporte)
-                    link_whatsapp = f"https://wa.me/?text={texto_url}"
+                            import urllib.parse
+                            texto_url = urllib.parse.quote(texto_reporte)
+                            link_whatsapp = f"https://wa.me/?text={texto_url}"
                     
-                    st.link_button("Enviar reporte por WhatsApp 🚀", url=link_whatsapp, use_container_width=True)
-                    st.divider()
-                    st.text_area("Copia el texto por si falla el enlace:", value=texto_reporte, height=200)
+                            st.link_button("Enviar reporte por WhatsApp 🚀", url=link_whatsapp, use_container_width=True)
+                            st.divider()
+                            st.text_area("Copia el texto por si falla el enlace:", value=texto_reporte, height=200)
 
-                elif modo_envio == "Enviar por Correo Electrónico":
-                    st.markdown("### ✉️ Motor de Envío Masivo")
-                    asunto_correo = st.text_input("Asunto del correo", value=f"Reporte de Volumen Acumulado - {filtro_grupo}", key="asunto_rep_final")
+                        elif modo_envio == "Enviar por Correo Electrónico":
+                            st.markdown("### ✉️ Motor de Envío Masivo")
+                            asunto_correo = st.text_input("Asunto del correo", value=f"Reporte de Volumen Acumulado - {filtro_grupo}", key="asunto_rep_final")
                     
-                    if st.button("📧 Enviar Reporte por Correo", type="primary", use_container_width=True):
-                        if not correos_destino:
-                            st.error("Por favor asegúrate de que existan destinatarios válidos filtrados o seleccionados.")
-                        else:
-                            try:
-                                remitente = "notificaciones@natacion.com"
-                                msg = MIMEMultipart()
-                                msg['From'] = remitente
-                                msg['Subject'] = asunto_correo
-                                msg.attach(MIMEText(texto_reporte, 'plain'))
+                            if st.button("📧 Enviar Reporte por Correo", type="primary", use_container_width=True):
+                                if not correos_destino:
+                                    st.error("Por favor asegúrate de que existan destinatarios válidos filtrados o seleccionados.")
+                                else:
+                                    try:
+                                        remitente = "notificaciones@natacion.com"
+                                        msg = MIMEMultipart()
+                                        msg['From'] = remitente
+                                        msg['Subject'] = asunto_correo
+                                        msg.attach(MIMEText(texto_reporte, 'plain'))
                                 
-                                server = smtplib.SMTP('smtp.gmail.com', 587)
-                                server.starttls()
+                                        server = smtplib.SMTP('smtp.gmail.com', 587)
+                                        server.starttls()
                                 # server.login("tucorreo@gmail.com", "tu-app-password")
-                                server.sendmail(remitente, correos_destino, msg.as_string())
-                                server.quit()
+                                        server.sendmail(remitente, correos_destino, msg.as_string())
+                                        server.quit()
                                 
-                                st.success(f"¡Reporte enviado exitosamente a {len(correos_destino)} atleta(s)!")
-                            except Exception as e:
-                                st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
-                                st.text_area("Respaldo:", value=texto_reporte, height=200)
+                                        st.success(f"¡Reporte enviado exitosamente a {len(correos_destino)} atleta(s)!")
+                                    except Exception as e:
+                                        st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
+                                        st.text_area("Respaldo:", value=texto_reporte, height=200)
     else:
         st.warning("🔒 Sección restringida al equipo técnico.")
