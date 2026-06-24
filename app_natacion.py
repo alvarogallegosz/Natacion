@@ -1571,13 +1571,16 @@ else:
             st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (RECONSTRUCCIÓN CON SEGMENTACIÓN REAL)
+    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (MODELO DE CARGA INDIVIDUAL CTL/ATL/TSB)
     # -------------------------------------------------------------
     with tab_pizarra:
         if st.session_state.rol in ["Entrenador", "Administrador"]:
             st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
-            st.caption("Diseña la sesión agregando bloques. Al finalizar, segmenta tu equipo usando los filtros interactivos para enviar o registrar la rutina.")
+            st.caption("Diseña la sesión agregando bloques. Al finalizar, controla la asistencia por carriles o atletas para imputar la carga individual de entrenamiento.")
             
+            # Lista maestra global de categorías para garantizar consistencia visual en selectores
+            categorias_etarias = ["Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+
             # 1. Inicializar la pizarra en la memoria de sesión si no existe
             if "pizarra_entrenamiento" not in st.session_state:
                 st.session_state.pizarra_entrenamiento = []
@@ -1612,7 +1615,7 @@ else:
                     st.session_state.pizarra_entrenamiento.append(bloque)
                     st.rerun()
 
-            # 3. Procesamiento y Estadísticas de la Pizarra Actual
+            # 3. Procesamiento y formateo de la Pizarra de Hoy
             if st.session_state.pizarra_entrenamiento:
                 st.markdown("---")
                 
@@ -1630,68 +1633,93 @@ else:
                 texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total} metros\n💪 ¡A darle con todo!"
 
                 # -------------------------------------------------------------
-                # MOTOR DE SEGMENTACIÓN INTERACTIVO (LÓGICA FIEL DEL ARCHIVO B)
+                # MOTOR DE ASISTENCIA Y AUDITORÍA INDIVIDUAL (EJE CENTRAL CTL/ATL/TSB)
                 # -------------------------------------------------------------
-                st.markdown("### 🔍 Filtros de Segmentación de Destinatarios")
+                st.markdown("### 🔍 Control de Asistencia y Asignación de Carga")
+                st.caption("Pre-filtra el equipo para generar la lista base. Luego, remueve o agrega atletas según la distribución real en los carriles.")
                 
-                # Cargar la nómina base directamente de Supabase de manera limpia y reactiva
+                # Carga ultra-tolerante de atletas desde la base de datos
                 atletas_preload = []
                 try:
                     supabase_es = st.session_state.get("supabase_client")
                     if supabase_es:
-                        resp_preload = supabase_es.table("usuarios").select("id, nombre, fecha_nacimiento, genero, email").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                        atletas_preload = resp_preload.data if resp_preload.data else []
+                        try:
+                            resp_preload = supabase_es.table("usuarios").select("id, nombre, fecha_nacimiento, genero, email, rol, estatus").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                            atletas_preload = resp_preload.data if (resp_preload and resp_preload.data) else []
+                        except Exception:
+                            atletas_preload = []
+                        
+                        # Fallback por variaciones de mayúsculas o vacíos
+                        if not atletas_preload:
+                            resp_fallback = supabase_es.table("usuarios").select("id, nombre, fecha_nacimiento, genero, email, rol, estatus").execute()
+                            raw_data = resp_fallback.data if (resp_fallback and resp_fallback.data) else []
+                            for u in raw_data:
+                                r_user = str(u.get("rol", "")).strip().lower()
+                                e_user = str(u.get("estatus", "")).strip().lower()
+                                if r_user in ["nadador", "none", ""] and e_user in ["activo", "none", ""]:
+                                    atletas_preload.append(u)
                 except Exception as e:
-                    st.error(f"Error cargando la lista de atletas desde Supabase: {e}")
+                    st.error(f"Error en comunicación con Supabase: {e}")
 
-                # Réplica de interfaz del archivo b) usando columnas para optimizar espacio en la pestaña
+                # Selectores rápidos para armar la nómina del carril
                 col_f1, col_f2 = st.columns(2)
                 with col_f1:
-                    filtro_genero = st.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"], key="piz_fil_gen")
+                    filtro_genero = st.radio("Pre-filtrar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"], key="piz_fil_gen")
                 with col_f2:
-                    tipo_filtro = st.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"], key="piz_tip_fil")
+                    tipo_filtro = st.radio("Pre-filtrar por Agrupación:", options=["Todos los Atletas", "Categoría Etaria", "Selección Manual Abierta"], key="piz_tip_fil")
 
-                # Aplicación rigurosa del filtro por género
-                if filtro_genero == "Femenino (F)":
-                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "F"]
-                elif filtro_genero == "Masculino (M)":
-                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "M"]
+                # Selector dinámico de categoría (estático para evitar que desaparezca si la BD tarda)
+                cat_sel = None
+                if tipo_filtro == "Categoría Etaria":
+                    cat_sel = st.selectbox("Seleccione la categoría base:", options=categorias_etarias, key="piz_cat_sel")
 
-                atletas_filtrados = atletas_preload
-                grupo_sugerido_registro = "General"
+                # Función interna para formatear etiquetas limpias y auditables: "Nombre [Categoría]"
+                def obtener_etiqueta_auditoria(atleta):
+                    cat_calc, _ = calcular_categoria_competencia(atleta.get("fecha_nacimiento"))
+                    return f"{atleta.get('nombre', 'Sin Nombre')} [{cat_calc}]"
 
-                # Aplicación del filtro adicional por Categoría o Selección de Individuos
-                if tipo_filtro == "Categoría Etaria" and atletas_preload:
-                    categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] for a in atletas_preload])))
-                    if categorias_disponibles:
-                        cat_sel = st.selectbox("Seleccione la categoría destino:", options=categorias_disponibles, key="piz_cat_sel")
-                        atletas_filtrados = [a for a in atletas_preload if calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] == cat_sel]
-                        grupo_sugerido_registro = cat_sel
+                # Construcción del diccionario maestro de mapeo
+                dict_atletas_global = {obtener_etiqueta_auditoria(a): a for a in atletas_preload if a.get("email")}
 
-                elif tipo_filtro == "Atletas Específicos" and atletas_preload:
-                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload if "id" in a}
-                    if dict_nom:
-                        ids_sel = st.multiselect("Seleccione los nadadores específicos:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x], key="piz_at_sel")
-                        atletas_filtrados = [a for a in atletas_preload if a.get("id") in ids_sel]
-                        grupo_sugerido_registro = "Atletas Específicos"
+                # Lógica de pre-población automática según el filtro de la UI
+                nombres_preseleccionados = []
+                if tipo_filtro != "Selección Manual Abierta":
+                    for a in atletas_preload:
+                        pass_gen = True
+                        if filtro_genero == "Femenino (F)" and str(a.get("genero")).strip().upper() != "F":
+                            pass_gen = False
+                        elif filtro_genero == "Masculino (M)" and str(a.get("genero")).strip().upper() != "M":
+                            pass_gen = False
+                            
+                        pass_tipo = True
+                        if tipo_filtro == "Categoría Etaria":
+                            cat_calc, _ = calcular_categoria_competencia(a.get("fecha_nacimiento"))
+                            if cat_calc != cat_sel:
+                                pass_tipo = False
+                                
+                        if pass_gen and pass_tipo and a.get("email"):
+                            nombres_preseleccionados.append(obtener_etiqueta_auditoria(a))
 
-                # Extracción automatizada de información (Cero memoria para el entrenador)
-                correos_pizarra_destino = [a.get("email") for a in atletas_filtrados if a.get("email")]
-                nombres_filtrados = [a.get("nombre") for a in atletas_filtrados]
+                # COMPONENTE SOBERANO DE AUDITORÍA VISUAL (Mapeado por Nombres y Categorías)
+                st.markdown("#### 🏊‍♂️ Atletas en este Carril / Plan de Carga:")
+                atletas_validados_asistencia = st.multiselect(
+                    "Listado definitivo de nadadores para esta sesión (Remueve o agrega manualmente con un clic):",
+                    options=list(dict_atletas_global.keys()),
+                    default=nombres_preseleccionados,
+                    key="piz_asistencia_auditoria"
+                )
 
-                # Cuadro de confirmación visual del alcance de la rutina
-                st.success(f"🎯 **{len(atletas_filtrados)}** atleta(s) seleccionado(s) dinámicamente.")
-                if nombres_filtrados:
-                    with st.expander("📋 Ver lista de atletas incluidos en la selección"):
-                        st.write(", ".join(nombres_filtrados))
+                if not atletas_validados_asistencia:
+                    st.warning("⚠️ Nómina vacía. Modifica los filtros o añade atletas manualmente para activar el envío y guardado.")
+                else:
+                    st.success(f"📋 Nómina confirmada: {len(atletas_validados_asistencia)} atleta(s) asignado(s) a esta sesión específica de carga.")
 
-                # 4. Lienzo Visual de la Pizarra y Métricas de Carga
+                # 4. Lienzo de la Pizarra y Analítica Gráfica de Esfuerzo
                 st.markdown("---")
                 c_lienzo, c_stats = st.columns([2, 1])
                 
                 with c_lienzo:
                     st.info(texto_exportacion.replace('\n', '  \n'))
-                    
                     c_btn1, c_btn2 = st.columns(2)
                     with c_btn1:
                         if st.button("⏪ Deshacer último bloque", use_container_width=True):
@@ -1705,7 +1733,7 @@ else:
                             
                 with c_stats:
                     st.metric("Volumen Total", f"{volumen_total} m")
-                    st.caption("Distribución por intensidad:")
+                    st.caption("Distribución de Carga por Intensidad:")
                     conteos = {}
                     for b in st.session_state.pizarra_entrenamiento:
                         conteos[b['intensidad']] = conteos.get(b['intensidad'], 0) + (b['reps'] * b['dist'])
@@ -1714,32 +1742,30 @@ else:
                         st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
 
                 # -------------------------------------------------------------
-                # 5. CENTRO DE ENVÍO Y EXPORTACIÓN DIARIA (WHATSAPP / CORREO)
+                # 5. CANAL DE DESPACHO Y EXPORTACIÓN DIARIA
                 # -------------------------------------------------------------
-                st.markdown("---")
-                st.markdown("📲 **Centro de Envío y Exportación - Rutina de Hoy**")
-       
-                canal_envio = st.selectbox("Elija cómo enviar la pizarra de hoy", ["Copiar texto", "Enviar por WhatsApp (Enlace directo)", "Enviar por Correo Electrónico"], key="canal_pizarra")
-                
-                if canal_envio == "Copiar texto":
-                    st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=180, label_visibility="collapsed")
+                if atletas_validados_asistencia:
+                    st.markdown("---")
+                    st.markdown("📲 **Centro de Envío y Exportación - Rutina**")
+           
+                    canal_envio = st.selectbox("Elija cómo enviar la pizarra de hoy", ["Copiar texto", "Enviar por WhatsApp (Enlace directo)", "Enviar por Correo Electrónico"], key="canal_pizarra")
+                    
+                    if canal_envio == "Copiar texto":
+                        st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=180, label_visibility="collapsed")
 
-                elif canal_envio == "Enviar por WhatsApp (Enlace directo)":
-                    import urllib.parse
-                    texto_url = urllib.parse.quote(texto_exportacion)
-                    link_whatsapp = f"https://wa.me/?text={texto_url}"
-                    st.link_button("Enviar rutina por WhatsApp 🚀", url=link_whatsapp, use_container_width=True)
+                    elif canal_envio == "Enviar por WhatsApp (Enlace directo)":
+                        import urllib.parse
+                        texto_url = urllib.parse.quote(texto_exportacion)
+                        link_whatsapp = f"https://wa.me/?text={texto_url}"
+                        st.link_button("Enviar rutina por WhatsApp 🚀", url=link_whatsapp, use_container_width=True)
 
-                elif canal_envio == "Enviar por Correo Electrónico":
-                    st.caption("Los correos electrónicos se han precargado basándose en la segmentación elegida arriba.")
-                    destinatarios_pizarra = st.text_input("Destinatarios (Campos autogestionados)", value=", ".join(correos_pizarra_destino), key="dest_p")
-                    asunto_pizarra = st.text_input("Asunto del correo", value=f"Rutina de Entrenamiento - {datetime.date.today().strftime('%d/%m/%Y')}", key="asunto_p")
-             
-                    if st.button("📧 Enviar Rutina por Correo", type="primary", use_container_width=True):
-                        if not destinatarios_pizarra:
-                            st.error("Error: No existen destinatarios seleccionados en los filtros de arriba para realizar el envío.")
-                        else:
-                            lista_correos_p = [c.strip() for c in destinatarios_pizarra.split(',')]
+                    elif canal_envio == "Enviar por Correo Electrónico":
+                        asunto_pizarra = st.text_input("Asunto del correo", value=f"Rutina de Entrenamiento Específica - {datetime.date.today().strftime('%d/%m/%Y')}", key="asunto_p")
+                 
+                        if st.button("📧 Enviar Rutina por Correo", type="primary", use_container_width=True):
+                            # Extrae automáticamente los correos correspondientes a los nombres validados en la UI
+                            lista_correos_finales = [dict_atletas_global[nom].get("email") for nom in atletas_validados_asistencia if nom in dict_atletas_global]
+                            
                             try:
                                 remitente = "notificaciones@natacion.com"
                                 msg = MIMEMultipart()
@@ -1750,62 +1776,69 @@ else:
                                 server = smtplib.SMTP('smtp.gmail.com', 587)
                                 server.starttls()
                                 # server.login("tucorreo@gmail.com", "tu-app-password")
-                                server.sendmail(remitente, lista_correos_p, msg.as_string())
+                                server.sendmail(remitente, lista_correos_finales, msg.as_string())
                                 server.quit()
                                 
-                                st.success(f"¡Rutina distribuida por correo a {len(lista_correos_p)} atleta(s) exitosamente!")
+                                st.success(f"¡Rutina enviada por correo a {len(lista_correos_finales)} atleta(s) del carril!")
                             except Exception as e:
-                                st.warning("No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
+                                st.warning("Soporte SMTP no configurado. Se muestra respaldo en texto:")
                                 st.text_area("Respaldo:", value=texto_exportacion, height=150)
 
-                # -------------------------------------------------------------
-                # 6. MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO
-                # -------------------------------------------------------------
-                st.markdown("---")
-                st.markdown("### 💾 Respaldo de la Jornada de Entrenamiento")
-                st.caption("Consolida este volumen acumulado para alimentar las estadísticas macro de los reportes mensuales y trimestrales.")
-                
-                c_grupo, c_fecha = st.columns(2)
-                with c_grupo:
-                    categorias_etarias = ["Semillero / Menor", "Preinfantil A", "Preinfantil B", "Preinfantil C", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+                    # -------------------------------------------------------------
+                    # 6. CONSOLIDACIÓN CIENTÍFICA DE CARGA INDIVIDUAL (CTL / ATL / TSB)
+                    # -------------------------------------------------------------
+                    st.markdown("---")
+                    st.markdown("### 💾 Guardar Jornada e Imputar Carga de Trabajo Individual")
+                    st.caption("Al consolidar, este volumen e intensidades se grabarán de forma personalizada en el historial de CADA atleta seleccionado arriba. Esto alimentará con exactitud sus curvas individuales de Carga Crónica (CTL) y Aguda (ATL) en los reportes.")
                     
-                    # Inteligencia artificial de llenado: Si arriba se filtró una categoría, se preselecciona automáticamente aquí
-                    indice_defecto = 0
-                    if grupo_sugerido_registro in categorias_etarias:
-                        indice_defecto = categorias_etarias.index(grupo_sugerido_registro) + 1
-                        
-                    grupo_asociado = st.selectbox("Asignar volumen a la categoría:", ["General"] + categorias_etarias, index=indice_defecto, help="El sistema autoselecciona la categoría según el filtro superior.")
-                with c_fecha:
-                    fecha_jornada = st.date_input("Fecha de la sesión", value=datetime.date.today())
+                    c_lane, c_fecha = st.columns(2)
+                    with c_lane:
+                        identificador_carril = st.text_input("Identificador del Carril o Sesión (Opcional):", value="Carril 1", key="piz_identificador_carril", help="Ej: Carril 1 - Fondo, Grupo Velocidad, Recobro Lesión, etc.")
+                    with c_fecha:
+                        fecha_jornada = st.date_input("Fecha de ejecución", value=datetime.date.today(), key="piz_fecha_back")
 
-                if st.button("💾 Guardar y Consolidar Jornada", type="primary", use_container_width=True):
-                    desglose_estilos = {}
-                    for blk in st.session_state.pizarra_entrenamiento:
-                        est = blk['estilo']
-                        mts = blk['reps'] * blk['dist']
-                        desglose_estilos[est] = desglose_estilos.get(est, 0) + mts
-                        
-                    desglose_intensidad = {}
-                    for blk in st.session_state.pizarra_entrenamiento:
-                        inte = blk['intensidad']
-                        mts = blk['reps'] * blk['dist']
-                        desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
+                    if st.button("💾 Consolidar Metros e Intensidades por Atleta", type="primary", use_container_width=True, key="btn_consolidar_piz"):
+                        desglose_estilos = {}
+                        for blk in st.session_state.pizarra_entrenamiento:
+                            est = blk['estilo']
+                            mts = blk['reps'] * blk['dist']
+                            desglose_estilos[est] = desglose_estilos.get(est, 0) + mts
+                            
+                        desglose_intensidad = {}
+                        for blk in st.session_state.pizarra_entrenamiento:
+                            inte = blk['intensidad']
+                            mts = blk['reps'] * blk['dist']
+                            desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
 
-                    registro_diario = {
-                        "fecha": str(fecha_jornada),
-                        "grupo": grupo_asociado, 
-                        "metros_totales": volumen_total,
-                        "desglose_estilos": desglose_estilos,
-                        "desglose_intensidad": desglose_intensidad,
-                        "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
-                    }
+                        # Extraemos los perfiles completos de los atletas validados para la imputación matemática
+                        lista_atletas_afectados = []
+                        for nom in atletas_validados_asistencia:
+                            if nom in dict_atletas_global:
+                                at_obj = dict_atletas_global[nom]
+                                lista_atletas_afectados.append({
+                                    "id_atleta": at_obj.get("id"),
+                                    "nombre": at_obj.get("nombre"),
+                                    "email": at_obj.get("email")
+                                })
 
-                    if "bitacora_historica" not in st.session_state:
-                        st.session_state.bitacora_historica = []
+                        # Registro estructurado con granularidad fina por atleta
+                        registro_diario = {
+                            "fecha": str(fecha_jornada),
+                            "identificador_carril": identificador_carril,
+                            "atletas_imputados": lista_atletas_afectados, 
+                            "metros_totales": volumen_total,
+                            "desglose_estilos": desglose_estilos,
+                            "desglose_intensidad": desglose_intensidad,
+                            "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
+                        }
+
+                        if "bitacora_historica" not in st.session_state:
+                            st.session_state.bitacora_historica = []
+                            
+                        st.session_state.bitacora_historica.append(registro_diario)
                         
-                    st.session_state.bitacora_historica.append(registro_diario)
-                    st.success(f"¡Jornada guardada con éxito! Se han consolidado {volumen_total} metros al historial del grupo `{grupo_asociado}`.")
-                    st.balloons()
+                        st.success(f"¡Carga histórica consolidada! Se han imputado {volumen_total} metros de manera individual a los {len(lista_atletas_afectados)} atleta(s) confirmados en el carril.")
+                        st.balloons()
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
 # -------------------------------------------------------------
