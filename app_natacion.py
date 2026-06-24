@@ -1839,13 +1839,13 @@ else:
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO
+    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (CON MOTOR CTL/ATL/TSB)
     # -------------------------------------------------------------
     with tab_reportes:
         if st.session_state.get("rol") in ["Entrenador", "Administrador"]:
             
-            st.markdown("### 📊 Panel de Control y Análisis de Carga")
-            st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y la distribución.")
+            st.markdown("### 📊 Panel de Control y Análisis de Carga Científica")
+            st.caption("Monitoree el volumen y evalúe los modelos fisiológicos de Condición (CTL), Fatiga (ATL) y Forma (TSB) para optimizar el Tapering.")
 
             # Inicializar estados de memoria para reportes si no existen
             if "reporte_calculado" not in st.session_state:
@@ -1866,7 +1866,7 @@ else:
             }
             
             ventana_sel = st.selectbox(
-                "⏳ Ventana Temporal de Análisis:",
+                "⏳ Ventana Temporal de Análisis de Carga:",
                 options=list(opciones_tiempo.keys()),
                 index=3,  # Defecto en 42 días por volumen crónico
                 key="rep_selectbox_temporalidad"
@@ -1947,7 +1947,6 @@ else:
             else:
                 atletas_finales_rep = atletas_pool_rep
 
-            # Resetear memoria si cambian los filtros para forzar nueva consulta
             if st.button("🔄 Resetear Criterios", key="btn_reset_rep"):
                 st.session_state.reporte_calculado = None
                 st.rerun()
@@ -1955,15 +1954,16 @@ else:
             st.markdown("---")
 
             # =============================================================================
-            # BOTÓN EXPLÍCITO DE GENERACIÓN DE REPORTE
+            # 3. BOTÓN EXPLÍCITO DE GENERACIÓN DE REPORTE MATEMÁTICO
             # =============================================================================
-            if st.button("📊 GENERAR REPORTE ANALÍTICO", type="primary", use_container_width=True, key="btn_trigger_reporte_real"):
+            if st.button("📊 GENERAR ANALÍTICA AVANZADA (CTL / ATL / TSB)", type="primary", use_container_width=True, key="btn_trigger_reporte_real"):
                 if not atletas_finales_rep:
                     st.warning("⚠️ Debes seleccionar un grupo de atletas válido antes de generar el reporte.")
                 else:
                     ids_interes = [at["id"] for at in atletas_finales_rep]
-                    with st.spinner("Consultando bases de datos históricas en Supabase..."):
+                    with st.spinner("Procesando históricos y resolviendo ecuaciones exponenciales de carga..."):
                         try:
+                            # Descargar bitácora histórica completa de los atletas seleccionados
                             query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
                             if fecha_limite:
                                 query_rep = query_rep.gte("fecha", str(fecha_limite))
@@ -1975,31 +1975,45 @@ else:
                                 st.session_state.reporte_calculado = "Vacio"
                             else:
                                 import pandas as pd
-                                # Procesar acumulados de volumen y JSONB
-                                volumen_total_neto = sum([r.get("metros_totales", 0) for r in records])
+                                df_raw = pd.DataFrame(records)
+                                df_raw["fecha"] = pd.to_datetime(df_raw["fecha"])
                                 
-                                # Consolidar desgloses
+                                # Factores fisiológicos de ponderación de la intensidad (TRIMP Proxy Natación)
+                                factores_intensidad = {
+                                    "A1": 1.0, "A2": 1.3, "A3": 1.6, "Anaeróbico": 2.2, "Aláctico": 2.5, "Regenerativo": 0.7
+                                }
+                                
+                                # Calcular el Score de Carga de cada fila
+                                def calcular_score_carga(row):
+                                    desglose = row.get("desglose_intensidad") or {}
+                                    score = 0.0
+                                    for zona, metros in desglose.items():
+                                        score += (metros * factores_intensidad.get(zona, 1.0))
+                                    return score / 1000.0  # Normalizado por km ponderado
+
+                                df_raw["score_carga"] = df_raw.apply(calcular_score_carga, axis=1)
+                                
+                                # Agrupar e indexar métricas grupales macro
+                                volumen_total_neto = sum([r.get("metros_totales", 0) for r in records])
                                 dic_estilos = {}
                                 dic_intensidades = {}
                                 for r in records:
-                                    for k, v in (r.get("desglose_estilos") or {}).items():
-                                        dic_estilos[k] = dic_estilos.get(k, 0) + v
-                                    for k, v in (r.get("desglose_intensidad") or {}).items():
-                                        dic_intensidades[k] = dic_intensidades.get(k, 0) + v
+                                    for k, v in (r.get("desglose_estilos") or {}).items(): dic_estilos[k] = dic_estilos.get(k, 0) + v
+                                    for k, v in (r.get("desglose_intensidad") or {}).items(): dic_intensidades[k] = dic_intensidades.get(k, 0) + v
                                 
-                                # Guardar estructura limpia en memoria de sesión
+                                # Guardar estructura base en memoria
                                 st.session_state.reporte_calculado = {
                                     "volumen_total": volumen_total_neto,
                                     "df_estilos": pd.DataFrame(list(dic_estilos.items()), columns=["Estilo", "Metros"]),
                                     "df_intensidades": pd.DataFrame(list(dic_intensidades.items()), columns=["Zona", "Metros"]),
-                                    "total_registros": len(records),
-                                    "atletas_analizados": [a["nombre"] for a in atletas_finales_rep]
+                                    "df_raw_cargas": df_raw,
+                                    "atletas_dict_filtrados": {a["id"]: a["nombre"] for a in atletas_finales_rep}
                                 }
                         except Exception as e:
                             st.error(f"Error crítico en consulta analítica: {e}")
 
             # =============================================================================
-            # RENDERIZADO VISUAL Y CENTRO DE EXPORTACIÓN (PERSISTENTE)
+            # 4. RENDERIZADO VISUAL Y CURVAS INDIVIDUALES
             # =============================================================================
             if st.session_state.reporte_calculado == "Vacio":
                 st.warning(f"📭 No hay métricas cargadas en Supabase para el grupo seleccionado en el rango temporal consultado.")
@@ -2007,61 +2021,100 @@ else:
             elif isinstance(st.session_state.reporte_calculado, dict):
                 rep = st.session_state.reporte_calculado
                 
-                # Despliegue de Métrica Macro
-                st.success(f"🎯 Análisis compilado exitosamente para {len(rep['atletas_analizados'])} atleta(s).")
-                st.metric(label="🏊‍♂️ Volumen Total Acumulado en el Período", value=f"{rep['volumen_total']:,} metros")
+                st.success(f"🎯 Análisis acumulado completado para {len(rep['atletas_dict_filtrados'])} atleta(s).")
                 
-                # --- DESPLIEGUE GRÁFICO REAL ---
-                c_graf1, c_graf2 = st.columns(2)
-                with c_graf1:
-                    st.markdown("#### 🏊‍♂️ Distribución por Estilos")
-                    if not rep["df_estilos"].empty:
-                        # Gráfico de barras horizontal nativo y limpio
-                        st.bar_chart(data=rep["df_estilos"], x="Estilo", y="Metros", color="#1f77b4")
-                    else:
-                        st.caption("Sin registros de estilos.")
-                        
-                with c_graf2:
-                    st.markdown("#### 🔥 Carga por Zonas de Intensidad")
-                    if not rep["df_intensidades"].empty:
-                        st.bar_chart(data=rep["df_intensidades"], x="Zona", y="Metros", color="#ff7f0e")
-                    else:
-                        st.caption("Sin registros de intensidad.")
+                # --- VISUALIZACIÓN MACRO DEL GRUPO ---
+                c_m1, c_m2 = st.columns(2)
+                with c_m1:
+                    st.metric(label="🏊‍♂️ Volumen Total del Grupo", value=f"{rep['volumen_total']:,} metros")
+                with c_m2:
+                    st.caption("Distribuciones generales computadas en el bloque histórico.")
 
-                # --- CENTRO DE EXPORTACIÓN DE REPORTES ---
+                # --- MODELADO FISIOLÓGICO INDIVIDUAL (CTL / ATL / TSB) ---
+                st.markdown("---")
+                st.markdown("### 📈 Curva Fisiológica Individual de Rendimiento (Bannister/Coggan Model)")
+                st.caption("Seleccione un nadador del grupo filtrado para resolver su modelo matemático de adaptación biológica.")
+                
+                atletas_opciones = rep["atletas_dict_filtrados"]
+                atleta_sel_id = st.selectbox(
+                    "Seleccione Nadador para Graficar TSB:",
+                    options=list(atletas_opciones.keys()),
+                    format_func=lambda x: atletas_opciones[x],
+                    key="sb_atleta_fisiologico"
+                )
+                
+                if atleta_sel_id:
+                    df_atl = rep["df_raw_cargas"][rep["df_raw_cargas"]["atleta_id"] == atleta_sel_id]
+                    
+                    if df_atl.empty:
+                        st.info("💡 Este atleta no posee registros de carga en la ventana temporal seleccionada.")
+                    else:
+                        import numpy as np
+                        import pandas as pd
+                        
+                        # 1. Agrupar por día por si dobló turno de entrenamiento
+                        df_diario = df_atl.groupby("fecha")["score_carga"].sum().reset_index()
+                        
+                        # 2. Forzar la línea de tiempo continua para que el decaimiento sea real (rellenar vacíos con 0)
+                        fecha_min = df_diario["fecha"].min()
+                        fecha_max = pd.to_datetime(datetime.date.today())
+                        rango_completo = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
+                        
+                        df_diario = df_diario.set_index("fecha").reindex(rango_completo, fill_value=0.0)
+                        df_diario = df_diario.rename_axis("Fecha").reset_index()
+                        
+                        # 3. Aplicar constantes matemáticas de decaimiento fisiológico
+                        # CTL (Constante de tiempo = 42 días) -> Condición
+                        # ATL (Constante de tiempo = 7 días)  -> Fatiga
+                        lambda_ctl = np.exp(-1.0 / 42.0)
+                        lambda_atl = np.exp(-1.0 / 7.0)
+                        
+                        ctl_valores = [0.0]
+                        atl_valores = [0.0]
+                        
+                        # Resolver bucle iterativo del modelo
+                        for carga in df_diario["score_carga"]:
+                            ctl_valores.append(ctl_valores[-1] * lambda_ctl + carga * (1.0 - lambda_ctl))
+                            atl_valores.append(atl_valores[-1] * lambda_atl + carga * (1.0 - lambda_atl))
+                        
+                        # Asignar vectores recortando el valor semilla inicial
+                        df_diario["Condición (CTL)"] = ctl_valores[1:]
+                        df_diario["Fatiga (ATL)"] = atl_valores[1:]
+                        df_diario["Forma (TSB)"] = df_diario["Condición (CTL)"] - df_diario["Fatiga (ATL)"]
+                        
+                        # 4. Desplegar métricas de estado actual (Hoy)
+                        estado_hoy = df_diario.iloc[-1]
+                        
+                        c_tsb1, c_tsb2, c_tsb3 = st.columns(3)
+                        with c_tsb1:
+                            st.metric("🔵 Condición Actual (CTL)", f"{estado_hoy['Condición (CTL)']:.1f}")
+                        with c_tsb2:
+                            st.metric("🔴 Fatiga Acumulada (ATL)", f"{estado_hoy['Fatiga (ATL)']:.1f}")
+                        with c_tsb3:
+                            tsb_val = estado_hoy['Forma (TSB)']
+                            color_estado = "Fresh / Tapering" if tsb_val > 5 else ("Fatigado" if tsb_val < -10 else "Óptimo Entrenamiento")
+                            st.metric("🟢 Balance (TSB / Forma)", f"{tsb_val:.1f}", delta=color_estado)
+                        
+                        # 5. Graficar curvas de rendimiento combinadas
+                        st.markdown("#### Evolución Temporal de las Cargas")
+                        df_grafico = df_diario.set_index("Fecha")[["Condición (CTL)", "Fatiga (ATL)", "Forma (TSB)"]]
+                        st.line_chart(df_grafico, color=["#1f77b4", "#d62728", "#2ca02c"])
+                        
+                        # Zona de advertencia de sobreentrenamiento clínica
+                        if tsb_val < -25:
+                            st.error("⚠️ **Alerta de Carga Crítica:** El atleta se encuentra en la zona de riesgo de lesión o sobreentrenamiento (TSB por debajo de -25). Se sugiere descarga inminente.")
+                        elif 5 <= tsb_val <= 25:
+                            st.success("🎯 **Zona de Tapering Óptima:** El balance es positivo. El atleta está listo para competir en su pico de velocidad.")
+
+                # --- CENTRO DE EXPORTACIÓN ---
                 st.markdown("### 💾 Centro de Exportación de Datos Analíticos")
-                
-                # Preparar texto descriptivo para descargas físicas
-                resumen_txt = f"REPORTE HISTÓRICO DE ENTRENAMIENTO\nVentana: {ventana_sel}\nVolumen Acumulado: {rep['volumen_total']} metros\nAtletas: {', '.join(rep['atletas_analizados'])}"
-                
-                c_exp1, c_exp2, c_exp3 = st.columns(3)
+                c_exp1, c_exp2 = st.columns(2)
                 with c_exp1:
-                    # Exportación limpia a CSV del desglose de estilos
                     csv_data = rep["df_estilos"].to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📊 Descargar Estilos (CSV)",
-                        data=csv_data,
-                        file_name=f"reporte_estilos_{ventana_sel.split()[0]}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
+                    st.download_button("📊 Descargar Desglose de Estilos (CSV)", csv_data, "reporte_estilos.csv", "text/csv", use_container_width=True)
                 with c_exp2:
-                    # Exportación limpia a CSV del desglose de intensidades
                     csv_int_data = rep["df_intensidades"].to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="🔥 Descargar Intensidades (CSV)",
-                        data=csv_int_data,
-                        file_name=f"reporte_intensidades_{ventana_sel.split()[0]}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-                with c_exp3:
-                    st.download_button(
-                        label="📄 Descargar Resumen General (TXT)",
-                        data=resumen_txt,
-                        file_name="resumen_analitico_carga.txt",
-                        mime="text/plain",
-                        use_container_width=True
-                    )
+                    st.download_button("🔥 Descargar Zonas de Intensidad (CSV)", csv_int_data, "reporte_intensidades.csv", "text/csv", use_container_width=True)
+                    
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
