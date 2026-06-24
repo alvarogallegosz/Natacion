@@ -1149,6 +1149,30 @@ else:
 
     st.pyplot(fig, use_container_width=True)
 
+# -------------------------------------------------------------------------
+# ST.MARKDOWN - CENTRO DE EXPORTACIÓN
+# -------------------------------------------------------------------------
+st.markdown("---")
+st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
+
+if len(df_procesado) > 0 or modo_equipo:
+    export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
+    csv_data = export_df.to_csv(index=False).encode('utf-8')
+    txt_string = export_df.to_string(index=False)
+    
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
+    img_buffer.seek(0)
+    
+    c_exp1, c_exp2, c_exp3 = st.columns(3)
+    with c_exp1:
+        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
+    with c_exp2:
+        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
+    with c_exp3:
+        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"grafico_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
+
+
 # -------------------------------------------------------------
 # MÓDULOS DE GESTIÓN SEGÚN ROL
 # -------------------------------------------------------------
@@ -1589,25 +1613,3 @@ else:
                 st.text_area("Copia el texto list para enviar:", value=texto_exportacion, height=200, label_visibility="collapsed")
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
-# -------------------------------------------------------------------------
-# ST.MARKDOWN - CENTRO DE EXPORTACIÓN
-# -------------------------------------------------------------------------
-st.markdown("---")
-st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
-
-if len(df_procesado) > 0 or modo_equipo:
-    export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
-    csv_data = export_df.to_csv(index=False).encode('utf-8')
-    txt_string = export_df.to_string(index=False)
-    
-    img_buffer = io.BytesIO()
-    fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
-    img_buffer.seek(0)
-    
-    c_exp1, c_exp2, c_exp3 = st.columns(3)
-    with c_exp1:
-        st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.csv", mime="text/csv")
-    with c_exp2:
-        st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.txt", mime="text/plain")
-    with c_exp3:
-        st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"grafico_{titulo_grafico}_{st.session_state.nadador_seleccionado_nombre}.png", mime="image/png")
