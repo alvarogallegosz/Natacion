@@ -1672,7 +1672,50 @@ else:
                     texto_exportacion += linea + "\n"
 
                 texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total} metros\n💪 ¡A darle con todo!"
+# -------------------------------------------------------------
+                # SEGMENTACIÓN DE DESTINATARIOS PARA LA PIZARRA DIARIA
+                # -------------------------------------------------------------
+                st.markdown("---")
+                st.markdown("🎯 **Segmentación de Destinatarios (Pizarra de Hoy)**")
+                
+                # Extraemos la base de datos de usuarios de Supabase
+                todos_los_nadadores = []
+                try:
+                    supabase_es = st.session_state.get("supabase_client")
+                    if supabase_es:
+                        resp_sb = supabase_es.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").execute()
+                        if resp_sb.data:
+                            for u in resp_sb.data:
+                                cat_calc, _ = calcular_categoria_competencia(u.get("fecha_nacimiento"))
+                                gen_cod = u.get("genero", "M")
+                                todos_los_nadadores.append({
+                                    "nombre": u.get("nombre", "Sin Nombre"),
+                                    "email": u.get("email", ""),
+                                    "genero": "Masculino" if gen_cod == "M" else "Femenino",
+                                    "categoria": cat_calc
+                                })
+                except Exception as e:
+                    pass # Silenciamos error de carga previo
 
+                categorias_pizarra = sorted(list(set(n["categoria"] for n in todos_los_nadadores))) if todos_los_nadadores else []
+                
+                col_p1, col_p2 = st.columns(2)
+                with col_p1:
+                    sel_cat_pizarra = st.selectbox("Categoría para envío", ["Todas las categorías"] + categorias_pizarra, key="cat_piz")
+                with col_p2:
+                    sel_gen_pizarra = st.selectbox("Género para envío", ["Todos los géneros", "Masculino", "Femenino"], key="gen_piz")
+                
+                # Filtramos correos en memoria para la pizarra
+                nadadores_piz_filtrados = todos_los_nadadores
+                if sel_cat_pizarra != "Todas las categorías":
+                    nadadores_piz_filtrados = [n for n in nadadores_piz_filtrados if n["categoria"] == sel_cat_pizarra]
+                if sel_gen_pizarra != "Todos los géneros":
+                    nadadores_piz_filtrados = [n for n in nadadores_piz_filtrados if n["genero"] == sel_gen_pizarra]
+                
+                correos_pizarra_destino = [n["email"] for n in nadadores_piz_filtrados if n["email"]]
+                st.caption(f"La pizarra se enviará a **{len(correos_pizarra_destino)}** atletas filtrados.")
+
+                # (Aquí abajo irían tus opciones actuales de canal_envio: Copiar, WhatsApp, Correo usando 'correos_pizarra_destino')
                 # 4. Lienzo Visual y Botones de Control
                 c_lienzo, c_stats = st.columns([2, 1])
                 
