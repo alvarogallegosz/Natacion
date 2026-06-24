@@ -1518,11 +1518,11 @@ else:
                     
                 c_int, c_imp, c_not = st.columns(3)
                 with c_int:
-                    intensidad = st.selectbox("Intensidad / Ritmo", ["Suave (Aeróbico Ligero)", "Medio (Aeróbico Medio)", "Fuerte (Umbral)", "Sprint (Máximo)", "Ritmo de Competencia"])
+                    intensidad = st.selectbox("Intensidad / Ritmo", ["Suave (Aeróbico Ligero 3-4)", "Medio (Aeróbico Medio 5-6)", "Fuerte (Umbral 7-8)", "Sprint (Máximo 9-10)", "Ritmo de Competencia"])
                 with c_imp:
                     implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"])
                 with c_not:
-                    notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3")
+                    notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3, Descanso 20s, c/1:30 min")
 
                 if st.button("Añadir a la sesión", use_container_width=True):
                     bloque = {
