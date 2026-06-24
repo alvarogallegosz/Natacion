@@ -1618,18 +1618,7 @@ else:
 # 5. Exportación a WhatsApp
                 st.markdown("📲 **Exportar a WhatsApp o Correo**")
                 st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=200, label_visibility="collapsed")
-    # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y ENVÍO (ETAPA 2)
-    # -------------------------------------------------------------
-    with tab_reportes:
-        if st.session_state.rol in ["Entrenador", "Administrador"]:
-            st.markdown("### 📊 Centro de Reportes y Proyecciones de Temporada")
-            st.caption("Filtra y procesa el volumen acumulado mensual o trimestral para verificar el cumplimiento de marcas competitivas.")
-        
-        # Aquí programaremos en la siguiente fase los filtros de período, atleta/categoría y el motor de envío.
-            st.info("Módulo de informes en desarrollo. El motor de consolidación diario ya está activo.")
-        else:
-            st.warning("🔒 Sección restringida al equipo técnico.")
+
                 # -------------------------------------------------------------
                 # MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO (EVALUACIÓN Y PROYECCIÓN)
                 # -------------------------------------------------------------
