@@ -258,6 +258,49 @@ def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
         return None
 
 # -------------------------------------------------------------
+# FUNCIÓN AUXILIAR: CONSULTA Y FILTRADO DE ATLETAS (ETAPA 2)
+# -------------------------------------------------------------
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_atletas_filtrados_supabase():
+    """Consulta la base de datos y devuelve una lista de diccionarios con la data de los atletas."""
+    try:
+        supabase = st.session_state.get("supabase_client")
+        if not supabase:
+            return []
+        
+        # Ajusta "usuarios" por el nombre exacto de tu tabla si difiere
+        response = supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").execute()
+        if not response.data:
+            return []
+            
+        lista_atletas = []
+        for usuario in response.data:
+            # Extraemos los campos asegurando que existan
+            nombre = usuario.get("nombre", "Sin Nombre")
+            email = usuario.get("email", "")
+            genero = usuario.get("genero", "M") # 'M' o 'F'
+            fecha_nac = usuario.get("fecha_nacimiento")
+            
+            # Usamos tu función para calcular la categoría y la edad
+            categoria, edad = calcular_categoria_competencia(fecha_nac)
+            
+            # Solo agregamos si tiene un correo válido registrado
+            if email and email.strip() != "":
+                lista_atletas.append({
+                    "id": usuario.get("id"),
+                    "nombre": nombre,
+                    "email": email,
+                    "genero": "Masculino" if genero == "M" else "Femenino",
+                    "genero_codigo": genero,
+                    "categoria": categoria,
+                    "edad": edad
+                })
+        return lista_atletas
+    except Exception as e:
+        st.error(f"Error al consultar base de datos de atletas: {e}")
+        return []
+
+# -------------------------------------------------------------
 # CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
 # -------------------------------------------------------------
 if "autenticado" not in st.session_state:
