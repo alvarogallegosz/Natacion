@@ -1614,58 +1614,9 @@ else:
                     for k, v in conteos.items():
                         porcentaje = (v / volumen_total) * 100
                         st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
-
 # 5. Exportación a WhatsApp
                 st.markdown("📲 **Exportar a WhatsApp o Correo**")
                 st.text_area("Copia el texto listo para enviar:", value=texto_exportacion, height=200, label_visibility="collapsed")
-                # -------------------------------------------------------------
-                # MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO (EVALUACIÓN Y PROYECCIÓN)
-                # -------------------------------------------------------------
-                st.markdown("---")
-                st.markdown("### 💾 Respaldo de la Jornada de Entrenamiento")
-                st.caption("Consolida los datos de hoy para sumarlos al historial de reportes mensuales y trimestrales (necesario para verificar cumplimiento de marcas y becas).")
-                
-                # Campos para asociar el entrenamiento a un atleta o categoría
-                c_grupo, c_fecha = st.columns(2)
-                with c_grupo:
-                    grupo_asociado = st.text_input("Atleta, Categoría o Grupo de Entrenamiento", value=f"{st.session_state.get('nadador_seleccionado_categoria', 'General')}", help="Identificador para agrupar este volumen.")
-                with c_fecha:
-                    fecha_jornada = st.date_input("Fecha de la sesión", value=datetime.date.today())
-
-                if st.button("💾 Guardar y Consolidar Jornada", type="primary", use_container_width=True):
-                    # Recopilar desglose de estilos
-                    desglose_estilos = {}
-                    for blk in st.session_state.pizarra_entrenamiento:
-                        est = blk['estilo']
-                        mts = blk['reps'] * blk['dist']
-                        desglose_estilos[est] = desglose_estilos.get(est, 0) + mts
-                        
-                    # Recopilar desglose de intensidades
-                    desglose_intensidad = {}
-                    for blk in st.session_state.pizarra_entrenamiento:
-                        inte = blk['intensidad']
-                        mts = blk['reps'] * blk['dist']
-                        desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
-
-                    # Estructura del registro diario consolidado
-                    registro_diario = {
-                        "fecha": str(fecha_jornada),
-                        "grupo": grupo_asociado,
-                        "metros_totales": volumen_total,
-                        "desglose_estilos": desglose_estilos,
-                        "desglose_intensidad": desglose_intensidad,
-                        "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
-                    }
-
-                    if "bitacora_historica" not in st.session_state:
-                        st.session_state.bitacora_historica = []
-                        
-                    st.session_state.bitacora_historica.append(registro_diario)
-                    st.success(f"¡Jornada guardada exitosamente! Se han consolidado {volumen_total} metros para `{grupo_asociado}`.")
-                    st.balloons()
-
-        else:
-            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
 
                 # -------------------------------------------------------------
                 # MOTOR DE CONSOLIDACIÓN Y RESPALDO DIARIO (EVALUACIÓN Y PROYECCIÓN)
