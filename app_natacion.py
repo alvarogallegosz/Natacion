@@ -1817,55 +1817,50 @@ with tab_reportes:
         st.markdown("---")
 
         # =====================================================================
-        # DESPLEGABLES DE SEGMENTACIÓN DE ENVÍOS (CORREO ELECTRÓNICO)
+        # DESPLEGABLES Y SEGMENTACIÓN DE ENVÍOS (CORREO ELECTRÓNICO)
         # =====================================================================
+        correos_destino = [] # Inicializamos la lista vacía para evitar errores
+        
         if modo_envio == "Enviar por Correo Electrónico":
             st.markdown("✉️ **Segmentación de Destinatarios para Correo**")
-            st.caption("Puedes enviar a un grupo por categoría/género o seleccionar atletas específicos de la lista.")
+            st.caption("El sistema extraerá los atletas y correos según el filtro de texto o categoría que indicaste arriba.")
             
-            # Obtenemos la lista fresca desde Supabase
+            # Obtenemos la lista fresca desde Supabase usando tu función
             todos_los_atletas = obtener_atletas_filtrados_supabase()
             
             if not todos_los_atletas:
                 st.warning("No se encontraron atletas con correos registrados en la base de datos de Supabase.")
             else:
-                # Extraer categorías únicas para el primer desplegable
-                categorias_disponibles = sorted(list(set(a["categoria"] for a in todos_los_atletas)))
-                
-                c_sel1, c_sel2 = st.columns(2)
-                with c_sel1:
-                    sel_categoria = st.selectbox("Filtrar por Categoría", ["Todas"] + categorias_disponibles, key="fil_cat")
-                with c_sel2:
-                    sel_genero = st.selectbox("Filtrar por Género", ["Todos", "Masculino", "Femenino"], key="fil_gen")
-                
-                # Filtrado en memoria en base a los selectbox anteriores
-                atletas_filtrados = todos_los_atletas
-                if sel_categoria != "Todas":
-                    atletas_filtrados = [a for a in atletas_filtrados if a["categoria"] == sel_categoria]
-                if sel_genero != "Todos":
-                    atletas_filtrados = [a for a in atletas_filtrados if a["genero"] == sel_genero]
-                
-                # Construir las opciones para el multiselect
-                opciones_nombres = [f"{a['nombre']} ({a['categoria']} - {a['genero']})" for a in atletas_filtrados]
-                
-                st.caption(f"Se encontraron {len(atletas_filtrados)} atletas que cumplen con los filtros.")
-                
-                # Selección directa o múltiple
-                atletas_seleccionados = st.multiselect("Seleccionar atletas específicos (Opcional, sobrescribe filtros)", opciones_nombres, key="sel_multi_atletas")
-                
-                # Asignación de correos de destino
-                if atletas_seleccionados:
-                    # Extraer solo los correos de los que fueron seleccionados en el multiselect
-                    correos_destino = [
-                        a['email'] for a in atletas_filtrados 
-                        if f"{a['nombre']} ({a['categoria']} - {a['genero']})" in atletas_seleccionados
+                # Filtrar atletas en memoria basándonos en el st.text_input (filtro_grupo)
+                if filtro_grupo and filtro_grupo.strip() != "":
+                    atletas_filtrados = [
+                        a for a in todos_los_atletas 
+                        if filtro_grupo.lower() in a["categoria"].lower() or filtro_grupo.lower() in a["nombre"].lower()
                     ]
                 else:
-                    # Enviar a todos los que pasaron el filtro de categoría y género
-                    correos_destino = [a['email'] for a in atletas_filtrados]
+                    atletas_filtrados = todos_los_atletas
+                    
+                opciones_nombres = [f"{a['nombre']} ({a['categoria']} - {a['genero']})" for a in atletas_filtrados]
                 
-                st.write(f"📧 **Correos a enviar ({len(correos_destino)} destinatarios):**", correos_destino)
-                st.markdown("---")
+                if not atletas_filtrados:
+                    st.info(f"No hay atletas que coincidan con el texto '{filtro_grupo}'.")
+                else:
+                    st.caption(f"Se encontraron {len(atletas_filtrados)} atletas asociados a ese filtro.")
+                    
+                    # Selección directa o múltiple para mayor precisión
+                    atletas_seleccionados = st.multiselect("Seleccionar atletas específicos (Opcional, anula el filtro superior)", opciones_nombres, key="sel_multi_atletas")
+                    
+                    # Asignación de correos de destino
+                    if atletas_seleccionados:
+                        correos_destino = [
+                            a['email'] for a in atletas_filtrados 
+                            if f"{a['nombre']} ({a['categoria']} - {a['genero']})" in atletas_seleccionados
+                        ]
+                    else:
+                        correos_destino = [a['email'] for a in atletas_filtrados]
+                    
+                    st.write(f"📧 **Correos a enviar ({len(correos_destino)} destinatarios):**", correos_destino)
+            st.markdown("---")
 
         # =====================================================================
         # MOTOR DE GENERACIÓN DE REPORTES (METROS, ESTILOS, INTENSIDAD)
@@ -1950,7 +1945,7 @@ with tab_reportes:
                     
                     if st.button("📧 Enviar Reporte por Correo", type="primary", use_container_width=True):
                         if not correos_destino:
-                            st.error("Por favor selecciona al menos un destinatario (por filtro o manualmente en el multiselect).")
+                            st.error("Por favor asegúrate de que existan destinatarios válidos filtrados o seleccionados.")
                         else:
                             try:
                                 remitente = "notificaciones@natacion.com"
@@ -1965,7 +1960,7 @@ with tab_reportes:
                                 server.sendmail(remitente, correos_destino, msg.as_string())
                                 server.quit()
                                 
-                                st.success(f"¡Reporte enviado exitosamente a {len(correos_destino)} atleta(s) en base a tu selección!")
+                                st.success(f"¡Reporte enviado exitosamente a {len(correos_destino)} atleta(s)!")
                             except Exception as e:
                                 st.warning(f"No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
                                 st.text_area("Respaldo:", value=texto_reporte, height=200)
