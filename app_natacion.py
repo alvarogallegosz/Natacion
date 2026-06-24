@@ -1723,6 +1723,51 @@ else:
                     st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
 
 # =============================================================================
+                # 5. CENTRO DE DIFUSIÓN Y EXPORTACIÓN DE LA JORNADA (PIZARRA)
+                # =============================================================================
+                st.markdown("---")
+                st.markdown("### 📢 Centro de Difusión y Publicación de la Pizarra")
+                st.caption("Genera el formato de comunicación para enviar a los atletas por canales digitales o preparar la hoja impresa para la piscina.")
+
+                # 1. Construir el string de texto limpio del entrenamiento
+                texto_entrenamiento = f"🏊‍♂️ *PLAN DE ENTRENAMIENTO DEL DÍA* - Fecha: {fecha_jornada}\n"
+                if identificador_carril:
+                    texto_entrenamiento += f"📍 *Grupo/Carril:* {identificador_carril}\n"
+                texto_entrenamiento += f"📊 *Volumen Total:* {volumen_total} metros\n\n"
+                texto_entrenamiento += "📝 *Desglose del Menú:*\n"
+                
+                for idx, blk in enumerate(st.session_state.pizarra_entrenamiento, 1):
+                    impls = f" c/ {', '.join(blk['implementos'])}" if blk['implementos'] else ""
+                    texto_entrenamiento += f"• {blk['reps']}x{blk['dist']}m {blk['estilo']} | {blk['intensidad']}{impls}\n"
+
+                # 2. Codificar para URLs de comunicación
+                import urllib.parse
+                texto_url = urllib.parse.quote(texto_entrenamiento)
+                
+                link_whatsapp = f"https://api.whatsapp.com/send?text={texto_url}"
+                link_correo = f"mailto:?subject=Plan%20de%20Entrenamiento%20{fecha_jornada}&body={texto_url}"
+
+                # 3. Renderizar botones de acción en filas limpias
+                c_com1, c_com2, c_com3 = st.columns(3)
+                with c_com1:
+                    st.link_button("🟢 Enviar por WhatsApp", link_whatsapp, use_container_width=True)
+                with c_com2:
+                    st.link_button("📩 Enviar por Correo", link_correo, use_container_width=True)
+                with c_com3:
+                    # Botón de descarga de la hoja de carril en formato TXT limpio para imprimir
+                    st.download_button(
+                        label="🖨️ Descargar Hoja de Carril (TXT)",
+                        data=texto_entrenamiento.replace("*", ""), # Quitamos los asteriscos de markdown para impresión limpia
+                        file_name=f"pizarra_{fecha_jornada}_{identificador_carril.replace(' ', '_') if identificador_carril else 'general'}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+
+                # Vista previa colapsable para el entrenador
+                with st.expander("👀 Ver vista previa del mensaje a enviar"):
+                    st.code(texto_entrenamiento, language="markdown")
+                
+# =============================================================================
                 # 4. BLOQUE DE CONSOLIDACIÓN FINAL (REGISTRO HISTÓRICO)
                 # =============================================================================
                 st.markdown("#### 💾 Consolidar y Registrar Jornada")
@@ -1775,6 +1820,9 @@ else:
                                 st.error(f"Error crítico al escribir en Supabase: {e}")
                         else:
                             st.warning("⚠️ No hay atletas seleccionados en el grupo para consolidar.")
+
+        
+        
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 # -------------------------------------------------------------
