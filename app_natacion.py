@@ -1842,21 +1842,24 @@ else:
     # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO
     # -------------------------------------------------------------
     with tab_reportes:
-        # Metemos la validación de seguridad dentro de la pestaña para aislar el bloque por completo
         if st.session_state.get("rol") in ["Entrenador", "Administrador"]:
             
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
-            st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y la distribución del entrenamiento.")
+            st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y la distribución.")
+
+            # Inicializar estados de memoria para reportes si no existen
+            if "reporte_calculado" not in st.session_state:
+                st.session_state.reporte_calculado = None
 
             # =============================================================================
-            # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS)
+            # 1. TEMPORALIDAD DE LOS REPORTES
             # =============================================================================
             opciones_tiempo = {
                 "7 días (Última semana)": 7,
                 "28 días (Ciclo Corto)": 28,
                 "30 días (Mensual)": 30,
                 "42 días (Carga Crónica - CTL)": 42,
-                "90 días (Macrocliclo Trimestral)": 90,
+                "90 días (Macrociclo Trimestral)": 90,
                 "180 días (Semestral)": 180,
                 "365 días (Anual)": 365,
                 "Total Histórico": None
@@ -1865,20 +1868,17 @@ else:
             ventana_sel = st.selectbox(
                 "⏳ Ventana Temporal de Análisis:",
                 options=list(opciones_tiempo.keys()),
-                index=3,  # Defecto en 42 días por su relevancia científica en el rendimiento
+                index=3,  # Defecto en 42 días por volumen crónico
                 key="rep_selectbox_temporalidad"
             )
             
             dias_atras = opciones_tiempo[ventana_sel]
-            if dias_atras:
-                fecha_limite = datetime.date.today() - datetime.timedelta(days=dias_atras)
-            else:
-                fecha_limite = None
+            fecha_limite = datetime.date.today() - datetime.timedelta(days=dias_atras) if dias_atras else None
 
             st.markdown("---")
 
             # =============================================================================
-            # 2. SECCIÓN DE SEGMENTACIÓN (ANÁLOGA A LA PIZARRA - UBICACIÓN IDÉNTICA)
+            # 2. SECCIÓN DE SEGMENTACIÓN (UBICACIÓN IDÉNTICA A LA PIZARRA)
             # =============================================================================
             st.markdown("### 🔍 Segmentación de Destinatarios (Filtros Activos)")
             
@@ -1888,17 +1888,17 @@ else:
                     "Segmentar por Género:", 
                     options=["Todos", "Femenino (F)", "Masculino (M)"],
                     horizontal=True,
-                    key="rep_radio_genero_idx"  # Key único para reportes
+                    key="rep_radio_genero_idx"
                 )
             with col_rep2:
                 tipo_filtro_rep = st.radio(
                     "Segmentar adicionalmente por:", 
                     options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"],
                     horizontal=True,
-                    key="rep_radio_tipo_idx"  # Key único para reportes
+                    key="rep_radio_tipo_idx"
                 )
 
-            # Resolución del Cliente de Supabase
+            # Resolver cliente Supabase
             ctx_supabase_rep = None
             try:
                 ctx_supabase_rep = supabase
@@ -1914,13 +1914,11 @@ else:
                 except Exception as e:
                     st.error(f"Error al cargar nómina para reportes: {e}")
 
-            # Aplicar filtro de género idéntico
             if filtro_genero_rep == "Femenino (F)":
                 atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "F"]
             elif filtro_genero_rep == "Masculino (M)":
                 atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "M"]
 
-            # Extraer categorías activas
             categorias_disponibles_rep = sorted(list(set([
                 calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
                 for a in atletas_pool_rep if a.get("fecha_nacimiento")
@@ -1929,19 +1927,14 @@ else:
             dict_nom_rep = {a["id"]: a["nombre"] for a in atletas_pool_rep} if atletas_pool_rep else {}
             atletas_finales_rep = []
 
-            # Desplegables condicionales idénticos en UI
             if tipo_filtro_rep == "Categoría Etaria":
                 cat_sel_rep = st.selectbox(
                     "Seleccione la Categoría Etaria:", 
-                    options=categorias_disponibles_rep if sorted(categorias_disponibles_rep) else ["Cargando categorías..."], 
+                    options=categorias_disponibles_rep if categorias_disponibles_rep else ["Cargando categorías..."], 
                     key="rep_selectbox_cat"
                 )
                 if categorias_disponibles_rep:
-                    atletas_finales_rep = [
-                        a for a in atletas_pool_rep 
-                        if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel_rep
-                    ]
-                    
+                    atletas_finales_rep = [a for a in atletas_pool_rep if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel_rep]
             elif tipo_filtro_rep == "Atletas Específicos":
                 ids_sel_rep = st.multiselect(
                     "Seleccione Nadador(es) Individual(es):", 
@@ -1954,76 +1947,121 @@ else:
             else:
                 atletas_finales_rep = atletas_pool_rep
 
-            if not atletas_finales_rep:
-                st.info("💡 Selecciona atletas o categorías válidas para procesar el reporte.")
-            else:
-                st.success(f"🎯 Analizando métricas de {len(atletas_finales_rep)} atleta(s) en la ventana seleccionada.")
-                st.markdown("---")
+            # Resetear memoria si cambian los filtros para forzar nueva consulta
+            if st.button("🔄 Resetear Criterios", key="btn_reset_rep"):
+                st.session_state.reporte_calculado = None
+                st.rerun()
 
-                # =============================================================================
-                # 3. EXTRACCIÓN Y AGREGACIÓN DE DATOS REALES DESDE SUPABASE
-                # =============================================================================
-                ids_interes = [at["id"] for at in atletas_finales_rep]
+            st.markdown("---")
+
+            # =============================================================================
+            # BOTÓN EXPLÍCITO DE GENERACIÓN DE REPORTE
+            # =============================================================================
+            if st.button("📊 GENERAR REPORTE ANALÍTICO", type="primary", use_container_width=True, key="btn_trigger_reporte_real"):
+                if not atletas_finales_rep:
+                    st.warning("⚠️ Debes seleccionar un grupo de atletas válido antes de generar el reporte.")
+                else:
+                    ids_interes = [at["id"] for at in atletas_finales_rep]
+                    with st.spinner("Consultando bases de datos históricas en Supabase..."):
+                        try:
+                            query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
+                            if fecha_limite:
+                                query_rep = query_rep.gte("fecha", str(fecha_limite))
+                                
+                            data_historica = query_rep.execute()
+                            records = data_historica.data if data_historica else []
+                            
+                            if not records:
+                                st.session_state.reporte_calculado = "Vacio"
+                            else:
+                                import pandas as pd
+                                # Procesar acumulados de volumen y JSONB
+                                volumen_total_neto = sum([r.get("metros_totales", 0) for r in records])
+                                
+                                # Consolidar desgloses
+                                dic_estilos = {}
+                                dic_intensidades = {}
+                                for r in records:
+                                    for k, v in (r.get("desglose_estilos") or {}).items():
+                                        dic_estilos[k] = dic_estilos.get(k, 0) + v
+                                    for k, v in (r.get("desglose_intensidad") or {}).items():
+                                        dic_intensidades[k] = dic_intensidades.get(k, 0) + v
+                                
+                                # Guardar estructura limpia en memoria de sesión
+                                st.session_state.reporte_calculado = {
+                                    "volumen_total": volumen_total_neto,
+                                    "df_estilos": pd.DataFrame(list(dic_estilos.items()), columns=["Estilo", "Metros"]),
+                                    "df_intensidades": pd.DataFrame(list(dic_intensidades.items()), columns=["Zona", "Metros"]),
+                                    "total_registros": len(records),
+                                    "atletas_analizados": [a["nombre"] for a in atletas_finales_rep]
+                                }
+                        except Exception as e:
+                            st.error(f"Error crítico en consulta analítica: {e}")
+
+            # =============================================================================
+            # RENDERIZADO VISUAL Y CENTRO DE EXPORTACIÓN (PERSISTENTE)
+            # =============================================================================
+            if st.session_state.reporte_calculado == "Vacio":
+                st.warning(f"📭 No hay métricas cargadas en Supabase para el grupo seleccionado en el rango temporal consultado.")
+            
+            elif isinstance(st.session_state.reporte_calculado, dict):
+                rep = st.session_state.reporte_calculado
                 
-                with st.spinner("Compilando históricos e intensidades..."):
-                    try:
-                        # Construcción de query optimizada con filtro IN para IDs
-                        query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
+                # Despliegue de Métrica Macro
+                st.success(f"🎯 Análisis compilado exitosamente para {len(rep['atletas_analizados'])} atleta(s).")
+                st.metric(label="🏊‍♂️ Volumen Total Acumulado en el Período", value=f"{rep['volumen_total']:,} metros")
+                
+                # --- DESPLIEGUE GRÁFICO REAL ---
+                c_graf1, c_graf2 = st.columns(2)
+                with c_graf1:
+                    st.markdown("#### 🏊‍♂️ Distribución por Estilos")
+                    if not rep["df_estilos"].empty:
+                        # Gráfico de barras horizontal nativo y limpio
+                        st.bar_chart(data=rep["df_estilos"], x="Estilo", y="Metros", color="#1f77b4")
+                    else:
+                        st.caption("Sin registros de estilos.")
                         
-                        # Filtro de tiempo si no es Histórico Total
-                        if fecha_limite:
-                            query_rep = query_rep.gte("fecha", str(fecha_limite))
-                            
-                        data_historica = query_rep.execute()
-                        records = data_historica.data if data_historica else []
-                        
-                        if not records:
-                            st.warning(f"📭 No se encontraron registros de entrenamiento grabados para este grupo desde el {fecha_limite if fecha_limite else 'el inicio de los tiempos'}.")
-                        else:
-                            # Métrica Macro
-                            volumen_acumulado_grupo = sum([r.get("metros_totales", 0) for r in records])
-                            st.metric(label="🏊‍♂️ Volumen Total Imputado (Grupo Filtrado)", value=f"{volumen_acumulado_grupo:,} metros")
-                            
-                            # Consolidación de diccionarios JSONB provenientes de Supabase
-                            global_estilos = {}
-                            global_intensidades = {}
-                            
-                            for r in records:
-                                # Sumar Estilos
-                                estilos_dict = r.get("desglose_estilos") or {}
-                                for est, mts in estilos_dict.items():
-                                    global_estilos[est] = global_estilos.get(est, 0) + mts
-                                    
-                                # Sumar Intensidades
-                                int_dict = r.get("desglose_intensidad") or {}
-                                for inten, mts in int_dict.items():
-                                    global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
-                            
-                            # Despliegue de Resultados Estructurados en columnas
-                            c_est_graf, c_int_graf = st.columns(2)
-                            
-                            with c_est_graf:
-                                st.markdown("#### 🏊‍♂️ Distribución por Estilos (Metros)")
-                                if global_estilos:
-                                    for est, mts in global_estilos.items():
-                                        porcentaje = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                        st.write(f"**{est}**: {mts:,} m ({porcentaje:.1f}%)")
-                                        st.progress(min(porcentaje / 100, 1.0))
-                                else:
-                                    st.caption("No hay desglose de estilos registrado.")
-                                    
-                            with c_int_graf:
-                                st.markdown("#### 🔥 Distribución por Zonas de Intensidad")
-                                if global_intensidades:
-                                    for inten, mts in global_intensidades.items():
-                                        porcentaje = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                        st.write(f"**{inten}**: {mts:,} m ({porcentaje:.1f}%)")
-                                        st.progress(min(porcentaje / 100, 1.0))
-                                else:
-                                    st.caption("No hay desglose de intensidades registrado.")
-                                    
-                    except Exception as e:
-                        st.error(f"Error al computar el reporte analítico: {e}")
-                        
+                with c_graf2:
+                    st.markdown("#### 🔥 Carga por Zonas de Intensidad")
+                    if not rep["df_intensidades"].empty:
+                        st.bar_chart(data=rep["df_intensidades"], x="Zona", y="Metros", color="#ff7f0e")
+                    else:
+                        st.caption("Sin registros de intensidad.")
+
+                # --- CENTRO DE EXPORTACIÓN DE REPORTES ---
+                st.markdown("### 💾 Centro de Exportación de Datos Analíticos")
+                
+                # Preparar texto descriptivo para descargas físicas
+                resumen_txt = f"REPORTE HISTÓRICO DE ENTRENAMIENTO\nVentana: {ventana_sel}\nVolumen Acumulado: {rep['volumen_total']} metros\nAtletas: {', '.join(rep['atletas_analizados'])}"
+                
+                c_exp1, c_exp2, c_exp3 = st.columns(3)
+                with c_exp1:
+                    # Exportación limpia a CSV del desglose de estilos
+                    csv_data = rep["df_estilos"].to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📊 Descargar Estilos (CSV)",
+                        data=csv_data,
+                        file_name=f"reporte_estilos_{ventana_sel.split()[0]}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                with c_exp2:
+                    # Exportación limpia a CSV del desglose de intensidades
+                    csv_int_data = rep["df_intensidades"].to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="🔥 Descargar Intensidades (CSV)",
+                        data=csv_int_data,
+                        file_name=f"reporte_intensidades_{ventana_sel.split()[0]}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                with c_exp3:
+                    st.download_button(
+                        label="📄 Descargar Resumen General (TXT)",
+                        data=resumen_txt,
+                        file_name="resumen_analitico_carga.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
