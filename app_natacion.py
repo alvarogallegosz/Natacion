@@ -1571,18 +1571,18 @@ else:
             st.warning("🔒 Acceso restringido al Administrador.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (ETAPA 1)
+    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (COMO LA FOTO)
     # -------------------------------------------------------------
     with tab_pizarra:
         if st.session_state.rol in ["Entrenador", "Administrador"]:
             st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
-            st.caption("Diseña la sesión agregando bloques. Al finalizar, genera el texto para compartir en WhatsApp o correo.")
+            st.caption("Diseña la sesión agregando bloques. Al finalizar, controla la asistencia para imputar la carga individual.")
             
-            # Inicializar la pizarra en la memoria de sesión si no existe
+            # 1. Inicializar la pizarra en la memoria de sesión si no existe
             if "pizarra_entrenamiento" not in st.session_state:
                 st.session_state.pizarra_entrenamiento = []
 
-            # Formulario de ingreso rápido (El "Carrito de Compras")
+            # 2. Formulario de ingreso rápido de series
             with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
                 c_rep, c_dist, c_est = st.columns(3)
                 with c_rep:
@@ -1600,7 +1600,6 @@ else:
                 with c_not:
                     notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3, Descanso 20s", key="piz_not")
 
-                # CORRECCIÓN DE SANGREO: La adición a la lista debe estar DENTRO de la condición del botón
                 if st.button("Añadir a la sesión", use_container_width=True, key="btn_add_piz"):
                     bloque = {
                         "reps": repeticiones,
@@ -1613,127 +1612,152 @@ else:
                     st.session_state.pizarra_entrenamiento.append(bloque)
                     st.rerun()
 
-            # Procesamiento y visualización de la pizarra actual
+            # Visualización del entrenamiento acumulado
             if st.session_state.pizarra_entrenamiento:
                 st.markdown("---")
                 volumen_total = 0
-                texto_exportacion = f"🏊‍♂️ *Entrenamiento del Día - Club de Natación Centro Gallego*\n📅 Fecha: {datetime.date.today().strftime('%d/%m/%Y')}\n\n*RUTINA:*\n"
+                texto_exportacion = f"🏊‍♂️ *Entrenamiento del Día*\n📅 Fecha: {datetime.date.today().strftime('%d/%m/%Y')}\n\n"
                 
                 for i, blk in enumerate(st.session_state.pizarra_entrenamiento):
                     subtotal = blk['reps'] * blk['dist']
                     volumen_total += subtotal
                     txt_impl = f" [{', '.join(blk['implementos'])}]" if blk['implementos'] else ""
                     txt_not = f" - _{blk['notas']}_" if blk['notas'] else ""
-                    linea = f"• {blk['reps']} x {blk['dist']}m {blk['estilo']} | {blk['intensidad']}{txt_impl}{txt_not}"
-                    texto_exportacion += linea + "\n"
+                    texto_exportacion += f"{blk['reps']} x {blk['dist']}m {blk['estilo']} | {blk['intensidad']}{txt_impl}{txt_not}\n"
 
-                texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total} metros\n💪 ¡A darle con todo!"
+                st.info(texto_exportacion)
+                st.metric("Volumen Total de la Sesión", f"{volumen_total} metros")
+                
+                c_undo, c_clear = st.columns(2)
+                with c_undo:
+                    if st.button("⏪ Deshacer último bloque", use_container_width=True):
+                        st.session_state.pizarra_entrenamiento.pop()
+                        st.rerun()
+                with c_clear:
+                    if st.button("🗑️ Limpiar pizarra completa", use_container_width=True):
+                        st.session_state.pizarra_entrenamiento = []
+                        st.rerun()
 
-                # Lienzo Visual y Botones de Control de la Pizarra
-                c_lienzo, c_stats = st.columns([2, 1])
-                with c_lienzo:
-                    st.info(texto_exportacion.replace('\n', '  \n'))
-                    
-                    c_btn1, c_btn2 = st.columns(2)
-                    with c_btn1:
-                        if st.button("⏪ Deshacer último bloque", use_container_width=True, key="btn_undo_piz"):
-                            st.session_state.pizarra_entrenamiento.pop()
-                            st.rerun()
-                    with c_btn2:
-                        if st.button("🗑️ Limpiar pizarra completa", use_container_width=True, key="btn_clear_piz"):
-                            st.session_state.pizarra_entrenamiento = []
-                            st.rerun()
-        else:
-            st.warning("🔒 Sección restringida al equipo técnico.")
+                # =============================================================================
+                # 3. SECCIÓN DE SEGMENTACIÓN (DISPOSICIÓN EXACTA DE TU FOTO)
+                # =============================================================================
+                st.markdown("---")
+                st.markdown("### 🔍 Segmentación de Destinatarios (Asistencia/Carga)")
+                
+                # Fila de botones de opción (FOTO: Género y Adicional)
+                col_foto1, col_foto2 = st.columns(2)
+                with col_foto1:
+                    filtro_genero = st.radio(
+                        "Segmentar por Género:", 
+                        options=["Todos", "Femenino (F)", "Masculino (M)"],
+                        horizontal=True,
+                        key="piz_p_gen"
+                    )
+                with col_foto2:
+                    tipo_filtro = st.radio(
+                        "Segmentar adicionalmente por:", 
+                        options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"],
+                        horizontal=True,
+                        key="piz_p_tipo"
+                    )
 
-    # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y ENVÍO (ETAPA 2)
-    # -------------------------------------------------------------
-    with tab_reportes:
-        if st.session_state.rol in ["Entrenador", "Administrador"]:
-            st.markdown("### 📊 Reportes y Envío de Pizarra Masiva")
-            
-            # Recuperar el cliente global de Supabase de manera limpia
-            supabase_es = st.session_state.get("supabase_client")
-            todos_los_nadadores = []
-            
-            if supabase_es:
-                try:
-                    resp_sb = supabase_es.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                    if resp_sb.data:
-                        for u in resp_sb.data:
-                            cat_calc, _ = calcular_categoria_competencia(u.get("fecha_nacimiento"))
-                            gen_cod = u.get("genero", "M")
-                            todos_los_nadadores.append({
-                                "nombre": u.get("nombre", "Sin Nombre"),
-                                "email": u.get("email", ""),
-                                "genero": "Masculino" if gen_cod == "M" else "Femenino",
-                                "categoria": cat_calc
-                            })
-                except Exception as e:
-                    st.error(f"Error al conectar con la tabla de atletas: {e}")
+                # Cargar atletas activos desde Supabase de forma local y segura
+                supabase_es = st.session_state.get("supabase_client")
+                atletas_pool = []
+                if supabase_es:
+                    try:
+                        resp_sb = supabase_es.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                        if resp_sb.data:
+                            atletas_pool = resp_sb.data
+                    except Exception as e:
+                        st.error(f"Error al cargar nómina de atletas: {e}")
 
-            # CORRECCIÓN DE LA NÓMINA VACÍA: Validar si existen atletas cargados en la lista real
-            if not todos_los_nadadores:
-                st.warning("⚠️ Nómina vacía. No se encontraron atletas activos con correos configurados.")
-            else:
-                categorias_existentes = sorted(list(set(n["categoria"] for n in todos_los_nadadores)))
-                
-                col_rep1, col_rep2 = st.columns(2)
-                with col_rep1:
-                    sel_cat = st.selectbox("Filtrar Destinatarios por Categoría", ["Todos"] + categorias_existentes, key="rep_cat")
-                with col_rep2:
-                    sel_gen = st.selectbox("Filtrar Destinatarios por Género", ["Todos", "Masculino", "Femenino"], key="rep_gen")
-                
-                # Filtrado en línea simple y directo
-                atletas_filtrados = todos_los_nadadores
-                if sel_cat != "Todos":
-                    atletas_filtrados = [n for n in atletas_filtrados if n["categoria"] == sel_cat]
-                if sel_gen != "Todos":
-                    atletas_filtrados = [n for n in atletas_filtrados if n["genero"] == sel_gen]
-                
-                correos_destino = [n["email"] for n in atletas_filtrados if n["email"]]
-                
-                st.success(f"🎯 Grupo seleccionado: **{len(correos_destino)}** atletas listos para recibir la información.")
-                
-                # Redactar asunto y previsualizar reporte final
-                asunto_correo = st.text_input("Asunto del Correo:", value=f"Plan de Entrenamiento Diario - {datetime.date.today().strftime('%d/%m/%Y')}")
-                
-                # Respaldo de texto plano o uso de la pizarra generada
-                texto_reporte = ""
-                if "pizarra_entrenamiento" in st.session_state and st.session_state.pizarra_entrenamiento:
-                    # Si hay pizarra armada en la pestaña 1, la cargamos automáticamente
-                    vol_total = sum(b['reps'] * b['dist'] for b in st.session_state.pizarra_entrenamiento)
-                    texto_reporte = f"Hola Atleta,\n\nTe compartimos el plan diseñado para hoy:\n\n"
-                    for b in st.session_state.pizarra_entrenamiento:
-                        ti = f" [{', '.join(b['implementos'])}]" if b['implementos'] else ""
-                        tn = f" - {b['notes']}" if b.get('notas') else ""
-                        texto_reporte += f"• {b['reps']} x {b['dist']}m {b['estilo']} ({b['intensidad']}){ti}{tn}\n"
-                    texto_reporte += f"\nVolumen total: {vol_total}m\n\n¡Feliz entrenamiento!"
-                else:
-                    texto_reporte = st.text_area("Cuerpo del Correo / Reporte Manual:", value="Escribe aquí las asignaciones del día...")
+                # Aplicar Filtro A: Género
+                if filtro_genero == "Femenino (F)":
+                    atletas_pool = [a for a in atletas_pool if a.get("genero") == "F"]
+                elif filtro_genero == "Masculino (M)":
+                    atletas_pool = [a for a in atletas_pool if a.get("genero") == "M"]
 
-                if st.button("🚀 Enviar Pizarra por Correo", type="primary", use_container_width=True, key="btn_send_rep"):
-                    if not correos_destino:
-                        st.error("No hay correos en la lista de destinatarios seleccionados.")
+                # Aplicar Filtro B e Inyección de Desplegables Dinámicos abajo
+                atletas_finales = atletas_pool
+                
+                if tipo_filtro == "Categoría Etaria" and atletas_pool:
+                    categorias_disponibles = sorted(list(set([
+                        calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
+                        for a in atletas_pool if a.get("fecha_nacimiento")
+                    ])))
+                    if categorias_disponibles:
+                        # DESPLEGABLE DE CATEGORÍA
+                        cat_sel = st.selectbox("Seleccione la Categoría Etaria:", options=categorias_disponibles, key="piz_sel_cat")
+                        atletas_finales = [
+                            a for a in atletas_pool 
+                            if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel
+                        ]
+                        
+                elif tipo_filtro == "Atletas Específicos" and atletas_pool:
+                    dict_nom = {a["id"]: a["nombre"] for a in atletas_pool}
+                    if dict_nom:
+                        # DESPLEGABLE DE ATLETAS INDIVIDUALES (MULTISELECT)
+                        ids_sel = st.multiselect(
+                            "Seleccione Nadador(es) Individual(es):", 
+                            options=list(dict_nom.keys()), 
+                            format_func=lambda x: dict_nom[x],
+                            key="piz_sel_at"
+                        )
+                        if ids_sel:
+                            atletas_finales = [a for a in atletas_pool if a["id"] in ids_sel]
+                        else:
+                            atletas_finales = []
+
+                # Mostrar confirmación del grupo resultante
+                st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
+
+                # =============================================================================
+                # 4. BLOQUE DE CONSOLIDACIÓN FINAL (REGISTRO HISTÓRICO CTL/ATL)
+                # =============================================================================
+                st.markdown("#### 💾 Consolidar y Registrar Jornada")
+                c_fecha, c_carril = st.columns(2)
+                with c_fecha:
+                    fecha_jornada = st.date_input("Fecha de la sesión:", datetime.date.today(), key="piz_date_save")
+                with c_carril:
+                    identificador_carril = st.text_input("Identificador / Carril (Opcional):", placeholder="Ej: Carril 3, Grupo Avanzado", key="piz_carril_save")
+
+                if st.button("🚀 Consolidar Carga de Entrenamiento", type="primary", use_container_width=True, key="piz_btn_save_final"):
+                    if not atletas_finales:
+                        st.error("No puedes consolidar una sesión sin atletas seleccionados en el filtro.")
                     else:
-                        try:
-                            remitente = "notificaciones@natacion.com"
-                            msg = MIMEMultipart()
-                            msg['From'] = remitente
-                            msg['Subject'] = asunto_correo
-                            msg.attach(MIMEText(texto_reporte, 'plain'))
+                        # Preparar los desgloses métricos requeridos por el modelo de rendimiento
+                        desglose_estilos = {}
+                        desglose_intensidad = {}
+                        for blk in st.session_state.pizarra_entrenamiento:
+                            sub_m = blk['reps'] * blk['dist']
+                            desglose_estilos[blk['estilo']] = desglose_estilos.get(blk['estilo'], 0) + sub_m
+                            desglose_intensidad[blk['intensidad']] = desglose_intensidad.get(blk['intensidad'], 0) + sub_m
+
+                        lista_imputados = []
+                        for at in atletas_finales:
+                            lista_imputados.append({
+                                "id": at.get("id"),
+                                "nombre": at.get("nombre"),
+                                "email": at.get("email")
+                            })
+
+                        registro_diario = {
+                            "fecha": str(fecha_jornada),
+                            "identificador_carril": identificador_carril,
+                            "atletas_imputados": lista_imputados, 
+                            "metros_totales": volumen_total,
+                            "desglose_estilos": desglose_estilos,
+                            "desglose_intensidad": desglose_intensidad,
+                            "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
+                        }
+
+                        if "bitacora_historica" not in st.session_state:
+                            st.session_state.bitacora_historica = []
                             
-                            server = smtplib.SMTP('smtp.gmail.com', 587)
-                            server.starttls()
-                            # server.login("tucorreo@gmail.com", "tu-app-password")
-                            server.sendmail(remitente, correos_destino, msg.as_string())
-                            server.quit()
-                            
-                            st.success(f"¡Reporte enviado exitosamente a {len(correos_destino)} atleta(s)!")
-                        except Exception as e:
-                            st.warning("No se pudo conectar con el servidor SMTP automáticamente. Respaldo en texto plano:")
-                            st.text_area("Copia el texto desde aquí:", value=texto_reporte, height=180)
+                        st.session_state.bitacora_historica.append(registro_diario)
+                        st.success(f"¡Carga histórica guardada! Se imputaron {volumen_total}m individualmente a los {len(lista_imputados)} atleta(s).")
+                        st.balloons()
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 # -------------------------------------------------------------
