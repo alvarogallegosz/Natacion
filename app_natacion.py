@@ -1961,5 +1961,5 @@ else:
                                 
                 except Exception as e:
                     st.error(f"Error al computar el reporte analítico: {e}")
-        else:
-            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
+    else:
+        st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
