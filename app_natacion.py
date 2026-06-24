@@ -1157,8 +1157,7 @@ st.markdown("---")
 if simulacion_externa:
     st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
 else:
-    tab_marcas, tab_entrenador, tab_calendario, tab_admin = st.tabs(["📋 Control de Marcas", "⏱️ Configurar Tiempos", "📅 Calendario Anual", "🛡️ Consola Global (Admin)"])
-
+tab_marcas, tab_entrenador, tab_calendario, tab_admin, tab_pizarra = st.tabs(["📝 Pizarra Diaria", "📋 Control de Marcas", "⏱️ Configurar Tiempos", "📅 Calendario Anual", "🛡️ Consola Global (Admin)"])
     with tab_marcas:
         col_ins, col_vistas = st.columns([1, 2])
         with col_ins:
@@ -1495,7 +1494,101 @@ else:
                 st.error(f"Error en panel de control: {e}")
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
+# -------------------------------------------------------------
+    # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (ETAPA 1)
+    # -------------------------------------------------------------
+    with tab_pizarra:
+        if st.session_state.rol in ["Entrenador", "Administrador"]:
+            st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
+            st.caption("Diseña la sesión agregando bloques. Al finalizar, genera el texto para compartir en WhatsApp o correo.")
+            
+            # 1. Inicializar la pizarra en la memoria de sesión si no existe
+            if "pizarra_entrenamiento" not in st.session_state:
+                st.session_state.pizarra_entrenamiento = []
 
+            # 2. Formulario de ingreso rápido (El "Carrito de Compras")
+            with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
+                c_rep, c_dist, c_est = st.columns(3)
+                with c_rep:
+                    repeticiones = st.number_input("Repeticiones", min_value=1, value=1, step=1)
+                with c_dist:
+                    distancia = st.number_input("Distancia (m)", min_value=15, value=100, step=25)
+                with c_est:
+                    estilo = st.selectbox("Estilo / Foco", ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Piernas", "Brazos", "Técnica / Drills", "Afloje"])
+                    
+                c_int, c_imp, c_not = st.columns(3)
+                with c_int:
+                    intensidad = st.selectbox("Intensidad / Ritmo", ["Suave (Aeróbico Ligero)", "Medio (Aeróbico Medio)", "Fuerte (Umbral)", "Sprint (Máximo)", "Ritmo de Competencia"])
+                with c_imp:
+                    implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"])
+                with c_not:
+                    notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3")
+
+                if st.button("Añadir a la sesión", use_container_width=True):
+                    bloque = {
+                        "reps": repeticiones,
+                        "dist": distancia,
+                        "estilo": estilo,
+                        "intensidad": intensidad,
+                        "implementos": implementos,
+                        "notas": notas
+                    }
+                    st.session_state.pizarra_entrenamiento.append(bloque)
+                    st.rerun()
+
+            # 3. Procesamiento y Estadísticas de la Pizarra Actual
+            if st.session_state.pizarra_entrenamiento:
+                st.markdown("---")
+                
+                volumen_total = 0
+                texto_exportacion = f"🏊‍♂️ *Entrenamiento del Día - Club Centro Gallego*\n📅 Fecha: {datetime.date.today().strftime('%d/%m/%Y')}\n\n*RUTINA:*\n"
+                
+                # Recorremos la pizarra para calcular y generar texto
+                for i, blk in enumerate(st.session_state.pizarra_entrenamiento):
+                    subtotal = blk['reps'] * blk['dist']
+                    volumen_total += subtotal
+                    
+                    # Formateo de elementos opcionales
+                    txt_impl = f" [{', '.join(blk['implementos'])}]" if blk['implementos'] else ""
+                    txt_not = f" - _{blk['notas']}_" if blk['notas'] else ""
+                    
+                    linea = f"• {blk['reps']} x {blk['dist']}m {blk['estilo']} | {blk['intensidad']}{txt_impl}{txt_not}"
+                    texto_exportacion += linea + "\n"
+
+                texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total} metros\n💪 ¡A darle con todo!"
+
+                # 4. Lienzo Visual y Botones de Control
+                c_lienzo, c_stats = st.columns([2, 1])
+                
+                with c_lienzo:
+                    st.info(texto_exportacion.replace('\n', '  \n')) # Renderizado visual para la pantalla
+                    
+                    c_btn1, c_btn2 = st.columns(2)
+                    with c_btn1:
+                        if st.button("⏪ Deshacer último bloque", use_container_width=True):
+                            st.session_state.pizarra_entrenamiento.pop()
+                            st.rerun()
+                    with c_btn2:
+                        if st.button("🗑️ Limpiar pizarra completa", use_container_width=True):
+                            st.session_state.pizarra_entrenamiento = []
+                            st.rerun()
+                            
+                with c_stats:
+                    st.metric("Volumen Total", f"{volumen_total} m")
+                    # Analítica rápida en memoria
+                    st.caption("Distribución por intensidad:")
+                    conteos = {}
+                    for b in st.session_state.pizarra_entrenamiento:
+                        conteos[b['intensidad']] = conteos.get(b['intensidad'], 0) + (b['reps'] * b['dist'])
+                    for k, v in conteos.items():
+                        porcentaje = (v / volumen_total) * 100
+                        st.progress(int(porcentaje), text=f"{k}: {v}m ({porcentaje:.1f}%)")
+
+                # 5. Exportación a WhatsApp
+                st.markdown("📲 **Exportar a WhatsApp o Correo**")
+                st.text_area("Copia el texto list para enviar:", value=texto_exportacion, height=200, label_visibility="collapsed")
+        else:
+            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
 # -------------------------------------------------------------------------
 # ST.MARKDOWN - CENTRO DE EXPORTACIÓN
 # -------------------------------------------------------------------------
