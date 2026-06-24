@@ -1722,30 +1722,43 @@ else:
                 else:
                     st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
 
-# =============================================================================
+# =# =============================================================================
                 # 5. CENTRO DE DIFUSIÓN Y EXPORTACIÓN DE LA JORNADA (PIZARRA)
                 # =============================================================================
                 st.markdown("---")
                 st.markdown("### 📢 Centro de Difusión y Publicación de la Pizarra")
                 st.caption("Genera el formato de comunicación para enviar a los atletas por canales digitales o preparar la hoja impresa para la piscina.")
 
+                # 🛠️ EXTRACCIÓN BLINDADA DESDE EL STATE PARA EVITAR NAMEERROR
+                import datetime
+                fecha_difusion = st.session_state.get("piz_date_input_save", datetime.date.today())
+                carril_difusion = st.session_state.get("piz_carril_input_save", "")
+                
+                # Calcular el volumen de forma independiente en tiempo real
+                volumen_total_difusion = 0
+                if "pizarra_entrenamiento" in st.session_state and st.session_state.pizarra_entrenamiento:
+                    volumen_total_difusion = sum(blk['reps'] * blk['dist'] for blk in st.session_state.pizarra_entrenamiento)
+
                 # 1. Construir el string de texto limpio del entrenamiento
-                texto_entrenamiento = f"🏊‍♂️ *PLAN DE ENTRENAMIENTO DEL DÍA* - Fecha: {fecha_jornada}\n"
-                if identificador_carril:
-                    texto_entrenamiento += f"📍 *Grupo/Carril:* {identificador_carril}\n"
-                texto_entrenamiento += f"📊 *Volumen Total:* {volumen_total} metros\n\n"
+                texto_entrenamiento = f"🏊‍♂️ *PLAN DE ENTRENAMIENTO DEL DÍA* - Fecha: {fecha_difusion}\n"
+                if carril_difusion:
+                    texto_entrenamiento += f"📍 *Grupo/Carril:* {carril_difusion}\n"
+                texto_entrenamiento += f"📊 *Volumen Total:* {volumen_total_difusion:,} metros\n\n"
                 texto_entrenamiento += "📝 *Desglose del Menú:*\n"
                 
-                for idx, blk in enumerate(st.session_state.pizarra_entrenamiento, 1):
-                    impls = f" c/ {', '.join(blk['implementos'])}" if blk['implementos'] else ""
-                    texto_entrenamiento += f"• {blk['reps']}x{blk['dist']}m {blk['estilo']} | {blk['intensidad']}{impls}\n"
+                if "pizarra_entrenamiento" in st.session_state and st.session_state.pizarra_entrenamiento:
+                    for idx, blk in enumerate(st.session_state.pizarra_entrenamiento, 1):
+                        impls = f" c/ {', '.join(blk['implementos'])}" if blk['implementos'] else ""
+                        texto_entrenamiento += f"• {blk['reps']}x{blk['dist']}m {blk['estilo']} | {blk['intensidad']}{impls}\n"
+                else:
+                    texto_entrenamiento += f"• No hay bloques cargados en la pizarra actualmente.\n"
 
                 # 2. Codificar para URLs de comunicación
                 import urllib.parse
                 texto_url = urllib.parse.quote(texto_entrenamiento)
                 
                 link_whatsapp = f"https://api.whatsapp.com/send?text={texto_url}"
-                link_correo = f"mailto:?subject=Plan%20de%20Entrenamiento%20{fecha_jornada}&body={texto_url}"
+                link_correo = f"mailto:?subject=Plan%20de%20Entrenamiento%20{fecha_difusion}&body={texto_url}"
 
                 # 3. Renderizar botones de acción en filas limpias
                 c_com1, c_com2, c_com3 = st.columns(3)
@@ -1754,16 +1767,16 @@ else:
                 with c_com2:
                     st.link_button("📩 Enviar por Correo", link_correo, use_container_width=True)
                 with c_com3:
-                    # Botón de descarga de la hoja de carril en formato TXT limpio para imprimir
+                    # Genera la descarga física remota limpiando el markdown
                     st.download_button(
                         label="🖨️ Descargar Hoja de Carril (TXT)",
-                        data=texto_entrenamiento.replace("*", ""), # Quitamos los asteriscos de markdown para impresión limpia
-                        file_name=f"pizarra_{fecha_jornada}_{identificador_carril.replace(' ', '_') if identificador_carril else 'general'}.txt",
+                        data=texto_entrenamiento.replace("*", ""), 
+                        file_name=f"pizarra_{fecha_difusion}_{str(carril_difusion).replace(' ', '_') if carril_difusion else 'general'}.txt",
                         mime="text/plain",
                         use_container_width=True
                     )
 
-                # Vista previa colapsable para el entrenador
+                # Vista previa colapsable
                 with st.expander("👀 Ver vista previa del mensaje a enviar"):
                     st.code(texto_entrenamiento, language="markdown")
                 
