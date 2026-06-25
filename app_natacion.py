@@ -2103,12 +2103,48 @@ else:
                                     fecha_fin_serie = datetime.date.today()
                                     rango_completo = pd.date_range(start=fecha_inicio_serie, end=fecha_fin_serie).date
                                     
-                                    # Consolidar volumen diario en metros mapeados
-                                    vol_diario_map = {f: 0 for f in rango_completo}
-                                    for r in records_atleta:
-                                        f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
-                                        if f_rec in vol_diario_map:
-                                            vol_diario_map[f_rec] += r.get("metros_totales", 0)
+        # ... [Código previo de filtros y selección del atleta en la pestaña] ...
+                                
+                                registros_atleta = bitacora_resp.data if bitacora_resp.data else []
+                                
+                                if not registros_atleta:
+                                    st.info("No se registraron entrenamientos para este atleta en el rango analizado.")
+                                else:
+                                    # =============================================================
+                                    # DEFINICIÓN DE MULTIPLICADORES DE INTENSIDAD (ESTRÉS METABÓLICO)
+                                    # =============================================================
+                                    MULTIPLICADORES_ZONA = {
+                                        "Suave": 1.0,      # Ritmo aeróbico regenerativo / Técnico
+                                        "Medio": 1.5,      # Umbral aeróbico / Ritmo de crucero
+                                        "Fuerte": 2.5,     # Umbral anaeróbico / Tolerancia al lactato
+                                        "Sprint": 4.0      # Máxima velocidad / Potencia aláctica
+                                    }
+        
+                                    vol_diario_map = {}
+        
+                                    for reg in registros_atleta:
+                                        f_str = str(reg["fecha"])
+                                        
+                                        # 1. Recuperamos el desglose de intensidades guardado en el registro
+                                        intensidades_json = reg.get("desglose_intensidades", {})
+                                        
+                                        # 2. Si no hay desglose, usamos el volumen bruto por defecto
+                                        if not intensidades_json:
+                                            carga_del_dia = reg.get("metros_totales", 0) * 1.0
+                                        else:
+                                            # 3. Calculamos la carga ponderada multiplicando metros de cada zona por su factor
+                                            carga_del_dia = 0.0
+                                            for zona, metros in intensidades_json.items():
+                                                factor = MULTIPLICADORES_ZONA.get(zona, 1.0)
+                                                carga_del_dia += metros * factor
+                                                
+                                        # Guardamos el valor calculado en nuestro mapa diario
+                                        vol_diario_map[f_str] = vol_diario_map.get(f_str, 0.0) + carga_del_dia
+        
+                                    # -------------------------------------------------------------
+                                    # GENERACIÓN DE LÍNEA DE TIEMPO CONTINUA PARA BANISTER
+                                    # -------------------------------------------------------------
+                                    # (Aquí continúa tu código actual creando el DataFrame y calculando CTL/ATL con ewm)
                                     
                                     # Generar DataFrame ordenado cronológicamente para cálculos de medias móviles
                                     df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_completo])
