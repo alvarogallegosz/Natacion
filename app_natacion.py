@@ -2189,7 +2189,7 @@ else:
                                     else:
                                         st.info("💡 No hay fechas válidas de entrenamientos para generar la línea de tiempo analítica.")
                                         
-                                except Exception as e:
-                                    st.error(f"Error al computar el reporte analítico: {e}")             
+                            except Exception as e:
+                                st.error(f"Error al computar el reporte analítico: {e}")             
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
