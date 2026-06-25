@@ -801,6 +801,19 @@ if modo_equipo:
         if not atletas_filtrados:
             st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
         else:
+            # 1. Obtener la lista de IDs de los atletas filtrados
+            lista_ids = [atl["id"] for atl in atletas_filtrados]
+            
+            # 2. Realizar UNA SOLA consulta masiva a Supabase para todo el colectivo
+            res_marcas_colectivo = supabase.table("marcas_historicas")\
+                .select("usuario_id, edad, tiempo, nota")\
+                .eq("prueba", titulo_grafico)\
+                .in_("usuario_id", lista_ids)\
+                .order("edad", desc=False).execute()
+                
+            # Convertir la respuesta a un DataFrame global para filtrarlo en memoria
+            df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
+
             fig = plt.figure(figsize=(8.5, 11.0))
             ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
             
@@ -812,18 +825,14 @@ if modo_equipo:
             todos_los_tiempos_colectivo = []
             datos_atletas_cargados = []
             
+            # 3. Bucle para procesar los datos localmente (sin llamadas de red adicionales)
             for idx, atl in enumerate(atletas_filtrados):
                 a_id = atl["id"]
                 a_nom = atl["nombre"]
                 
-                res_marcas = supabase.table("marcas_historicas")\
-                    .select("edad, tiempo, nota")\
-                    .eq("prueba", titulo_grafico)\
-                    .eq("usuario_id", a_id)\
-                    .order("edad", desc=False).execute()
-                
-                if res_marcas.data:
-                    df_atl_m = pd.DataFrame(res_marcas.data)
+                # Filtrar el DataFrame global en memoria en lugar de consultar a la BD
+                if not df_global_marcas.empty and a_id in df_global_marcas["usuario_id"].values:
+                    df_atl_m = df_global_marcas[df_global_marcas["usuario_id"] == a_id].copy()
                     df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
                     hay_datos_visibles = True
                     
@@ -878,8 +887,8 @@ if modo_equipo:
                         {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
                         {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
                         {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
-                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
+                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},            
+                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},          
                         {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
                     ]
                     for r in referencias:
