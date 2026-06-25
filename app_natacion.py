@@ -375,7 +375,7 @@ if not st.session_state.autenticado:
         with tab_registro:
             st.markdown("### 📝 Registro de Nuevas Cuentas")
             st.caption("Nota: Los nombres de usuario y contraseñas distinguen mayúsculas/minúsculas.")
-            nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Entrenador", "Administrador"], key="reg_rol_selector")
+            nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], key="reg_rol_selector")
             es_nadador_reg = (nuevo_rol == "Nadador")
             
             with st.form("form_registro_dinamico"):
@@ -400,7 +400,7 @@ if not st.session_state.autenticado:
                             if chequeo.data:
                                 st.error("El nombre de usuario ya está tomado.")
                             else:
-                                status_inicial = "Pendiente" if nuevo_rol in ["Entrenador", "Administrador"] else "Activo"
+                                status_inicial = "Pendiente" if nuevo_rol in ["Head Coach", "Entrenador", "Administrador"] else "Activo"
                                 
                                 nuevo_registro = {
                                     "nombre": nuevo_nombre, 
