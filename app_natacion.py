@@ -470,7 +470,7 @@ with st.sidebar:
         st.cache_data.clear()
         # Fuerza una recarga inmediata de la página para aplicar los cambios
         st.rerun()
-if st.session_state.rol in ["Entrenador", "Administrador"]:
+if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
     spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
@@ -502,7 +502,7 @@ filtro_genero = "Todos"
 cat_sel = None
 ids_sel = []
 
-if st.session_state.rol in ["Entrenador", "Administrador"]:
+if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
     spc()
     st.sidebar.subheader("👥 Análisis Colectivo")
     modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
@@ -1250,12 +1250,12 @@ else:
                 ins_nota = st.text_input("Evento / Fecha:")
                 
                 if st.form_submit_button("💾 Guardar Registro"):
-                    if st.session_state.rol in ["Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
+                    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
                         try:
                             id_atleta = st.session_state.nadador_seleccionado_id
                             fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
                             
-                            if st.session_state.rol in ["Entrenador", "Administrador"]:
+                            if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
                                 atleta_query = supabase.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta).execute()
                                 if atleta_query.data:
                                     fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"]
@@ -1283,7 +1283,7 @@ else:
         with col_vistas:
             st.markdown("**Historial Cronológico de Tiempos**")
             if len(df_procesado) > 0:
-                if st.session_state.rol in ["Entrenador", "Administrador"]:
+                if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
                     opciones_eliminacion = {
                         f"Edad: {row['Edad']} | Tiempo: {row['Tiempo']} | {row['Evento / Fecha']}": row['id']
                         for _, row in df_procesado.iterrows()
@@ -1304,7 +1304,7 @@ else:
                 st.dataframe(df_procesado.drop(columns=["id"], errors="ignore"), use_container_width=True)
 
     with tab_entrenador:
-        if st.session_state.rol in ["Entrenador", "Administrador"]:
+        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
             st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
             
             if titulo_grafico in ['25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa', '100 Combinado'] or es_preinfantil:
@@ -1385,7 +1385,7 @@ else:
             st.error(f"Error cargando calendario: {e}")
 
         # 2. Controles de Edición (Restringido a Entrenadores y Admins)
-        if st.session_state.rol in ["Entrenador", "Administrador"]:
+        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
             st.markdown("---")
             col_add, col_edit = st.columns(2)
             
@@ -1455,7 +1455,7 @@ else:
     # -------------------------------------------------------------
         # 3. GENERADOR AUTOMÁTICO DE HITOS (ASIGNACIÓN DE ATLETAS)
         # -------------------------------------------------------------
-        if st.session_state.rol in ["Entrenador", "Administrador"]:
+        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
             st.markdown("---")
             st.markdown("### 🎯 Generación de Hitos y Auditoría de Elegibilidad")
             st.caption("Seleccione una competencia programada para evaluar a la nómina de nadadores activos y generar sus hitos de seguimiento.")
@@ -1540,11 +1540,11 @@ else:
                         id_mod = st.selectbox("ID Usuario:", options=df_usr["id"].tolist())
                         user_actual = df_usr[df_usr["id"] == id_mod].iloc[0]
                     with c_rol:
-                        nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Entrenador", "Administrador"], index=["Nadador", "Entrenador", "Administrador"].index(user_actual["rol"]))
+                        nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], index=["Nadador", "Head Coach", "Entrenador", "Administrador"].index(user_actual["rol"]))
                     with c_est:
                         nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Pendiente", "Suspendido", "Bloqueado"], index=["Activo", "Pendiente", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
                     
-                    campos_deshabilitados = nuevo_rol_user in ["Entrenador", "Administrador"]
+                    campos_deshabilitados = nuevo_rol_user in ["Head Coach", "Entrenador", "Administrador"]
                     
                     with c_gen:
                         gen_inicial = user_actual["genero"] if user_actual["genero"] in ["F", "M"] else "F"
@@ -1581,7 +1581,7 @@ else:
     # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (WIDGETS GARANTIZADOS)
     # -------------------------------------------------------------
     with tab_pizarra:
-        if st.session_state.rol in ["Entrenador", "Administrador"]:
+        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
             st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
             st.caption("Diseña la sesión agregando bloques. Al finalizar, controla la asistencia para imputar la carga individual.")
             
@@ -1850,7 +1850,7 @@ else:
     # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
     # -------------------------------------------------------------
     with tab_reportes:
-        if st.session_state.rol in ["Entrenador", "Administrador"]:        
+        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y la distribución del entrenamiento.")
     
