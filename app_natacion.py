@@ -2103,12 +2103,22 @@ else:
                                     fecha_fin_serie = datetime.date.today()
                                     rango_completo = pd.date_range(start=fecha_inicio_serie, end=fecha_fin_serie).date
                                     
-                                    # Consolidar volumen diario en metros mapeados
+                                    # Consolidar volumen diario en metros ponderados según exigencia
                                     vol_diario_map = {f: 0 for f in rango_completo}
+                                    
                                     for r in records_atleta:
                                         f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
                                         if f_rec in vol_diario_map:
-                                            vol_diario_map[f_rec] += r.get("metros_totales", 0)
+                                            # AQUÍ APLICAMOS EL FACTOR DE EXIGENCIA PROPORCIONAL
+                                            # Puedes extraer el factor del registro, ej. r.get("factor_exigencia", 1.0) 
+                                            # o determinarlo por tipo de sesión / zona.
+                                            # Ejemplo usando un campo directo del registro:
+                                            factor_sesion = r.get("factor_exigencia", 1.0) 
+                                            
+                                            metros_reales = r.get("metros_totales", 0)
+                                            carga_ponderada = metros_reales * factor_sesion
+                                            
+                                            vol_diario_map[f_rec] += carga_ponderada
                                     
                                     # Generar DataFrame ordenado cronológicamente para cálculos de medias móviles
                                     df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_completo])
