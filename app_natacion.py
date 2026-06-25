@@ -1834,7 +1834,7 @@ else:
                         else:
                             st.warning("⚠️ No hay atletas seleccionados en el grupo para consolidar.")
               
-        else:
+else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
     # -------------------------------------------------------------
@@ -2067,129 +2067,131 @@ else:
                                     use_container_width=True
                                 )
     
-# =============================================================================
-                            # 4. ADICIÓN: ANÁLISIS CIENTÍFICO DE CARGA INDIVIDUAL (CTL / ATL / TSB)
-                            # =============================================================================
-                            st.markdown("---")
-                            st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
-                            st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB).")
+                        # =============================================================================
+                        # 4. ADICIÓN: ANÁLISIS CIENTÍFICO DE CARGA INDIVIDUAL (CTL / ATL / TSB)
+                        # =============================================================================
+                        st.markdown("---")
+                        st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
+                        st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB).")
     
-                            # Diccionario limpio de los atletas actualmente bajo los filtros activos
-                            atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
-                            
-                            atleta_sel_id = st.selectbox(
-                                "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
-                                options=list(atletas_opciones_carga.keys()),
-                                format_func=lambda x: atletas_opciones_carga[x],
-                                key="rep_selectbox_atleta_carga_avanzada"
-                            )
-                            
-                            # Filtrar exclusivamente los registros del nadador seleccionado
-                            records_atleta = [r for r in records if r.get("atleta_id") == atleta_sel_id]
-                            
-                            if not records_atleta:
-                                st.info("💡 Este atleta no cuenta con registros de volumen específicos en el intervalo de tiempo seleccionado.")
-                            else:
-                                try:
-                                    # Parsear fechas de entrenamientos del atleta
-                                    fechas_p = []
-                                    for r in records_atleta:
-                                        if r.get("fecha"):
-                                            f_obj = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
-                                            fechas_p.append(f_obj)
+                        # Diccionario limpio de los atletas actualmente bajo los filtros activos
+                        atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
+                        
+                        atleta_sel_id = st.selectbox(
+                            "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
+                            options=list(atletas_opciones_carga.keys()),
+                            format_func=lambda x: atletas_opciones_carga[x],
+                            key="rep_selectbox_atleta_carga_avanzada"
+                        )
+                        
+                        # Filtrar exclusivamente los registros del nadador seleccionado
+                        records_atleta = [r for r in records if r.get("atleta_id") == atleta_sel_id]
+                        
+                        if not records_atleta:
+                            st.info("💡 Este atleta no cuenta con registros de volumen específicos en el intervalo de tiempo seleccionado.")
+                        else:
+                            try:
+                                # Parsear fechas de entrenamientos del atleta
+                                fechas_p = []
+                                for r in records_atleta:
+                                    if r.get("fecha"):
+                                        f_obj = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
+                                        fechas_p.append(f_obj)
+                                
+                                if fechas_p:
+                                    # Crear marco de tiempo continuo desde la fecha más antigua registrada hasta hoy
+                                    fecha_inicio_serie = min(fechas_p)
+                                    fecha_fin_serie = datetime.date.today()
+                                    rango_completo = pd.date_range(start=fecha_inicio_serie, end=fecha_fin_serie).date
                                     
-                                    if fechas_p:
-                                        # Crear marco de tiempo continuo desde la fecha más antigua registrada hasta hoy
-                                        fecha_inicio_serie = min(fechas_p)
-                                        fecha_fin_serie = datetime.date.today()
-                                        rango_completo = pd.date_range(start=fecha_inicio_serie, end=fecha_fin_serie).date
-                                        
-                                        # =============================================================
-                                        # DEFINICIÓN DE MULTIPLICADORES DE INTENSIDAD (ESTRÉS METABÓLICO)
-                                        # =============================================================
-                                        MULTIPLICADORES_ZONA = {
-                                            "Suave": 1.0,      # Ritmo aeróbico regenerativo / Técnico
-                                            "Medio": 1.5,      # Umbral aeróbico / Ritmo de crucero
-                                            "Fuerte": 2.5,     # Umbral anaeróbico / Tolerancia al lactato
-                                            "Sprint": 4.0      # Máxima velocidad / Potencia aláctica
-                                        }
+                                    # =============================================================
+                                    # DEFINICIÓN DE MULTIPLICADORES DE INTENSIDAD (ESTRÉS METABÓLICO)
+                                    # =============================================================
+                                    MULTIPLICADORES_ZONA = {
+                                        "Suave": 1.0,     # Ritmo aeróbico regenerativo / Técnico
+                                        "Medio": 1.5,     # Umbral aeróbico / Ritmo de crucero
+                                        "Fuerte": 2.5,    # Umbral anaeróbico / Tolerancia al lactato
+                                        "Sprint": 4.0     # Máxima velocidad / Potencia aláctica
+                                    }
             
-                                        # Consolidar volumen diario ponderado en unidades de carga usando la serie temporal continua
-                                        vol_diario_map = {f: 0.0 for f in rango_completo}
+                                    # Consolidar volumen diario ponderado en unidades de carga usando la serie temporal continua
+                                    vol_diario_map = {f: 0.0 for f in rango_completo}
+                                    
+                                    for r in records_atleta:
+                                        f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
                                         
-                                        for r in records_atleta:
-                                            f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
+                                        if f_rec in vol_diario_map:
+                                            # 1. Recuperamos el desglose de intensidades guardado en el registro
+                                            intensidades_json = r.get("desglose_intensidades", {})
                                             
-                                            if f_rec in vol_diario_map:
-                                                # 1. Recuperamos el desglose de intensidades guardado en el registro
-                                                intensidades_json = r.get("desglose_intensidades", {})
-                                                
-                                                # 2. Si no hay desglose, usamos el volumen bruto por defecto
-                                                if not intensidades_json:
-                                                    carga_del_dia = r.get("metros_totales", 0) * 1.0
-                                                else:
-                                                    # 3. Calculamos la carga ponderada multiplicando metros de cada zona por su factor
-                                                    carga_del_dia = 0.0
-                                                    for zona, metros in intensidades_json.items():
-                                                        factor = MULTIPLICADORES_ZONA.get(zona, 1.0)
-                                                        carga_del_dia += metros * factor
-                                                        
-                                                # Guardamos el valor calculado en nuestro mapa diario
-                                                vol_diario_map[f_rec] += carga_del_dia
-                                        
-                                        # Generar DataFrame ordenado cronológicamente para cálculos de medias móviles
-                                        df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_completo])
-                                        df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
-                                        df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
-                                        
-                                        # =============================================================================
-                                        # MOTOR DE CÁLCULO DE CARGAS CIENTÍFICAS CON DECAIMIENTO EXPONENCIAL (EWMA)
-                                        # =============================================================================
-                                        df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
-                                        df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
-                                        df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
-                                        
-                                        # Extraer métricas actuales (último día de la serie)
-                                        ultima_fila = df_cargas.iloc[-1]
-                                        val_ctl = int(ultima_fila["CTL"])
-                                        val_atl = int(ultima_fila["ATL"])
-                                        val_tsb = int(ultima_fila["TSB"])
-                                        
-                                        # Determinar estado de forma fisiológica
-                                        if val_tsb > 0:
-                                            estado_forma = "🟢 Zona de Frescura (Tapering)"
-                                        elif val_tsb < -1500:
-                                            estado_forma = "🔴 Zona de Fatiga Crítica"
-                                        else:
-                                            estado_forma = "🟡 Zona de Estímulo Óptimo"
-                                        
-                                        # Despliegue de métricas en columnas premium
-                                        c_m1, c_m2, c_m3 = st.columns(3)
-                                        with c_m1:
-                                            st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
-                                        with c_m2:
-                                            st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
-                                        with c_m3:
-                                            st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma, delta_color="normal")
-                                        
-                                        # Renderizar gráfico predictivo utilizando Matplotlib de forma directa
-                                        fig, ax = plt.subplots(figsize=(10, 4.5))
-                                        ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
-                                        ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
-                                        ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
-                                        
-                                        ax.set_title(f"Modelo de Rendimiento Banister: {atletas_opciones_carga[atleta_sel_id]}", fontsize=12, fontweight="bold", pad=12)
-                                        ax.set_xlabel("Línea de Tiempo (Días)", fontsize=10)
-                                        ax.set_ylabel("Carga Equivalente (Metros Ponderados)", fontsize=10)
-                                        ax.grid(True, linestyle=":", alpha=0.5)
-                                        ax.legend(loc="upper left")
-                                        plt.xticks(rotation=15)
-                                        
-                                        st.pyplot(fig)
+                                            # 2. Si no hay desglose, usamos el volumen bruto por defecto
+                                            if not intensidades_json:
+                                                carga_del_dia = r.get("metros_totales", 0) * 1.0
+                                            else:
+                                                # 3. Calculamos la carga ponderada multiplicando metros de cada zona por su factor
+                                                carga_del_dia = 0.0
+                                                for zona, metros in intensidades_json.items():
+                                                    factor = MULTIPLICADORES_ZONA.get(zona, 1.0)
+                                                    carga_del_dia += metros * factor
+                                                    
+                                            # Guardamos el valor calculado en nuestro mapa diario
+                                            vol_diario_map[f_rec] += carga_del_dia
+                                    
+                                    # Generar DataFrame ordenado cronológicamente para cálculos de medias móviles
+                                    df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_completo])
+                                    df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
+                                    df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
+                                    
+                                    # =============================================================================
+                                    # MOTOR DE CÁLCULO DE CARGAS CIENTÍFICAS CON DECAIMIENTO EXPONENCIAL (EWMA)
+                                    # =============================================================================
+                                    df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
+                                    df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
+                                    df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
+                                    
+                                    # Extraer métricas actuales (último día de la serie)
+                                    ultima_fila = df_cargas.iloc[-1]
+                                    val_ctl = int(ultima_fila["CTL"])
+                                    val_atl = int(ultima_fila["ATL"])
+                                    val_tsb = int(ultima_fila["TSB"])
+                                    
+                                    # Determinar estado de forma fisiológica
+                                    if val_tsb > 0:
+                                        estado_forma = "🟢 Zona de Frescura (Tapering)"
+                                    elif val_tsb < -1500:
+                                        estado_forma = "🔴 Zona de Fatiga Crítica"
                                     else:
-                                        st.info("💡 No hay fechas válidas de entrenamientos para generar la línea de tiempo analítica.")
-                                        
+                                        estado_forma = "🟡 Zona de Estímulo Óptimo"
+                                    
+                                    # Despliegue de métricas en columnas premium
+                                    c_m1, c_m2, c_m3 = st.columns(3)
+                                    with c_m1:
+                                        st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
+                                    with c_m2:
+                                        st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
+                                    with c_m3:
+                                        st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma, delta_color="normal")
+                                    
+                                    # Renderizar gráfico predictivo utilizando Matplotlib de forma directa
+                                    fig, ax = plt.subplots(figsize=(10, 4.5))
+                                    ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
+                                    ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
+                                    ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
+                                    
+                                    ax.set_title(f"Modelo de Rendimiento Banister: {atletas_opciones_carga[atleta_sel_id]}", fontsize=12, fontweight="bold", pad=12)
+                                    ax.set_xlabel("Línea de Tiempo (Días)", fontsize=10)
+                                    ax.set_ylabel("Carga Equivalente (Metros Ponderados)", fontsize=10)
+                                    ax.grid(True, linestyle=":", alpha=0.5)
+                                    ax.legend(loc="upper left")
+                                    plt.xticks(rotation=15)
+                                    
+                                    st.pyplot(fig)
+                                else:
+                                    st.info("💡 No hay fechas válidas de entrenamientos para generar la línea de tiempo analítica.")
+                                    
                             except Exception as e:
-                                st.error(f"Error al computar el reporte analítico: {e}")             
+                                st.error(f"Error al computar el reporte analítico: {e}") 
+                    except Exception as e:
+                        st.error(f"Error al compilar históricos: {e}")
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
