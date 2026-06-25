@@ -2170,7 +2170,123 @@ else:
                                     plt.xticks(rotation=15)
                                     
                                     st.pyplot(fig)
+                                    import streamlit as st
+                                    import pandas as pd
+                                    import numpy as np
+                                    import matplotlib.pyplot as plt
+                                    import io
                                     
+                                    def render_reporte_volumenes_bannister(df_cargas, df_volumen_diario, nombre_atleta):
+                                        """
+                                        Genera un reporte gráfico (lienzo 8.5x11) y tabular de los volúmenes de trabajo 
+                                        y el modelo Bannister (CTL, ATL, TSB) para un atleta específico.
+                                        """
+                                        st.markdown(f"### 📋 Reporte Integral de Cargas y Volúmenes: {nombre_atleta}")
+                                        
+                                        if df_cargas.empty or df_volumen_diario.empty:
+                                            st.warning("No hay suficientes datos registrados de volumen o de estrés para este atleta.")
+                                            return
+                                    
+                                        # Asegurar formato fecha
+                                        df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
+                                        df_volumen_diario["Fecha"] = pd.to_datetime(df_volumen_diario["Fecha"])
+                                    
+                                        # ---------------------------------------------------------
+                                        # 1. CREACIÓN DEL LIENZO GRÁFICO (8.5 x 11 pulgadas, 100 DPI)
+                                        # ---------------------------------------------------------
+                                        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.5, 11.0), gridspec_kw={'height_ratios': [1, 1]})
+                                        fig.suptitle(f"Análisis de Rendimiento y Carga Externa: {nombre_atleta}", fontsize=14, fontweight="bold", y=0.93)
+                                    
+                                        # --- Cuadrante Superior: Volumen Diario ---
+                                        ax1.bar(df_volumen_diario["Fecha"], df_volumen_diario["Metros"], color="#17becf", alpha=0.8, width=0.8, label="Metros Nadados (Brutos)")
+                                        if "Metros_Ponderados" in df_volumen_diario.columns:
+                                            ax1.plot(df_volumen_diario["Fecha"], df_volumen_diario["Metros_Ponderados"], color="#d62728", linewidth=1.5, marker="o", label="Metros Equivalentes (Ponderados)")
+                                        
+                                        ax1.set_title("Registro Diario de Volumen de Trabajo", fontsize=11, fontweight="bold", pad=10)
+                                        ax1.set_xlabel("Línea de Tiempo", fontsize=9)
+                                        ax1.set_ylabel("Volumen (Metros)", fontsize=9)
+                                        ax1.grid(True, linestyle=":", alpha=0.5)
+                                        ax1.legend(loc="upper left")
+                                        plt.setp(ax1.get_xticklabels(), rotation=15)
+                                    
+                                        # --- Cuadrante Inferior: Modelo Bannister (CTL, ATL, TSB) ---
+                                        ax2.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
+                                        ax2.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
+                                        ax2.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
+                                        
+                                        ax2.set_title("Modelo de Rendimiento Bannister (Estrés Fisiológico)", fontsize=11, fontweight="bold", pad=10)
+                                        ax2.set_xlabel("Línea de Tiempo", fontsize=9)
+                                        ax2.set_ylabel("Carga Equivalente (Metros)", fontsize=9)
+                                        ax2.grid(True, linestyle=":", alpha=0.5)
+                                        ax2.legend(loc="upper left")
+                                        plt.setp(ax2.get_xticklabels(), rotation=15)
+                                    
+                                        plt.tight_layout(rect=[0, 0.03, 1, 0.90])
+                                    
+                                        # Opciones de Exportación de Imagen (PNG)
+                                        buf = io.BytesIO()
+                                        plt.savefig(buf, format="png", dpi=100)
+                                        buf.seek(0)
+                                        
+                                        st.download_button(
+                                            label="🖼️ Descargar Lienzo Gráfico (PNG)",
+                                            data=buf,
+                                            file_name=f"Reporte_Bannister_{nombre_atleta.replace(' ', '_')}.png",
+                                            mime="image/png"
+                                        )
+                                        
+                                        # Mostrar Gráfico en Streamlit
+                                        st.pyplot(fig)
+                                        plt.close()
+                                    
+                                        # ---------------------------------------------------------
+                                        # 2. TABULACIÓN Y EXPORTACIÓN DE DATOS (TXT / CSV)
+                                        # ---------------------------------------------------------
+                                        st.markdown("---")
+                                        st.markdown("### 📊 Tabulación de Datos e Información Diaria")
+                                        
+                                        # Unificar métricas en una sola tabla combinada por fecha para mejor lectura
+                                        df_consolidado = pd.merge(df_volumen_diario, df_cargas, on="Fecha", how="outer").fillna(0)
+                                        df_consolidado = df_consolidado.sort_values("Fecha").reset_index(drop=True)
+                                        
+                                        # Formatear la columna fecha a string para visualización amigable en tabla
+                                        df_consolidado["Fecha_Str"] = df_consolidado["Fecha"].dt.strftime('%Y-%m-%d')
+                                        
+                                        # Reordenar columnas para la tabla
+                                        columnas_ordenadas = ["Fecha_Str"] + [col for col in df_consolidado.columns if col not in ["Fecha", "Fecha_Str"]]
+                                        df_tabla = df_consolidado[columnas_ordenadas]
+                                        
+                                        # Mostrar tabla interactiva
+                                        st.dataframe(df_tabla, use_container_width=True)
+                                        
+                                        # Botón de descarga TXT / CSV
+                                        csv_data = df_tabla.to_csv(index=False).encode('utf-8')
+                                        
+                                        st.download_button(
+                                            label="📥 Descargar Registros Tabulados (CSV)",
+                                            data=csv_data,
+                                            file_name=f"Datos_Bannister_{nombre_atleta.replace(' ', '_')}.csv",
+                                            mime="text/csv"
+                                        )
+                                    
+                                    # =========================================================
+                                    # EJEMPLO DE USO (Integrado al flujo de la aplicación)
+                                    # =========================================================
+                                    if st.checkbox("⚙️ Simular generación de reporte", value=False):
+                                        # Dataframes simulados para prueba técnica
+                                        fechas = pd.date_range(end=datetime.date.today(), periods=15).tolist()
+                                        df_cargas_sim = pd.DataFrame({
+                                            "Fecha": fechas,
+                                            "CTL": np.linspace(30000, 42000, 15),
+                                            "ATL": np.linspace(10000, 65000, 15) * np.random.uniform(0.8, 1.2, 15),
+                                            "TSB": np.linspace(-10000, 5000, 15)
+                                        })
+                                        df_vol_sim = pd.DataFrame({
+                                            "Fecha": fechas,
+                                            "Metros": np.random.randint(3000, 6000, 15),
+                                            "Metros_Ponderados": np.random.randint(2500, 7000, 15)
+                                        })
+                                        render_reporte_volumenes_bannister(df_cargas_sim, df_vol_sim, st.session_state.nadador_seleccionado_nombre)
                     except Exception as e:
                         st.error(f"Error al computar el reporte analítico: {e}")             
         else:
