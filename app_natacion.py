@@ -799,118 +799,109 @@ if modo_equipo:
             atletas_filtrados = [a for a in atletas_lista if a["id"] in ids_sel]
 
         if not atletas_filtrados:
-                    st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
-                else:
-                    # 1. Obtener la lista de IDs de los atletas filtrados
-                    lista_ids = [atl["id"] for atl in atletas_filtrados]
+            st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
+        else:
+            fig = plt.figure(figsize=(8.5, 11.0))
+            ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+            
+            colores = plt.get_cmap("tab10", len(atletas_filtrados))
+            hay_datos_visibles = False
+            linea_fisiologica_anotada = False
+            
+            todas_las_edades_0 = []
+            todos_los_tiempos_colectivo = []
+            datos_atletas_cargados = []
+            
+            for idx, atl in enumerate(atletas_filtrados):
+                a_id = atl["id"]
+                a_nom = atl["nombre"]
+                
+                res_marcas = supabase.table("marcas_historicas")\
+                    .select("edad, tiempo, nota")\
+                    .eq("prueba", titulo_grafico)\
+                    .eq("usuario_id", a_id)\
+                    .order("edad", desc=False).execute()
+                
+                if res_marcas.data:
+                    df_atl_m = pd.DataFrame(res_marcas.data)
+                    df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
+                    hay_datos_visibles = True
                     
-                    # 2. Realizar UNA SOLA consulta masiva a Supabase para todo el colectivo
-                    res_marcas_colectivo = supabase.table("marcas_historicas")\
-                        .select("usuario_id, edad, tiempo, nota")\
-                        .eq("prueba", titulo_grafico)\
-                        .in_("usuario_id", lista_ids)\
-                        .order("edad", desc=False).execute()
-                        
-                    # Convertir la respuesta a un DataFrame global para filtrarlo en memoria
-                    df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
-        
-                    fig = plt.figure(figsize=(8.5, 11.0))
-                    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+                    todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
+                    todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
                     
-                    colores = plt.get_cmap("tab10", len(atletas_filtrados))
-                    hay_datos_visibles = False
-                    linea_fisiologica_anotada = False
+                    datos_atletas_cargados.append({
+                        "nom": a_nom,
+                        "df": df_atl_m,
+                        "color": colores(idx)
+                    })
+
+            if hay_datos_visibles:
+                edad_0_min_colectivo = min(todas_las_edades_0)
+                lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
+                lim_x_max = t_peak + 1.0
+                ax.set_xlim(lim_x_min, lim_x_max)
+                
+                peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
+                lim_y_inferior = m_wr * 0.95
+                lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
+                ax.set_ylim(lim_y_inferior, lim_y_superior)
+                
+                for item in datos_atletas_cargados:
+                    df_atl_m = item["df"]
+                    color_curr = item["color"]
+                    a_nom = item["nom"]
                     
-                    todas_las_edades_0 = []
-                    todos_los_tiempos_colectivo = []
-                    datos_atletas_cargados = []
+                    t0_i = float(df_atl_m.iloc[0]["Edad"])
+                    T0_i = float(df_atl_m.iloc[0]["Tiempo"])
+                    idx_pb_i = df_atl_m["Tiempo"].idxmin()
+                    t_pb_i = float(df_atl_m.loc[idx_pb_i, "Edad"])
+                    T_pb_i = float(df_atl_m.loc[idx_pb_i, "Tiempo"])
                     
-                    # 3. Bucle para procesar los datos localmente (sin llamadas de red adicionales)
-                    for idx, atl in enumerate(atletas_filtrados):
-                        a_id = atl["id"]
-                        a_nom = atl["nombre"]
-                        
-                        # Filtrar el DataFrame global en memoria en lugar de consultar a la BD
-                        if not df_global_marcas.empty and a_id in df_global_marcas["usuario_id"].values:
-                            df_atl_m = df_global_marcas[df_global_marcas["usuario_id"] == a_id].copy()
-                            df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-                            hay_datos_visibles = True
-                            
-                            todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
-                            todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
-                            
-                            datos_atletas_cargados.append({
-                                "nom": a_nom,
-                                "df": df_atl_m,
-                                "color": colores(idx)
-                            })
-        
-                    if hay_datos_visibles:
-                        edad_0_min_colectivo = min(todas_las_edades_0)
-                        lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-                        lim_x_max = t_peak + 1.0
-                        ax.set_xlim(lim_x_min, lim_x_max)
-                        
-                        peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-                        lim_y_inferior = m_wr * 0.95
-                        lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
-                        ax.set_ylim(lim_y_inferior, lim_y_superior)
-                        
-                        for item in datos_atletas_cargados:
-                            df_atl_m = item["df"]
-                            color_curr = item["color"]
-                            a_nom = item["nom"]
-                            
-                            t0_i = float(df_atl_m.iloc[0]["Edad"])
-                            T0_i = float(df_atl_m.iloc[0]["Tiempo"])
-                            idx_pb_i = df_atl_m["Tiempo"].idxmin()
-                            t_pb_i = float(df_atl_m.loc[idx_pb_i, "Edad"])
-                            T_pb_i = float(df_atl_m.loc[idx_pb_i, "Tiempo"])
-                            
-                            k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
-                            edades_curva_i = np.linspace(t0_i, t_peak, 300)
-                            tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
-                            
-                            if not linea_fisiologica_anotada:
-                                ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica estimada")
-                                linea_fisiologica_anotada = True
-                            else:
-                                ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
-                            
-                            ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"Evolución real - {a_nom}")
-                            ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
-                            ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
-        
-                        x_texto = lim_x_min + 0.1
-                        if not es_preinfantil:
-                            referencias = [
-                                {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-                                {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
-                                {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                                {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},            
-                                {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},          
-                                {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
-                            ]
-                            for r in referencias:
-                                if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                                    ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                                    desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                                    ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
-                        else:
-                            if m_ano > 0:
-                                ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                                ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
-                        
-                        ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
-                        ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
-                        ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
-                        ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
-                        ax.set_axisbelow(True)
-                        ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
-                        
-                        st.pyplot(fig)
+                    k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
+                    edades_curva_i = np.linspace(t0_i, t_peak, 300)
+                    tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
+                    
+                    if not linea_fisiologica_anotada:
+                        ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica estimada")
+                        linea_fisiologica_anotada = True
                     else:
-                        st.info("No se hallaron marcas en la base de datos para los nadadores seleccionados en esta prueba.")
+                        ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
+                    
+                    ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"Evolución real - {a_nom}")
+                    ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
+                    ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
+
+                x_texto = lim_x_min + 0.1
+                if not es_preinfantil:
+                    referencias = [
+                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
+                        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
+                        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
+                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},               
+                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
+                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
+                    ]
+                    for r in referencias:
+                        if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
+                            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+                            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+                            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
+                else:
+                    if m_ano > 0:
+                        ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
+                        ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano:.2f}s", color="#A06000", fontsize=7, va="top", ha="left")
+                
+                ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
+                ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
+                ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
+                ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
+                ax.set_axisbelow(True)
+                ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
+                
+                st.pyplot(fig)
+            else:
+                st.info("No se hallaron marcas en la base de datos para los nadadores seleccionados en esta prueba.")
     except Exception as e:
         st.error(f"Error procesando los segmentos de equipo: {e}")
 # -------------------------------------------------------------
@@ -2179,123 +2170,7 @@ else:
                                     plt.xticks(rotation=15)
                                     
                                     st.pyplot(fig)
-                                    import streamlit as st
-                                    import pandas as pd
-                                    import numpy as np
-                                    import matplotlib.pyplot as plt
-                                    import io
                                     
-                                    def render_reporte_volumenes_bannister(df_cargas, df_volumen_diario, nombre_atleta):
-                                        """
-                                        Genera un reporte gráfico (lienzo 8.5x11) y tabular de los volúmenes de trabajo 
-                                        y el modelo Bannister (CTL, ATL, TSB) para un atleta específico.
-                                        """
-                                        st.markdown(f"### 📋 Reporte Integral de Cargas y Volúmenes: {nombre_atleta}")
-                                        
-                                        if df_cargas.empty or df_volumen_diario.empty:
-                                            st.warning("No hay suficientes datos registrados de volumen o de estrés para este atleta.")
-                                            return
-                                    
-                                        # Asegurar formato fecha
-                                        df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
-                                        df_volumen_diario["Fecha"] = pd.to_datetime(df_volumen_diario["Fecha"])
-                                    
-                                        # ---------------------------------------------------------
-                                        # 1. CREACIÓN DEL LIENZO GRÁFICO (8.5 x 11 pulgadas, 100 DPI)
-                                        # ---------------------------------------------------------
-                                        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.5, 11.0), gridspec_kw={'height_ratios': [1, 1]})
-                                        fig.suptitle(f"Análisis de Rendimiento y Carga Externa: {nombre_atleta}", fontsize=14, fontweight="bold", y=0.93)
-                                    
-                                        # --- Cuadrante Superior: Volumen Diario ---
-                                        ax1.bar(df_volumen_diario["Fecha"], df_volumen_diario["Metros"], color="#17becf", alpha=0.8, width=0.8, label="Metros Nadados (Brutos)")
-                                        if "Metros_Ponderados" in df_volumen_diario.columns:
-                                            ax1.plot(df_volumen_diario["Fecha"], df_volumen_diario["Metros_Ponderados"], color="#d62728", linewidth=1.5, marker="o", label="Metros Equivalentes (Ponderados)")
-                                        
-                                        ax1.set_title("Registro Diario de Volumen de Trabajo", fontsize=11, fontweight="bold", pad=10)
-                                        ax1.set_xlabel("Línea de Tiempo", fontsize=9)
-                                        ax1.set_ylabel("Volumen (Metros)", fontsize=9)
-                                        ax1.grid(True, linestyle=":", alpha=0.5)
-                                        ax1.legend(loc="upper left")
-                                        plt.setp(ax1.get_xticklabels(), rotation=15)
-                                    
-                                        # --- Cuadrante Inferior: Modelo Bannister (CTL, ATL, TSB) ---
-                                        ax2.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
-                                        ax2.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
-                                        ax2.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
-                                        
-                                        ax2.set_title("Modelo de Rendimiento Bannister (Estrés Fisiológico)", fontsize=11, fontweight="bold", pad=10)
-                                        ax2.set_xlabel("Línea de Tiempo", fontsize=9)
-                                        ax2.set_ylabel("Carga Equivalente (Metros)", fontsize=9)
-                                        ax2.grid(True, linestyle=":", alpha=0.5)
-                                        ax2.legend(loc="upper left")
-                                        plt.setp(ax2.get_xticklabels(), rotation=15)
-                                    
-                                        plt.tight_layout(rect=[0, 0.03, 1, 0.90])
-                                    
-                                        # Opciones de Exportación de Imagen (PNG)
-                                        buf = io.BytesIO()
-                                        plt.savefig(buf, format="png", dpi=100)
-                                        buf.seek(0)
-                                        
-                                        st.download_button(
-                                            label="🖼️ Descargar Lienzo Gráfico (PNG)",
-                                            data=buf,
-                                            file_name=f"Reporte_Bannister_{nombre_atleta.replace(' ', '_')}.png",
-                                            mime="image/png"
-                                        )
-                                        
-                                        # Mostrar Gráfico en Streamlit
-                                        st.pyplot(fig)
-                                        plt.close()
-                                    
-                                        # ---------------------------------------------------------
-                                        # 2. TABULACIÓN Y EXPORTACIÓN DE DATOS (TXT / CSV)
-                                        # ---------------------------------------------------------
-                                        st.markdown("---")
-                                        st.markdown("### 📊 Tabulación de Datos e Información Diaria")
-                                        
-                                        # Unificar métricas en una sola tabla combinada por fecha para mejor lectura
-                                        df_consolidado = pd.merge(df_volumen_diario, df_cargas, on="Fecha", how="outer").fillna(0)
-                                        df_consolidado = df_consolidado.sort_values("Fecha").reset_index(drop=True)
-                                        
-                                        # Formatear la columna fecha a string para visualización amigable en tabla
-                                        df_consolidado["Fecha_Str"] = df_consolidado["Fecha"].dt.strftime('%Y-%m-%d')
-                                        
-                                        # Reordenar columnas para la tabla
-                                        columnas_ordenadas = ["Fecha_Str"] + [col for col in df_consolidado.columns if col not in ["Fecha", "Fecha_Str"]]
-                                        df_tabla = df_consolidado[columnas_ordenadas]
-                                        
-                                        # Mostrar tabla interactiva
-                                        st.dataframe(df_tabla, use_container_width=True)
-                                        
-                                        # Botón de descarga TXT / CSV
-                                        csv_data = df_tabla.to_csv(index=False).encode('utf-8')
-                                        
-                                        st.download_button(
-                                            label="📥 Descargar Registros Tabulados (CSV)",
-                                            data=csv_data,
-                                            file_name=f"Datos_Bannister_{nombre_atleta.replace(' ', '_')}.csv",
-                                            mime="text/csv"
-                                        )
-                                    
-                                    # =========================================================
-                                    # EJEMPLO DE USO (Integrado al flujo de la aplicación)
-                                    # =========================================================
-                                    if st.checkbox("⚙️ Simular generación de reporte", value=False):
-                                        # Dataframes simulados para prueba técnica
-                                        fechas = pd.date_range(end=datetime.date.today(), periods=15).tolist()
-                                        df_cargas_sim = pd.DataFrame({
-                                            "Fecha": fechas,
-                                            "CTL": np.linspace(30000, 42000, 15),
-                                            "ATL": np.linspace(10000, 65000, 15) * np.random.uniform(0.8, 1.2, 15),
-                                            "TSB": np.linspace(-10000, 5000, 15)
-                                        })
-                                        df_vol_sim = pd.DataFrame({
-                                            "Fecha": fechas,
-                                            "Metros": np.random.randint(3000, 6000, 15),
-                                            "Metros_Ponderados": np.random.randint(2500, 7000, 15)
-                                        })
-                                        render_reporte_volumenes_bannister(df_cargas_sim, df_vol_sim, st.session_state.nadador_seleccionado_nombre)
                     except Exception as e:
                         st.error(f"Error al computar el reporte analítico: {e}")             
         else:
