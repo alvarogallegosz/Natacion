@@ -333,21 +333,35 @@ def login_usuario(user, password):
                 st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
                 return False
                 
+            # --- VALIDACIÓN SEGURA DE CAMPOS DE SESIÓN ---
             st.session_state.autenticado = True
             st.session_state.usuario_id = user_data["id"]
             st.session_state.nombre_nadador = user_data["nombre"]
-            st.session_state.genero = user_data.get("genero", "F")
             st.session_state.rol = user_data.get("rol", "Nadador")
+            
+            # Asignar valores por defecto seguros si vienen NULL de la BD
+            st.session_state.genero = user_data.get("genero") if user_data.get("genero") else "M"
             st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
             
-            cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
-            st.session_state.categoria_atleta = cat
-            st.session_state.edad_comp_atleta = ed_c
-            
-            st.session_state.nadador_seleccionado_id = user_data["id"]
-            st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
-            st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
-            st.session_state.nadador_seleccionado_categoria = cat
+            # Solo si es Nadador calculamos categorías competitivas
+            if st.session_state.rol == "Nadador" and st.session_state.fecha_nacimiento:
+                cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
+                st.session_state.categoria_atleta = cat
+                st.session_state.edad_comp_atleta = ed_c
+                
+                st.session_state.nadador_seleccionado_id = user_data["id"]
+                st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
+                st.session_state.nadador_seleccionado_genero = st.session_state.genero
+                st.session_state.nadador_seleccionado_categoria = cat
+            else:
+                # Valores por defecto limpios para roles técnicos/administrativos
+                st.session_state.categoria_atleta = "N/A"
+                st.session_state.edad_comp_atleta = 0
+                st.session_state.nadador_seleccionado_id = None
+                st.session_state.nadador_seleccionado_nombre = ""
+                st.session_state.nadador_seleccionado_genero = "M"
+                st.session_state.nadador_seleccionado_categoria = "N/A"
+                
             return True
         return False
     except Exception as e:
