@@ -1971,14 +1971,14 @@ else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (SOLUCIÓN DE FLUJO CONTINUO)
+    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (FLUJO CONTINUO COMPLETO)
     # -------------------------------------------------------------
     with tab_reportes:
         if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
 
-            # Extracción del cliente de base de datos de forma directa
+            # Extracción limpia y directa en la raíz de la pestaña
             supabase = st.session_state.get("supabase_client")
 
             # =============================================================================
@@ -2010,18 +2010,15 @@ else:
                 
                 /* REGLAS DE OPTIMIZACIÓN MULTIMEDIA PARA IMPRESIÓN REAL */
                 @media print {
-                    /* Ocultar barra lateral, barra superior de Streamlit y botones de control */
                     [data-testid="stSidebar"], header, [data-testid="stHeader"], .stButton, button, .stSelectbox {
                         display: none !important;
                     }
-                    /* Forzar que el contenedor principal use todo el ancho disponible */
                     .main .block-container {
                         padding-top: 1rem !important;
                         padding-bottom: 1rem !important;
                         max-width: 100% !important;
                         width: 100% !important;
                     }
-                    /* Evitar rupturas huérfanas de gráficos y tablas a mitad de página */
                     .stMarkdown, .stPlotlyChart, div.stMatplotlib {
                         page-break-inside: avoid !important;
                     }
@@ -2034,7 +2031,7 @@ else:
             """, unsafe_allow_html=True)
 
             # =============================================================================
-            # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS EXTENDIDAS)
+            # 1. TEMPORALIDAD DE LOS REPORTES
             # =============================================================================
             opciones_tiempo = {
                 "7 días (Última semana)": 7,
@@ -2050,25 +2047,27 @@ else:
             ventana_sel = st.selectbox(
                 "⏳ Ventana Temporal de Análisis:",
                 options=list(opciones_tiempo.keys()),
-                index=3,  # Defecto en 42 días por su relevancia científica en el rendimiento
+                index=3,
                 key="rep_selectbox_temporalidad"
             )
             
             dias_atras = opciones_tiempo[ventana_sel]
             
             # =============================================================================
-            # 2. SELECTORES DE FILTRADO COHERENTES CON LA PIZARRA
+            # 2. SELECTORES DE FILTRADO COHERENTES CON LA PIZARRA (Poblado Seguro)
             # =============================================================================
             col_rep1, col_rep2, col_rep3 = st.columns(3)
             
+            sedes_disponibles = []
+            if supabase:
+                try:
+                    res_sedes = supabase.table("usuarios").select("sede").execute()
+                    if res_sedes and res_sedes.data:
+                        sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")])))
+                except:
+                    pass
+
             with col_rep1:
-                sedes_disponibles = []
-                if supabase:
-                    try:
-                        res_sedes = supabase.table("usuarios").select("sede").execute()
-                        sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes.data else []
-                    except:
-                        pass
                 sedes_opciones = ["Todas"] + sedes_disponibles
                 sede_rep = st.selectbox("📍 Filtrar por Sede:", sedes_opciones, key="rep_filtro_sede")
                 
@@ -2081,16 +2080,14 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
             # =============================================================================
-            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (LÓGICA ORIGINAL INTEGRAL)
+            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (Sin Interrupciones)
             # =============================================================================
-            if not supabase:
-                st.warning("🔌 Sincronizando enlace de datos con el ecosistema Supabase... Si este mensaje persiste por más de 3 segundos, interactúa con cualquier filtro superior para despertar la sesión.")
-            else:
+            if supabase:
                 atleta_ids = []
                 if st.session_state.rol == "Entrenador":
                     try:
                         res_asig = supabase.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
-                        if res_asig.data:
+                        if res_asig and res_asig.data:
                             atleta_ids = [r["nadador_id"] for r in res_asig.data]
                     except Exception as e:
                         st.error(f"Error al cargar atletas asignados: {e}")
@@ -2112,9 +2109,7 @@ else:
                     
                 res_atlt = query_atlt.execute()
                 
-                if not res_atlt.data:
-                    st.info("No se encontraron nadadores bajo los filtros seleccionados.")
-                else:
+                if res_atlt and res_atlt.data:
                     atletas_opciones_carga = {a["id"]: f"{a['nombre']} {a['apellido']}" for a in res_atlt.data}
                     atleta_sel_id = st.selectbox(
                         "🎯 Seleccione el Nadador para el Reporte Analítico:",
@@ -2138,8 +2133,7 @@ else:
                                 df_diario.columns = ["Fecha", "Volumen"]
                                 
                                 fecha_min = df_diario["Fecha"].min()
-                                fecha_max = datetime.date.today()
-                                fecha_max = pd.to_datetime(fecha_max)
+                                fecha_max = pd.to_datetime(datetime.date.today())
                                 
                                 rango_fechas = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
                                 df_cargas = pd.DataFrame({"Fecha": rango_fechas})
@@ -2176,7 +2170,7 @@ else:
                                 if df_cargas.empty:
                                     st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
                                 else:
-                                    # Gráfico original estable
+                                    # Gráfico con tus dimensiones y fuentes exactas de 8pt originales
                                     fig_ban, ax = plt.subplots(figsize=(10, 4.5))
                                     ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
                                     ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
@@ -2191,7 +2185,7 @@ else:
                                     st.pyplot(fig_ban)
                                     
                                     # =============================================================================
-                                    # BOTÓN DE IMPRESIÓN JAVASCRIPT ACTIVO Y SEGURO
+                                    # BOTÓN DE IMPRESIÓN JAVASCRIPT ACTIVO
                                     # =============================================================================
                                     st.markdown(f"""
                                         <div style="margin-top: 10px; margin-bottom: 25px;">
@@ -2223,7 +2217,7 @@ else:
                                     df_tabla_visual = pd.concat([df_tabla_ban, pd.DataFrame([fila_tot_ban])], ignore_index=True)
                                     st.write(df_tabla_visual.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                     
-                                    # Botones tradicionales de descarga al final de la matriz
+                                    # Botones tradicionales de descarga
                                     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
                                     col_down_ban1, col_down_ban2 = st.columns(2)
                                     
@@ -2249,5 +2243,9 @@ else:
                                     
                         except Exception as e:
                             st.error(f"Error al computar el reporte analítico avanzado: {e}")             
+                else:
+                    st.info("No se encontraron nadadores bajo los filtros seleccionados.")
+            else:
+                st.caption("🔄 Sincronizando estado...")
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
