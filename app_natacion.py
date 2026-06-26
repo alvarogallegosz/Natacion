@@ -1251,11 +1251,11 @@ if simulacion_externa:
 else:
     tab_pizarra, tab_reportes, tab_marcas, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
         "📝 Pizarra Diaria", 
-        "📊 Reportes y Envío", 
-        "📋 Control de Marcas", 
-        "⏱️ Configurar Tiempos",
+        "📊 Reportes de Entrenamiento", 
+        "📋 Resultados de competencias", 
+        "⏱️ Configurar Marcas Mínimas",
         "🎯 Asignaciones de Nadadores",
-        "📅 Calendario Anual", 
+        "📅 Calendario Anual de Competencias", 
         "🛡️ Consola Global (Admin)"
     ])
     with tab_marcas:
