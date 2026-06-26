@@ -1254,7 +1254,7 @@ else:
         "📊 Reportes y Envío", 
         "📋 Control de Marcas", 
         "⏱️ Configurar Tiempos",
-        "🎯 Asignaciones de Nadadores"
+        "🎯 Asignaciones de Nadadores",
         "📅 Calendario Anual", 
         "🛡️ Consola Global (Admin)"
     ])
