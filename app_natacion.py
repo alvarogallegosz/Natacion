@@ -1249,7 +1249,7 @@ st.markdown("---")
 if simulacion_externa:
     st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
 else:
-    tab_pizarra, tab_reportes, tab_marcas, tab_entrenador, tab_signaciones, tab_calendario, tab_admin = st.tabs([
+    tab_pizarra, tab_reportes, tab_marcas, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
         "📝 Pizarra Diaria", 
         "📊 Reportes y Envío", 
         "📋 Control de Marcas", 
