@@ -2094,22 +2094,22 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (AUTENTICADO VÍA SESSION_STATE)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (CORREGIDO CON LA TABLA ASIGNACIONES REAL)
             # =============================================================================
             atleta_ids = []
-            # Obtenemos de forma segura el cliente autenticado de la sesión
             client_db = st.session_state.get("supabase_client")
             
             if st.session_state.rol == "Entrenador" and client_db:
                 try:
+                    # Usamos 'asignaciones' y 'atleta_id' exactamente igual que en la barra lateral
                     res_asig = client_db.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                     if res_asig.data:
                         atleta_ids = [r["atleta_id"] for r in res_asig.data]
                 except Exception as e:
-                    st.error(f"Error al cargar atletas asignados: {e}")
+                    st.error(f"Error al cargar atletas asignados desde la tabla real: {e}")
             
-            # CONTROL CRÍTICO: Si no hay cliente de BD activo o el entrenador no tiene atletas, evitamos ir a la API
-            if not client_db or (st.session_state.rol == "Entrenador" and not atleta_ids):
+            # CONTROL CRÍTICO: Si es Entrenador y la lista de IDs está vacía, simulamos respuesta limpia
+            if st.session_state.rol == "Entrenador" and not atleta_ids:
                 class RespuestaVacia:
                     data = []
                 res_atlt = RespuestaVacia()
@@ -2130,7 +2130,6 @@ else:
                 try:
                     res_atlt = query_atlt.execute()
                 except Exception:
-                    # Fallback de emergencia tolerante a fallos
                     class RespuestaVacia:
                         data = []
                     res_atlt = RespuestaVacia()
