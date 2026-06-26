@@ -2094,42 +2094,58 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (CORREGIDO CON LA TABLA ASIGNACIONES REAL)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (CON FILTROS TOLERANTES Y DEPURACIÓN)
             # =============================================================================
             atleta_ids = []
             client_db = st.session_state.get("supabase_client")
             
             if st.session_state.rol == "Entrenador" and client_db:
                 try:
-                    # Usamos 'asignaciones' y 'atleta_id' exactamente igual que en la barra lateral
+                    # Traemos los atletas vinculados en la tabla real
                     res_asig = client_db.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                     if res_asig.data:
                         atleta_ids = [r["atleta_id"] for r in res_asig.data]
                 except Exception as e:
-                    st.error(f"Error al cargar atletas asignados desde la tabla real: {e}")
+                    st.error(f"Error al cargar atletas asignados: {e}")
             
-            # CONTROL CRÍTICO: Si es Entrenador y la lista de IDs está vacía, simulamos respuesta limpia
+            # CONTROL DE SEGURIDAD: Si es Entrenador y no tiene nadadores en 'asignaciones', evitamos la llamada
             if st.session_state.rol == "Entrenador" and not atleta_ids:
                 class RespuestaVacia:
                     data = []
                 res_atlt = RespuestaVacia()
             else:
-                # Construimos la query usando el objeto verificado de la sesión
-                query_atlt = client_db.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
+                # Inicializamos la query base sobre la tabla de usuarios
+                query_atlt = client_db.table("usuarios").select("id, nombre, apellido, sede, categoria, genero").eq("rol", "Nadador")
                 
+                # Si el usuario es Entrenador, restringimos SÓLO a sus IDs asignados
                 if st.session_state.rol == "Entrenador":
                     query_atlt = query_atlt.in_("id", atleta_ids)
                         
-                if sede_rep != "Todas":
+                # FILTROS FLEXIBLES: Sólo se aplican si se ha seleccionado una opción específica y válida
+                if 'sede_rep' in locals() and sede_rep not in ["Todas", "", None]:
                     query_atlt = query_atlt.eq("sede", sede_rep)
-                if cat_rep != "Todas":
+                    
+                if 'cat_rep' in locals() and cat_rep not in ["Todas", "", None]:
                     query_atlt = query_atlt.eq("categoria", cat_rep)
-                if gen_rep != "Todos":
-                    query_atlt = query_atlt.eq("genero", gen_rep)
+                    
+                if 'gen_rep' in locals() and gen_rep not in ["Todos", "", None]:
+                    # Mapeo por si en base de datos usas "M"/"F" en vez de Masculino/Femenino
+                    genero_busqueda = gen_rep
+                    if gen_rep == "Masculino": genero_busqueda = "M"
+                    if gen_rep == "Femenino": genero_busqueda = "F"
+                    query_atlt = query_atlt.eq("genero", genero_busqueda)
                     
                 try:
                     res_atlt = query_atlt.execute()
-                except Exception:
+                    
+                    # Si no encuentra nada con los filtros de Sede/Categoría/Género, hacemos un Fallback automático
+                    # para mostrarle al entrenador a TODOS sus atletas ignorando esos filtros secundarios.
+                    if not res_atlt.data and st.session_state.rol == "Entrenador":
+                        st.info("💡 Mostrando todos tus atletas asignados (Se omitieron filtros de sede/categoría por falta de coincidencias).")
+                        res_atlt = client_db.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador").in_("id", atleta_ids).execute()
+                        
+                except Exception as err:
+                    # Respaldo absoluto para evitar pantallas rotas
                     class RespuestaVacia:
                         data = []
                     res_atlt = RespuestaVacia()
