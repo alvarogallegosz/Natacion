@@ -2094,44 +2094,30 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (COMPATIBLE CON IDS NO-UUID)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (FILTRADO COMPATIBLE CON TIPOS POSTGREST)
             # =============================================================================
-            supabase_ctx = st.session_state.get("supabase_client")
+            # Volvemos a tu llamada directa original que ya sabías que conectaba perfectamente
+            query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
             
-            # Inicializamos la variable en None para evitar el NameError bajo cualquier flujo
-            res_atlt = None 
-            
-            if not supabase_ctx:
-                st.caption("🔄 Estableciendo enlace seguro con el servidor de datos...")
-            else:
-                atleta_ids = []
-                if st.session_state.rol == "Entrenador":
-                    try:
-                        res_asig = supabase_ctx.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
-                        if res_asig.data:
-                            atleta_ids = [r["nadador_id"] for r in res_asig.data]
-                    except Exception as e:
-                        st.error(f"Error al cargar atletas asignados: {e}")
-                
-                # Query base de la tabla usuarios
-                query_atlt = supabase_ctx.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
-                
-                # Filtro de asignación seguro para Entrenadores sin UUIDs
-                if st.session_state.rol == "Entrenador":
-                    if atleta_ids:
-                        query_atlt = query_atlt.in_("id", atleta_ids)
-                    else:
-                        query_atlt = query_atlt.eq("id", "0")
-                        
-                if sede_rep != "Todas":
-                    query_atlt = query_atlt.eq("sede", sede_rep)
-                if cat_rep != "Todas":
-                    query_atlt = query_atlt.eq("categoria", cat_rep)
-                if gen_rep != "Todos":
-                    query_atlt = query_atlt.eq("genero", gen_rep)
+            # Filtro de asignación seguro para Entrenadores
+            if st.session_state.rol == "Entrenador":
+                if atleta_ids:
+                    query_atlt = query_atlt.in_("id", atleta_ids)
+                else:
+                    # Usamos un filtro de texto e introducimos un valor vacío universal. 
+                    # Si tu ID es entero o texto, buscar una cadena vacía en una columna poblada 
+                    # simplemente retornará cero filas sin romper la sintaxis de PostgREST.
+                    query_atlt = query_atlt.is_("id", "null")
                     
-                # Aquí se ejecuta y guarda de forma segura si la conexión está lista
-                res_atlt = query_atlt.execute()
+            if sede_rep != "Todas":
+                query_atlt = query_atlt.eq("sede", sede_rep)
+            if cat_rep != "Todas":
+                query_atlt = query_atlt.eq("categoria", cat_rep)
+            if gen_rep != "Todos":
+                query_atlt = query_atlt.eq("genero", gen_rep)
+                
+            # Ejecución limpia y directa original
+            res_atlt = query_atlt.execute()
 
             # Ajustamos la validación posterior para verificar que res_atlt exista y no sea None
             if res_atlt is None:
