@@ -2094,26 +2094,28 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (USANDO EL CLIENTE SUPABASE DE TU APP)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (AUTENTICADO VÍA SESSION_STATE)
             # =============================================================================
             atleta_ids = []
-            if st.session_state.rol == "Entrenador":
+            # Obtenemos de forma segura el cliente autenticado de la sesión
+            client_db = st.session_state.get("supabase_client")
+            
+            if st.session_state.rol == "Entrenador" and client_db:
                 try:
-                    # Usamos 'supabase' directamente (el cliente global nativo de tu archivo)
-                    res_asig = supabase.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
+                    res_asig = client_db.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                     if res_asig.data:
                         atleta_ids = [r["nadador_id"] for r in res_asig.data]
                 except Exception as e:
                     st.error(f"Error al cargar atletas asignados: {e}")
             
-            # CONTROL DE SEGURIDAD: Si es Entrenador sin atletas, evitamos peticiones vacías
-            if st.session_state.rol == "Entrenador" and not atleta_ids:
+            # CONTROL CRÍTICO: Si no hay cliente de BD activo o el entrenador no tiene atletas, evitamos ir a la API
+            if not client_db or (st.session_state.rol == "Entrenador" and not atleta_ids):
                 class RespuestaVacia:
                     data = []
                 res_atlt = RespuestaVacia()
             else:
-                # Construimos la query sobre el cliente global 'supabase' de tu aplicación
-                query_atlt = supabase.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
+                # Construimos la query usando el objeto verificado de la sesión
+                query_atlt = client_db.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
                 
                 if st.session_state.rol == "Entrenador":
                     query_atlt = query_atlt.in_("id", atleta_ids)
@@ -2125,8 +2127,13 @@ else:
                 if gen_rep != "Todos":
                     query_atlt = query_atlt.eq("genero", gen_rep)
                     
-                # Ejecución limpia y garantizada
-                res_atlt = query_atlt.execute()
+                try:
+                    res_atlt = query_atlt.execute()
+                except Exception:
+                    # Fallback de emergencia tolerante a fallos
+                    class RespuestaVacia:
+                        data = []
+                    res_atlt = RespuestaVacia()
                 except Exception as api_err:
                     st.error(f"Error de comunicación con la base de datos al filtrar atletas. Mostrando nómina general de respaldo.")
                     # Fallback de emergencia: query sin filtros pesados para que la app no quede en pantalla roja
