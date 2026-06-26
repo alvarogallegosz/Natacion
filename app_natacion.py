@@ -1375,73 +1375,71 @@ else:
             st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
     
     with tab_asignaciones:
-        st.markdown("### 📅 Gestión de Asignación de Nadadores")
-
         if st.session_state.rol in ["Head Coach", "Administrador"]:
-    st.markdown("---")
-    st.subheader("📋 Panel de Gestión de Asignaciones (Exclusivo Head Coach)")
-    
-    try:
-        # Obtener entrenadores asistentes activos
-        resp_ent = supabase.table("usuarios").select("id, nombre").eq("rol", "Entrenador").eq("estatus", "Activo").execute()
-        lista_entrenadores = resp_ent.data if resp_ent.data else []
-        
-        # Obtener todos los nadadores activos
-        resp_nad = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-        lista_todos_nadadores = resp_nad.data if resp_nad.data else []
-        
-        if lista_entrenadores and lista_todos_nadadores:
-            dict_entrenadores = {e["id"]: e["nombre"] for e in lista_entrenadores}
+            st.markdown("---")
+            st.subheader("📋 Panel de Gestión de Asignaciones (Exclusivo Head Coach)")
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("##### 👤 Asignación Individual")
-                entrenador_sel = st.selectbox("Asistente Destino:", options=list(dict_entrenadores.keys()), format_func=lambda x: dict_entrenadores[x], key="asig_ind_ent")
-                nadador_sel = st.selectbox("Nadador a asignar:", options=[n["id"] for n in lista_todos_nadadores], format_func=lambda x: next(b["nombre"] for b in lista_todos_nadadores if b["id"] == x), key="asig_ind_nad")
+            try:
+                # Obtener entrenadores asistentes activos
+                resp_ent = supabase.table("usuarios").select("id, nombre").eq("rol", "Entrenador").eq("estatus", "Activo").execute()
+                lista_entrenadores = resp_ent.data if resp_ent.data else []
                 
-                if st.button("Confirmar Asignación Individual", type="primary"):
-                    # 1. Eliminar cualquier vinculación previa de ese nadador
-                    supabase.table("asignaciones").delete().eq("atleta_id", nadador_sel).execute()
-                    # 2. Registrar nueva vinculación en la tabla asignaciones
-                    supabase.table("asignaciones").insert({"entrenador_id": entrenador_sel, "atleta_id": nadador_sel}).execute()
-                    
-                    st.success(f"✅ Nadador asignado con éxito a {dict_entrenadores[entrenador_sel]}.")
-                    st.cache_data.clear()
-                    st.rerun()
-                    
-            with col2:
-                st.markdown("##### 👥 Asignación por Categoría Completa")
-                entrenador_cat_sel = st.selectbox("Asistente Destino:", options=list(dict_entrenadores.keys()), format_func=lambda x: dict_entrenadores[x], key="asig_cat_ent")
+                # Obtener todos los nadadores activos
+                resp_nad = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                lista_todos_nadadores = resp_nad.data if resp_nad.data else []
                 
-                # Agrupar categorías existentes de forma dinámica basándonos en la fecha de nacimiento
-                cats_existentes = sorted(list(set([calcular_categoria_competencia(n["fecha_nacimiento"])[0] for n in lista_todos_nadadores])))
-                categoria_sel = st.selectbox("Seleccionar Categoría:", options=cats_existentes)
-                
-                if st.button("Asignar Categoría Completa"):
-                    ids_categoria = []
-                    for nad in lista_todos_nadadores:
-                        cat_nad, _ = calcular_categoria_competencia(nad["fecha_nacimiento"])
-                        if cat_nad == categoria_sel:
-                            ids_categoria.append(nad["id"])
+                if lista_entrenadores and lista_todos_nadadores:
+                    dict_entrenadores = {e["id"]: e["nombre"] for e in lista_entrenadores}
                     
-                    if ids_categoria:
-                        # 1. Limpiar asignaciones previas de estos atletas específicos
-                        supabase.table("asignaciones").delete().in_("atleta_id", ids_categoria).execute()
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("##### 👤 Asignación Individual")
+                        entrenador_sel = st.selectbox("Asistente Destino:", options=list(dict_entrenadores.keys()), format_func=lambda x: dict_entrenadores[x], key="asig_ind_ent")
+                        nadador_sel = st.selectbox("Nadador a asignar:", options=[n["id"] for n in lista_todos_nadadores], format_func=lambda x: next(b["nombre"] for b in lista_todos_nadadores if b["id"] == x), key="asig_ind_nad")
                         
-                        # 2. Inserción por lotes adaptada a tus columnas id_entrenador e id_nadador
-                        nuevas_asig = [{"entrenador_id": entrenador_cat_sel, "atleta_id": nid} for nid in ids_categoria]
-                        supabase.table("asignaciones").insert(nuevas_asig).execute()
+                        if st.button("Confirmar Asignación Individual", type="primary"):
+                            # 1. Eliminar cualquier vinculación previa de ese nadador
+                            supabase.table("asignaciones").delete().eq("id_nadador", nadador_sel).execute()
+                            # 2. Registrar nueva vinculación en la tabla asignaciones
+                            supabase.table("asignaciones").insert({"id_entrenador": entrenador_sel, "id_nadador": nadador_sel}).execute()
+                            
+                            st.success(f"✅ Nadador asignado con éxito a {dict_entrenadores[entrenador_sel]}.")
+                            st.cache_data.clear()
+                            st.rerun()
+                            
+                    with col2:
+                        st.markdown("##### 👥 Asignación por Categoría Completa")
+                        entrenador_cat_sel = st.selectbox("Asistente Destino:", options=list(dict_entrenadores.keys()), format_func=lambda x: dict_entrenadores[x], key="asig_cat_ent")
                         
-                        st.success(f"🎉 Se asignaron {len(ids_categoria)} nadadores de la categoría **{categoria_sel}** a {dict_entrenadores[entrenador_cat_sel]}.")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.warning("No se encontraron nadadores en esta categoría.")
-        else:
-            st.info("Debe contar con Entrenadores y Nadadores activos para habilitar las opciones de asignación.")
-    except Exception as e:
-        st.error(f"Error operando la tabla de asignaciones: {e}")
+                        # Agrupar categorías existentes de forma dinámica basándonos en la fecha de nacimiento
+                        cats_existentes = sorted(list(set([calcular_categoria_competencia(n["fecha_nacimiento"])[0] for n in lista_todos_nadadores])))
+                        categoria_sel = st.selectbox("Seleccionar Categoría:", options=cats_existentes)
+                        
+                        if st.button("Asignar Categoría Completa"):
+                            ids_categoria = []
+                            for nad in lista_todos_nadadores:
+                                cat_nad, _ = calcular_categoria_competencia(nad["fecha_nacimiento"])
+                                if cat_nad == categoria_sel:
+                                    ids_categoria.append(nad["id"])
+                            
+                            if ids_categoria:
+                                # 1. Limpiar asignaciones previas de estos atletas específicos
+                                supabase.table("asignaciones").delete().in_("id_nadador", ids_categoria).execute()
+                                
+                                # 2. Inserción por lotes adaptada a tus columnas id_entrenador e id_nadador
+                                nuevas_asig = [{"id_entrenador": entrenador_cat_sel, "id_nadador": nid} for nid in ids_categoria]
+                                supabase.table("asignaciones").insert(nuevas_asig).execute()
+                                
+                                st.success(f"🎉 Se asignaron {len(ids_categoria)} nadadores de la categoría **{categoria_sel}** a {dict_entrenadores[entrenador_cat_sel]}.")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.warning("No se encontraron nadadores en esta categoría.")
+                else:
+                    st.info("Debe contar con Entrenadores y Nadadores activos para habilitar las opciones de asignación.")
+            except Exception as e:
+                st.error(f"Error operando la tabla de asignaciones: {e}")
     # -------------------------------------------------------------
     # PESTAÑA: CALENDARIO ANUAL DE COMPETENCIAS
     # -------------------------------------------------------------
