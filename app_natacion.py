@@ -396,7 +396,7 @@ if not st.session_state.autenticado:
                     nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
                 else:
                     nuevo_genero = "M"
-                    nueva_fecha_nac = "1950-01-01"
+                    nueva_fecha_nac = datetime.date(1950, 1, 1)
                 if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
                     if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
                         try:
