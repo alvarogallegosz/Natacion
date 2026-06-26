@@ -184,6 +184,43 @@ st.markdown(
     section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3, section[data-testid="stSidebar"] .css-10trblm, section[data-testid="stSidebar"] h4 {
         font-size: 12px !important;
     }
+    
+    /* === NUEVO ESQUEMA DE ESTILIZACIÓN GLOBAL PARA TODAS LAS TABLAS === */
+    .stDataFrame div[data-testid="stTable"] table, table.dataframe, .tabla-estilizada {
+        border-collapse: collapse !important;
+        width: 100% !important;
+        border: none !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    }
+    .stDataFrame div[data-testid="stTable"] th, table.dataframe th, .tabla-estilizada th {
+        background-color: #F2F4F4 !important;  /* Gris suave limpio */
+        color: #2C3E50 !important;             /* Texto oscuro elegante */
+        font-weight: 600 !important;           /* Letras semibold */
+        padding: 10px 14px !important;
+        border-top: 1px solid #111111 !important;    /* Línea negra ultra fina superior */
+        border-bottom: 1px solid #111111 !important; /* Línea negra ultra fina inferior */
+        border-left: none !important;
+        border-right: none !important;
+        font-size: 13px !important;
+        text-align: center !important;
+    }
+    .stDataFrame div[data-testid="stTable"] td, table.dataframe td, .tabla-estilizada td {
+        padding: 8px 12px !important;         /* Padding para que los datos respiren */
+        border-bottom: 1px solid #E5E7E9 !important; /* Separadores internos muy tenues */
+        border-top: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        font-size: 12px !important;
+        color: #34495E !important;
+        text-align: center !important;
+    }
+    /* Resaltado especial elegante para la última fila de Totales o Resúmenes */
+    table.dataframe tr:last-child td, .tabla-estilizada tr:last-child td {
+        font-weight: bold !important;
+        border-bottom: 2px solid #111111 !important;
+        background-color: #FAFAFA !important;
+    }
+    
     @media print {
         .no-print { display: none !important; }
         .print-only { display: block !important; }
