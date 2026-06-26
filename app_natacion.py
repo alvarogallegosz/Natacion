@@ -2150,7 +2150,7 @@ else:
             if not res_atlt.data:
                 st.info("No se encontraron nadadores bajo los filtros seleccionados.")
             else:
-                atletas_opciones_carga = {a["id"]: f"{a['nombre']} {a['apellido']}" for a in res_atlt.data}
+                atletas_opciones_carga = {a["id"]: f"{a['nombre']}" for a in res_atlt.data}
                 atleta_sel_id = st.selectbox(
                     "🎯 Seleccione el Nadador para el Reporte Analítico:",
                     options=list(atletas_opciones_carga.keys()),
