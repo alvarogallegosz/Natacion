@@ -1971,14 +1971,14 @@ else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (SOLUCIÓN COMPLETA Y DEFINITIVA)
+    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (SOLUCIÓN DE FLUJO CONTINUO)
     # -------------------------------------------------------------
     with tab_reportes:
         if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
 
-            # Extracción del cliente nativo en la raíz de la pestaña para evitar desfases de rerun
+            # Extracción del cliente de base de datos de forma directa
             supabase = st.session_state.get("supabase_client")
 
             # =============================================================================
@@ -2062,11 +2062,13 @@ else:
             col_rep1, col_rep2, col_rep3 = st.columns(3)
             
             with col_rep1:
-                try:
-                    res_sedes = supabase.table("usuarios").select("sede").execute() if supabase else None
-                    sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes and res_sedes.data else []
-                except:
-                    sedes_disponibles = []
+                sedes_disponibles = []
+                if supabase:
+                    try:
+                        res_sedes = supabase.table("usuarios").select("sede").execute()
+                        sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes.data else []
+                    except:
+                        pass
                 sedes_opciones = ["Todas"] + sedes_disponibles
                 sede_rep = st.selectbox("📍 Filtrar por Sede:", sedes_opciones, key="rep_filtro_sede")
                 
@@ -2079,9 +2081,11 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
             # =============================================================================
-            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (LÓGICA ORIGINAL)
+            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (LÓGICA ORIGINAL INTEGRAL)
             # =============================================================================
-            if supabase is not None:
+            if not supabase:
+                st.warning("🔌 Sincronizando enlace de datos con el ecosistema Supabase... Si este mensaje persiste por más de 3 segundos, interactúa con cualquier filtro superior para despertar la sesión.")
+            else:
                 atleta_ids = []
                 if st.session_state.rol == "Entrenador":
                     try:
@@ -2172,7 +2176,7 @@ else:
                                 if df_cargas.empty:
                                     st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
                                 else:
-                                    # Gráfico con tus dimensiones fijas y fuentes exactas
+                                    # Gráfico original estable
                                     fig_ban, ax = plt.subplots(figsize=(10, 4.5))
                                     ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
                                     ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
@@ -2187,7 +2191,7 @@ else:
                                     st.pyplot(fig_ban)
                                     
                                     # =============================================================================
-                                    # BOTÓN DE IMPRESIÓN JAVASCRIPT ACTIVO Y SIN INTERRUPCIONES
+                                    # BOTÓN DE IMPRESIÓN JAVASCRIPT ACTIVO Y SEGURO
                                     # =============================================================================
                                     st.markdown(f"""
                                         <div style="margin-top: 10px; margin-bottom: 25px;">
@@ -2245,7 +2249,5 @@ else:
                                     
                         except Exception as e:
                             st.error(f"Error al computar el reporte analítico avanzado: {e}")             
-            else:
-                st.info("🔄 Inicializando componentes del panel analítico. Si los selectores no aparecen automáticamente, haz un clic rápido en la pestaña Pizarra para sincronizar los estados.")
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
