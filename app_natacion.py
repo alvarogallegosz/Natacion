@@ -1971,22 +1971,18 @@ else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (FLUJO CONTINUO COMPLETO)
+    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (ARQUITECTURA DE IMPRESIÓN INDEPENDIENTE)
     # -------------------------------------------------------------
     with tab_reportes:
         if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
 
-            # Extracción limpia y directa en la raíz de la pestaña
-            supabase = st.session_state.get("supabase_client")
-
             # =============================================================================
-            # ESTILOS CSS INYECTADOS PARA IMPRESIÓN LIMPIA EN 8.5 x 11 (CARTA)
+            # ESTILOS CSS MULTIMEDIA (Se cargan una sola vez en la raíz)
             # =============================================================================
             st.markdown("""
                 <style>
-                /* Clase global para estilizar las tablas de auditoría en pantalla */
                 .tabla-estilizada {
                     width: 100%;
                     border-collapse: collapse;
@@ -2008,9 +2004,9 @@ else:
                     text-align: center;
                 }
                 
-                /* REGLAS DE OPTIMIZACIÓN MULTIMEDIA PARA IMPRESIÓN REAL */
+                /* REGLAS DE IMPRESIÓN FÍSICA */
                 @media print {
-                    [data-testid="stSidebar"], header, [data-testid="stHeader"], .stButton, button, .stSelectbox {
+                    [data-testid="stSidebar"], header, [data-testid="stHeader"], .stButton, button, .stSelectbox, .bloque-print-bannister, .bloque-print-volumenes {
                         display: none !important;
                     }
                     .main .block-container {
@@ -2029,6 +2025,29 @@ else:
                 }
                 </style>
             """, unsafe_allow_html=True)
+
+            # =============================================================================
+            # BLOQUE ESTÁTICO DE BOTONES DE IMPRESIÓN (Bypass continuo sin recargas)
+            # =============================================================================
+            col_btn_print1, col_btn_print2 = st.columns(2)
+            
+            with col_btn_print1:
+                st.markdown("""
+                    <div class="bloque-print-bannister" style="margin-bottom: 15px;">
+                        <button onclick="window.print()" style="width: 100%; background-color: #007A87; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+                            🖨️ Imprimir Perfil de Carga (Bannister)
+                        </button>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+            with col_btn_print2:
+                st.markdown("""
+                    <div class="bloque-print-volumenes" style="margin-bottom: 15px;">
+                        <button onclick="window.print()" style="width: 100%; background-color: #2E7D32; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+                            🖨️ Imprimir Reporte de Volúmenes e Intensidades
+                        </button>
+                    </div>
+                """, unsafe_allow_html=True)
 
             # =============================================================================
             # 1. TEMPORALIDAD DE LOS REPORTES
@@ -2054,11 +2073,13 @@ else:
             dias_atras = opciones_tiempo[ventana_sel]
             
             # =============================================================================
-            # 2. SELECTORES DE FILTRADO COHERENTES CON LA PIZARRA (Poblado Seguro)
+            # 2. SELECTORES DE FILTRADO COHERENTES CON LA PIZARRA
             # =============================================================================
             col_rep1, col_rep2, col_rep3 = st.columns(3)
             
+            supabase = st.session_state.get("supabase_client")
             sedes_disponibles = []
+            
             if supabase:
                 try:
                     res_sedes = supabase.table("usuarios").select("sede").execute()
@@ -2080,7 +2101,7 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
             # =============================================================================
-            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (Sin Interrupciones)
+            # 3. PROCESAMIENTO DINÁMICO DE DATOS E HISTORIALES
             # =============================================================================
             if supabase:
                 atleta_ids = []
@@ -2159,6 +2180,7 @@ else:
                                     
                                     ctl_ant, atl_ant = ctl_actual, atl_actual
                                     
+                                df_cargas["TXT_CTL"] = ctl_vals # Preservados para la matriz analítica
                                 df_cargas["CTL"] = ctl_vals
                                 df_cargas["ATL"] = atl_vals
                                 df_cargas["TSB"] = tsb_vals
@@ -2170,7 +2192,7 @@ else:
                                 if df_cargas.empty:
                                     st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
                                 else:
-                                    # Gráfico con tus dimensiones y fuentes exactas de 8pt originales
+                                    # Gráfico de la evolución del perfil
                                     fig_ban, ax = plt.subplots(figsize=(10, 4.5))
                                     ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
                                     ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
@@ -2184,19 +2206,8 @@ else:
                                     
                                     st.pyplot(fig_ban)
                                     
-                                    # =============================================================================
-                                    # BOTÓN DE IMPRESIÓN JAVASCRIPT ACTIVO
-                                    # =============================================================================
-                                    st.markdown(f"""
-                                        <div style="margin-top: 10px; margin-bottom: 25px;">
-                                            <button onclick="window.print()" style="width: 100%; background-color: #007A87; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
-                                                🖨️ Imprimir Perfil Fisiológico Bannister (8.5 x 11 / PDF)
-                                            </button>
-                                        </div>
-                                    """, unsafe_allow_html=True)
-                                    
                                     st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
-                                    df_tabla_ban = df_cargas.copy()
+                                    df_tabla_ban = df_cargas[["Fecha", "Volumen", "CTL", "ATL", "TSB"]].copy()
                                     df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
                                     
                                     csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
@@ -2217,7 +2228,6 @@ else:
                                     df_tabla_visual = pd.concat([df_tabla_ban, pd.DataFrame([fila_tot_ban])], ignore_index=True)
                                     st.write(df_tabla_visual.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                     
-                                    # Botones tradicionales de descarga
                                     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
                                     col_down_ban1, col_down_ban2 = st.columns(2)
                                     
@@ -2246,6 +2256,6 @@ else:
                 else:
                     st.info("No se encontraron nadadores bajo los filtros seleccionados.")
             else:
-                st.caption("🔄 Sincronizando estado...")
+                st.caption("⏳ Estableciendo enlace estable de datos...")
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
