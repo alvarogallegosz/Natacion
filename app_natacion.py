@@ -237,7 +237,7 @@ def calcular_categoria_competencia(fecha_nac_str):
     elif 16 <= edad_competencia < 18:
         cat = "Juvenil B"
     elif 18 <= edad_competencia < 25:
-        cat = "Máxima">
+        cat = "Máxima"
     elif edad_competencia >= 25:
         cat = "Máster"
     else:
