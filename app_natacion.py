@@ -1976,17 +1976,17 @@ else:
     with tab_reportes:
         if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
-            st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y la distribución del entrenamiento.")
+            st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
     
             # =============================================================================
-            # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS)
+            # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS EXTENDIDAS)
             # =============================================================================
             opciones_tiempo = {
                 "7 días (Última semana)": 7,
                 "28 días (Ciclo Corto)": 28,
                 "30 días (Mensual)": 30,
                 "42 días (Carga Crónica - CTL)": 42,
-                "90 días (Macrocliclo Trimestral)": 90,
+                "90 días (Macrociclo Trimestral)": 90,
                 "180 días (Semestral)": 180,
                 "365 días (Anual)": 365,
                 "Total Histórico": None
@@ -1995,20 +1995,23 @@ else:
             ventana_sel = st.selectbox(
                 "⏳ Ventana Temporal de Análisis:",
                 options=list(opciones_tiempo.keys()),
-                index=3,  # Defecto en 42 días por su relevancia científica en el rendimiento
+                index=3,  # Defecto en 42 días por su relevancia científica
                 key="rep_selectbox_temporalidad"
             )
             
             dias_atras = opciones_tiempo[ventana_sel]
+            fecha_fin_rep = datetime.date.today()
             if dias_atras:
-                fecha_limite = datetime.date.today() - datetime.timedelta(days=dias_atras)
+                fecha_limite = fecha_fin_rep - datetime.timedelta(days=dias_atras)
+                rango_fechas_completo = pd.date_range(start=fecha_limite + datetime.timedelta(days=1), end=fecha_fin_rep).date
             else:
                 fecha_limite = None
+                rango_fechas_completo = None
     
             st.markdown("---")
     
             # =============================================================================
-            # 2. SECCIÓN DE SEGMENTACIÓN (ANÁLOGA A LA PIZARRA - UBICACIÓN IDÉNTICA)
+            # 2. SECCIÓN DE SEGMENTACIÓN (PRESERVADA DE LA VERSIÓN ESTABLE)
             # =============================================================================
             st.markdown("### 🔍 Segmentación de Destinatarios (Filtros Activos)")
             
@@ -2044,13 +2047,12 @@ else:
                 except Exception as e:
                     st.error(f"Error al cargar nómina para reportes: {e}")
     
-            # Aplicar filtro de género
+            # Aplicar filtros estables de género y categoría
             if filtro_genero_rep == "Femenino (F)":
                 atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "F"]
             elif filtro_genero_rep == "Masculino (M)":
                 atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "M"]
     
-            # Extraer categorías activas
             categorias_disponibles_rep = sorted(list(set([
                 calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
                 for a in atletas_pool_rep if a.get("fecha_nacimiento")
@@ -2059,7 +2061,6 @@ else:
             dict_nom_rep = {a["id"]: a["nombre"] for a in atletas_pool_rep} if atletas_pool_rep else {}
             atletas_finales_rep = []
     
-            # Desplegables condicionales en UI
             if tipo_filtro_rep == "Categoría Etaria":
                 cat_sel_rep = st.selectbox(
                     "Seleccione la Categoría Etaria:", 
@@ -2090,7 +2091,7 @@ else:
                 st.markdown("---")
     
                 # =============================================================================
-                # 3. RESTITUCIÓN DE LA VERSIÓN ESTABLE: VOLÚMENES, ESTILOS E INTENSIDADES
+                # 3. CONSOLIDACIÓN COLECTIVA (ESTILOS E INTENSIDADES DESDE JSONB)
                 # =============================================================================
                 ids_interes = [at["id"] for at in atletas_finales_rep]
                 
@@ -2099,18 +2100,17 @@ else:
                         query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
                         if fecha_limite:
                             query_rep = query_rep.gte("fecha", str(fecha_limite))
-                            
+                        
                         data_historica = query_rep.execute()
                         records = data_historica.data if data_historica else []
                         
                         if not records:
-                            st.warning(f"📭 No se encontraron registros de entrenamiento grabados para este grupo desde el {fecha_limite if fecha_limite else 'el inicio de los tiempos'}.")
+                            st.warning(f"📭 No se encontraron registros de entrenamiento grabados para este grupo.")
                         else:
-                            # Métrica Macro
+                            # Métricas Macro Consolidadas
                             volumen_acumulado_grupo = sum([r.get("metros_totales", 0) for r in records])
                             st.metric(label="🏊‍♂️ Volumen Total Imputado (Grupo Filtrado)", value=f"{volumen_acumulado_grupo:,} metros")
                             
-                            # Consolidación de diccionarios JSONB provenientes de Supabase
                             global_estilos = {}
                             global_intensidades = {}
                             
@@ -2118,14 +2118,13 @@ else:
                                 estilos_dict = r.get("desglose_estilos") or {}
                                 for est, mts in estilos_dict.items():
                                     global_estilos[est] = global_estilos.get(est, 0) + mts
-                                    
+                                
                                 int_dict = r.get("desglose_intensidad") or {}
                                 for inten, mts in int_dict.items():
                                     global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
                             
-                            # Despliegue de Resultados Estructurados en columnas
+                            # Despliegue en columnas estables con barras de progreso
                             c_est_graf, c_int_graf = st.columns(2)
-                            
                             with c_est_graf:
                                 st.markdown("#### 🏊‍♂️ Distribución por Estilos (Metros)")
                                 if global_estilos:
@@ -2146,7 +2145,9 @@ else:
                                 else:
                                     st.caption("No hay desglose de intensidades registrado.")
     
-                            # Bloque de Exportaciones Limpias (Estilo Versión 26 Estable)
+                            # =============================================================================
+                            # 4. EXPORTACIONES LIMPIAS (CSV Y TXT PRESERVADOS)
+                            # =============================================================================
                             st.markdown("---")
                             st.markdown("#### 📥 Exportación de Reportes Consolidados")
                             
@@ -2166,6 +2167,7 @@ else:
                             for est, mts in global_estilos.items():
                                 pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
                                 resumen_lineas.append(f"- {est}: {mts:,} m ({pct:.1f}%)")
+                            
                             resumen_lineas.append("\n--- DESGLOSE POR INTENSIDADES ---")
                             for inten, mts in global_intensidades.items():
                                 pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
@@ -2175,41 +2177,21 @@ else:
                             c_exp1, c_exp2, c_exp3 = st.columns(3)
                             with c_exp1:
                                 csv_data = df_estilos_export.to_csv(index=False).encode('utf-8')
-                                st.download_button(
-                                    label="📊 Descargar Estilos (CSV)",
-                                    data=csv_data,
-                                    file_name=f"reporte_estilos_{ventana_sel.split()[0]}.csv",
-                                    mime="text/csv",
-                                    use_container_width=True
-                                )
+                                st.download_button(label="📊 Descargar Estilos (CSV)", data=csv_data, file_name=f"reporte_estilos_{ventana_sel.split()[0]}.csv", mime="text/csv", use_container_width=True)
                             with c_exp2:
                                 csv_int_data = df_intensidades_export.to_csv(index=False).encode('utf-8')
-                                st.download_button(
-                                    label="🔥 Descargar Intensidades (CSV)",
-                                    data=csv_int_data,
-                                    file_name=f"reporte_intensidades_{ventana_sel.split()[0]}.csv",
-                                    mime="text/csv",
-                                    use_container_width=True
-                                )
+                                st.download_button(label="🔥 Descargar Intensidades (CSV)", data=csv_int_data, file_name=f"reporte_intensidades_{ventana_sel.split()[0]}.csv", mime="text/csv", use_container_width=True)
                             with c_exp3:
-                                st.download_button(
-                                    label="📄 Descargar Resumen General (TXT)",
-                                    data=resumen_txt.encode('utf-8'),
-                                    file_name="resumen_analitico_carga.txt",
-                                    mime="text/plain",
-                                    use_container_width=True
-                                )
+                                st.download_button(label="📄 Descargar Resumen General (TXT)", data=resumen_txt.encode('utf-8'), file_name="resumen_analitico_carga.txt", mime="text/plain", use_container_width=True)
     
                             # =============================================================================
-                            # 4. ADICIÓN: ANÁLISIS CIENTÍFICO DE CARGA INDIVIDUAL (CTL / ATL / TSB)
+                            # 5. NUEVA MEJORA: ANÁLISIS CIENTÍFICO AVANZADO INDIVIDUALIZADO (BANNISTER)
                             # =============================================================================
                             st.markdown("---")
                             st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
-                            st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB).")
+                            st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB) usando la serie continua diaria.")
     
-                            # Diccionario limpio de los atletas actualmente bajo los filtros activos
                             atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
-                            
                             atleta_sel_id = st.selectbox(
                                 "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
                                 options=list(atletas_opciones_carga.keys()),
@@ -2217,94 +2199,90 @@ else:
                                 key="rep_selectbox_atleta_carga_avanzada"
                             )
                             
-                            # Filtrar exclusivamente los registros del nadador seleccionado
                             records_atleta = [r for r in records if r.get("atleta_id") == atleta_sel_id]
                             
                             if not records_atleta:
                                 st.info("💡 Este atleta no cuenta con registros de volumen específicos en el intervalo de tiempo seleccionado.")
                             else:
-                                # Parsear fechas de entrenamientos del atleta
+                                with st.expander("📘 Ver Fórmulas de Modelado y Rangos Metodológicos Objetivos", expanded=False):
+                                    st.markdown(r"""
+                                    **Ecuaciones Fundamentales del Modelo Biológico:**
+                                    * **Fitness (CTL - Carga Crónica a 42 días):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
+                                    * **Fatiga (ATL - Carga Aguda a 7 días):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
+                                    * **Forma (TSB - Balance del Estado Fisiológico):** $$\text{TSB}_t = \text{CTL}_{t-1} - \text{ATL}_{t-1}$$
+                                    """)
+    
                                 fechas_p = []
                                 for r in records_atleta:
                                     if r.get("fecha"):
                                         f_obj = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
                                         fechas_p.append(f_obj)
                                 
-                                if fechas_p:
-                                    # Crear marco de tiempo continuo desde la fecha más antigua registrada hasta hoy
-                                    fecha_inicio_serie = min(fechas_p)
-                                    fecha_fin_serie = datetime.date.today()
-                                    rango_completo = pd.date_range(start=fecha_inicio_serie, end=fecha_fin_serie).date
-                                    
-                                    # Consolidar volumen diario en metros ponderados según exigencia
-                                    vol_diario_map = {f: 0 for f in rango_completo}
+                                if fechas_p and rango_fechas_completo is not None:
+                                    vol_diario_map = {f: 0.0 for f in rango_fechas_completo}
+                                    mapeo_factores = {"Aeróbico Ligero": 1.0, "Aeróbico Medio": 1.2, "Umbral": 1.4, "Anaeróbico": 1.7, "Sprint": 1.7}
                                     
                                     for r in records_atleta:
                                         f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
                                         if f_rec in vol_diario_map:
-                                            # AQUÍ APLICAMOS EL FACTOR DE EXIGENCIA PROPORCIONAL
-                                            # Puedes extraer el factor del registro, ej. r.get("factor_exigencia", 1.0) 
-                                            # o determinarlo por tipo de sesión / zona.
-                                            # Ejemplo usando un campo directo del registro:
-                                            factor_sesion = r.get("factor_exigencia", 1.0) 
+                                            # Extraer cargas ponderadas desde diccionarios de intensidad
+                                            int_dict = r.get("desglose_intensidad") or {}
+                                            subtotal_ponderado = 0.0
+                                            for k_int, m_int in int_dict.items():
+                                                factor = 1.0
+                                                for key_map, f_val in mapeo_factores.items():
+                                                    if key_map in k_int:
+                                                        factor = f_val
+                                                        break
+                                                subtotal_ponderado += (m_int * factor)
                                             
-                                            metros_reales = r.get("metros_totales", 0)
-                                            carga_ponderada = metros_reales * factor_sesion
-                                            
-                                            vol_diario_map[f_rec] += carga_ponderada
+                                            if not int_dict:  # Fallback si no viene desglosado
+                                                subtotal_ponderado = r.get("metros_totales", 0) * r.get("factor_exigencia", 1.0)
+                                                
+                                            vol_diario_map[f_rec] += subtotal_ponderado
                                     
-                                    # Generar DataFrame ordenado cronológicamente para cálculos de medias móviles
-                                    df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_completo])
+                                    df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_fechas_completo])
                                     df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
                                     df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
                                     
-                                    # Aplicar modelo de cálculo de cargas científicas estables (Ventanas científicas de 42 y 7 días)
-                                    # =============================================================================
-                                    # CORRECCIÓN DE MOTOR: CARGAS CIENTÍFICAS CON DECAIMIENTO EXPONENCIAL (EWMA)
-                                    # =============================================================================
+                                    # Motor EWMA Científico de Decaimiento Exponencial
                                     df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
                                     df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
                                     df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
                                     
-                                    # Extraer métricas actuales (último día de la serie)
                                     ultima_fila = df_cargas.iloc[-1]
                                     val_ctl = int(ultima_fila["CTL"])
                                     val_atl = int(ultima_fila["ATL"])
                                     val_tsb = int(ultima_fila["TSB"])
                                     
-                                    # Determinar estado de forma fisiológica
-                                    if val_tsb > 0:
-                                        estado_forma = "🟢 Zona de Frescura (Tapering)"
-                                    elif val_tsb < -1500:
-                                        estado_forma = "🔴 Zona de Fatiga Crítica"
-                                    else:
-                                        estado_forma = "🟡 Zona de Estímulo Óptimo"
+                                    if val_tsb > 10: estado_forma = "🟢 Zona de Frescura / Tapering"
+                                    elif val_tsb < -30: estado_forma = "🔴 Zona de Fatiga Sobrecargada"
+                                    else: estado_forma = "🟡 Zona de Estímulo Óptimo"
                                     
-                                    # Despliegue de métricas en columnas premium
                                     c_m1, c_m2, c_m3 = st.columns(3)
-                                    with c_m1:
-                                        st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
-                                    with c_m2:
-                                        st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
-                                    with c_m3:
-                                        st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma, delta_color="normal")
+                                    with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
+                                    with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
+                                    with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                                     
-                                    # Renderizar gráfico predictivo utilizando Matplotlib de forma directa
-                                    fig, ax = plt.subplots(figsize=(10, 4.5))
-                                    ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
-                                    ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
+                                    # Renderizado Gráfico de Bannister Pro
+                                    fig_ban, ax = plt.subplots(figsize=(11, 4.5))
+                                    ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
+                                    ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
                                     ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
+                                    ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                    ax.grid(True, linestyle=":", alpha=0.4)
+                                    ax.legend(loc="upper left", fontsize=8)
+                                    plt.xticks(rotation=25, fontsize=8)
+                                    plt.tight_layout()
+                                    st.pyplot(fig_ban)
                                     
-                                    ax.set_title(f"Modelo de Rendimiento Bannister: {atletas_opciones_carga[atleta_sel_id]}", fontsize=12, fontweight="bold", pad=12)
-                                    ax.set_xlabel("Línea de Tiempo (Días)", fontsize=10)
-                                    ax.set_ylabel("Carga Equivalente (Metros)", fontsize=10)
-                                    ax.grid(True, linestyle=":", alpha=0.5)
-                                    ax.legend(loc="upper left")
-                                    plt.xticks(rotation=15)
-                                    
-                                    st.pyplot(fig)
+                                    # Exportar Matriz de Auditoría Diaria a HTML Estilizado
+                                    st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
+                                    df_tabla_ban = df_cargas.copy()
+                                    df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                    st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                     
                     except Exception as e:
-                        st.error(f"Error al computar el reporte analítico: {e}")             
+                        st.error(f"Error al computar el reporte analítico avanzado: {e}")             
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
