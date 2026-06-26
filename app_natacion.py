@@ -2412,13 +2412,19 @@ with tab_reportes:
                                 val_atl = int(ultima_fila["ATL"])
                                 val_tsb = int(ultima_fila["TSB"])
                                 
-                                if val_tsb > 10: estado_forma = "🟢 Zona de Frescura / Tapering"
-                                elif val_tsb < -30: estado_forma = "🔴 Zona de Fatiga Sobrecargada"
-                                else: estado_forma = "🟡 Zona de Estímulo Óptimo"
+                                # CÓMPUTO CIENTÍFICO RELATIVO: TSB como % del Fitness Actual (Evita mezcla de escalas)
+                                pct_tsb = (val_tsb / val_ctl) * 100 if val_ctl > 0 else 0
+                                
+                                if pct_tsb > 10.0: 
+                                    estado_forma = f"🟢 Zona de Frescura / Tapering ({pct_tsb:.1f}% del CTL)"
+                                elif pct_tsb < -25.0: 
+                                    estado_forma = f"🔴 Zona de Fatiga Sobrecargada ({pct_tsb:.1f}% del CTL)"
+                                else: 
+                                    estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb:.1f}% del CTL)"
                                 
                                 c_m1, c_m2, c_m3 = st.columns(3)
-                                with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
-                                with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
+                                with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m equivalentes")
+                                with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m equivalentes")
                                 with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                        
                                 # Renderizado Gráfico de Bannister Pro
