@@ -2359,15 +2359,15 @@ with tab_reportes:
                         # Filtrado estricto aplicando la regla del día de hoy
                         records_atleta = [r for r in records_hasta_hoy if r.get("atleta_id") == atleta_sel_id]
                         
-                        if not records_atleta:
+if not records_atleta:
                             st.info("💡 Este atleta no cuenta con registros de volumen específicos válidos ejecutados hasta el día de hoy.")
                         else:
                             with st.expander("📘 Ver Fórmulas de Modelado y Rangos Metodológicos Objetivos", expanded=False):
                                 st.markdown(r"""
-                                **Ecuaciones del Modelo Porcentual Relativo:**
+                                **Ecuaciones del Modelo Híbrido (Metros + Porcentaje):**
                                 * **Fitness (CTL):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
                                 * **Fatiga (ATL):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
-                                * **Balance de Forma Relativo (TSB %):** $$\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\text{CTL}_t} \right) \cdot 100$$
+                                * **Balance de Forma Porcentual (Eje Derecho):** $$\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\text{CTL}_t} \right) \cdot 100$$
                                 """)
 
                             if rango_fechas_completo is not None:
@@ -2393,7 +2393,7 @@ with tab_reportes:
                                         vol_diario_map[f_rec] += subtotal_ponderado
                                 
                                 # =============================================================================
-                                # CÓMPUTO DE SERIES TEMPORALES PORCENTUALES (TSB % DEL CTL)
+                                # CÓMPUTO DE MATRICES (METROS + COMPONENTE PORCENTUAL)
                                 # =============================================================================
                                 df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_fechas_completo])
                                 df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
@@ -2401,74 +2401,102 @@ with tab_reportes:
                                 
                                 df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
                                 df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
+                                df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
                                 
-                                # Calcular TSB como el porcentaje neto del CTL del día
+                                # Serie temporal del TSB porcentual relativo
                                 df_cargas["TSB_Pct"] = ((df_cargas["CTL"] - df_cargas["ATL"]) / df_cargas["CTL"]) * 100
                                 df_cargas["TSB_Pct"] = df_cargas["TSB_Pct"].fillna(0.0)
                                 
                                 ultima_fila = df_cargas.iloc[-1]
                                 val_ctl = int(ultima_fila["CTL"])
                                 val_atl = int(ultima_fila["ATL"])
+                                val_tsb = int(ultima_fila["TSB"])
                                 pct_tsb = round(float(ultima_fila["TSB_Pct"]), 1)
                                 
-                                # Evaluación exacta de zonas de control de puesta a punto
+                                # Evaluación semántica estricta del estado actual
                                 if pct_tsb <= -25.0:
-                                    estado_forma = f"🔴 Fatiga Crónica Máxima ({pct_tsb}% - ¡Peligro!)"
-                                    color_delta = "inverse"
+                                    estado_forma = f"🔴 Zona de Fatiga Crítica ({pct_tsb}% del CTL)"
                                 elif -25.0 < pct_tsb < -10.0:
-                                    estado_forma = f"消耗 Fatiga Acumulada Aceptable ({pct_tsb}%)"
-                                    color_delta = "off"
+                                    estado_forma = f"⚠️ Fatiga Acumulada Alta ({pct_tsb}% del CTL)"
                                 elif -10.0 <= pct_tsb <= 5.0:
-                                    estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb}%)"
-                                    color_delta = "off"
+                                    estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb}% del CTL)"
                                 elif 10.0 <= pct_tsb <= 25.0:
-                                    estado_forma = f"🟢 Tapering / Puesta a Punto Óptima (+{pct_tsb}%)"
-                                    color_delta = "normal"
-                                else:  # pct_tsb > 25.0
-                                    estado_forma = f"⚠️ Exceso de Descanso ({pct_tsb}% - Desentrenamiento)"
-                                    color_delta = "inverse"
+                                    estado_forma = f"🟢 Puesta a Punto / Tapering Óptimo (+{pct_tsb}% del CTL)"
+                                else:
+                                    estado_forma = f"❌ Exceso de Puesta a Punto / Desentrenamiento (+{pct_tsb}% del CTL)"
                                 
-                                # Tarjetas informativas unificadas
+                                # Despliegue de tarjetas de control
                                 c_m1, c_m2, c_m3 = st.columns(3)
-                                with c_m1: st.metric("💪 Fitness Actual (CTL)", value=f"{val_ctl:,} m")
-                                with c_m2: st.metric("🔥 Fatiga Aguda (ATL)", value=f"{val_atl:,} m")
-                                with c_m3: st.metric("🎯 Balance de Forma (TSB %)", value=f"{pct_tsb}%", delta=estado_forma, delta_color=color_delta)
+                                with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
+                                with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
+                                with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                                 
                                 # =============================================================================
-                                # NUEVO GRÁFICO CIENTÍFICO BASADO EN RANGOS PORCENTUALES TARGET
+                                # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (DOBLE EJE + MAPA DE CALOR)
                                 # =============================================================================
-                                fig_ban, ax = plt.subplots(figsize=(11, 4.8))
+                                fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
                                 
-                                # Curva de balance porcentual diaria
-                                ax.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Balance de Forma (TSB % del Fitness)", color="#2c3e50", linewidth=2.5, marker="o", markersize=3)
+                                # --- EJE 1 (Izquierdo): Métricas Clásicas en Metros ---
+                                l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
+                                l_atl = ax1.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
+                                b_tsb = ax1.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB m)", color="#2ca02c", alpha=0.25, width=1.0)
                                 
-                                # Rellenos de zonas de referencia para lectura instantánea
-                                ax.axhspan(10.0, 25.0, color="#2ecc71", alpha=0.15, label="🎯 Rango Óptimo Tapering (+10% a +25%)")
-                                ax.axhspan(-10.0, 5.0, color="#f1c40f", alpha=0.1, label="🔄 Zona de Estímulo (-10% a +5%)")
-                                ax.axhline(-25.0, color="#e74c3c", linestyle="--", linewidth=1.5, label="🚨 Límite Fatiga Crónica (-25%)")
-                                ax.axhline(0.0, color="#7f8c8d", linestyle="-", alpha=0.5)
+                                ax1.set_ylabel("Volumen de Carga Ponderado (Metros)", color="#1f77b4", fontsize=9)
+                                ax1.tick_params(axis='y', labelcolor="#1f77b4", labelsize=8)
+                                ax1.grid(True, linestyle=":", alpha=0.2)
                                 
-                                ax.set_title(f"Monitoreo de Puesta a Punto (TSB Porcentual): {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
-                                ax.set_ylabel("Balance Fisiológico (% Relativo al Fitness)", fontsize=9)
-                                ax.set_xlabel("Línea de Tiempo del Macrociclo", fontsize=9)
-                                ax.grid(True, linestyle=":", alpha=0.3)
-                                ax.legend(loc="lower left", fontsize=8, ncol=2)
+                                # --- EJE 2 (Derecho): Curva Porcentual Relativa y Líneas de Control ---
+                                ax2 = ax1.twinx()
+                                l_pct = ax2.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Índice TSB (%)", color="#2c3e50", linewidth=2.5, marker="o", markersize=3)
+                                
+                                # Líneas horizontales límites solicitadas
+                                ax2.axhline(25.0, color="#b03a2e", linestyle="-", linewidth=1.2, alpha=0.7)  # Máximo Positivo
+                                ax2.axhline(10.0, color="#1e8449", linestyle=":", linewidth=1.2, alpha=0.7)  # Límite superior Tapering
+                                ax2.axhline(-10.0, color="#1e8449", linestyle=":", linewidth=1.2, alpha=0.7) # Límite inferior Tapering
+                                ax2.axhline(-25.0, color="#b03a2e", linestyle="-", linewidth=1.2, alpha=0.7) # Máximo Negativo
+                                ax2.axhline(0.0, color="#7f8c8d", linestyle="-", linewidth=0.8, alpha=0.4)
+                                
+                                # Sombreando las Áreas Fisiológicas solicitadas
+                                # 1. Áreas Rosadas (Zonas de peligro por exceso o defecto)
+                                ax2.axhspan(25.0, 100.0, color="#fbc4b7", alpha=0.35, label="Rosado: Exceso de Descanso (>+25%)")
+                                ax2.axhspan(-100.0, -25.0, color="#fbc4b7", alpha=0.35, label="Rosado: Fatiga Crónica Máxima (<-25%)")
+                                
+                                # 2. Áreas Amarillas (Zonas de transición/aproximación)
+                                ax2.axhspan(5.0, 25.0, color="#f9e79f", alpha=0.3, label="Amarillo: Transición a Puesta a Punto")
+                                ax2.axhspan(-25.0, -10.0, color="#f9e79f", alpha=0.3, label="Amarillo: Carga Exigente")
+                                
+                                # 3. Área Verde Central (Puesta a punto óptima en el núcleo central residual)
+                                ax2.axhspan(10.0, 25.0, color="#abebc6", alpha=0.4, label="🟢 Tapering Óptimo (+10% a +25%)")
+                                
+                                ax2.set_ylabel("Balance Fisiológico Porcentual (% del CTL)", color="#2c3e50", fontsize=9)
+                                ax2.tick_params(axis='y', labelcolor="#2c3e50", labelsize=8)
+                                
+                                # Ajuste dinámico de límites fijos del eje porcentual para centrar la visualización
+                                max_abs_pct = max(df_cargas["TSB_Pct"].abs().max(), 35.0)
+                                ax2.set_ylim(-max_abs_pct - 10, max_abs_pct + 10)
+                                
+                                # Consolidación unificada de leyendas de ambos ejes
+                                lineas_totales = l_ctl + l_atl + [b_tsb] + l_pct
+                                etiquetas_totales = [l.get_label() for l in lineas_totales]
+                                ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=8, ncol=2)
+                                
+                                ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
                                 plt.xticks(rotation=25, fontsize=8)
                                 plt.tight_layout()
                                 st.pyplot(fig_ban)
                                 
-                                # Guardar Gráfico
+                                # Botón para descargar gráfico híbrido
                                 buf_png_ban = io.BytesIO()
                                 fig_ban.savefig(buf_png_ban, format="png", dpi=300)
                                 st.download_button(
                                     "🖼️ Guardar Gráfico Fisiológico (PNG)", 
                                     data=buf_png_ban.getvalue(), 
-                                    file_name=f"tapering_porcentual_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
+                                    file_name=f"perfil_hibrido_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
                                     mime="image/png"
                                 )
 
                                 # =============================================================================
-                                # MATRIZ DE AUDITORÍA CON AUDITORÍA MÁXIMA EN %
+                                # VISTA DE LA TABLA DIARIA COMPLEMENTARIA
                                 # =============================================================================
                                 st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
                                 df_tabla_ban = df_cargas.copy()
@@ -2477,19 +2505,21 @@ with tab_reportes:
                                 df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
                                 df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
                                 df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
+                                df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
                                 df_tabla_ban["TSB_Pct"] = df_tabla_ban["TSB_Pct"].round(1).astype(str) + " %"
                                 
-                                df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", "ATL (Fatiga m)", "TSB Relativo (% del CTL)"]
+                                df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", "ATL (Fatiga m)", "TSB (Forma m)", "TSB Relativo (% del CTL)"]
                                 st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                 
+                                # Botonera de descargas asociadas
                                 csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
                                 txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
                                 
                                 c_ban_exp1, c_ban_exp2 = st.columns(2)
                                 with c_ban_exp1:
-                                    st.download_button(label="📥 Descargar Métricas de Estado (CSV)", data=csv_ban_data, file_name="metricas_tapering.csv", mime="text/csv", use_container_width=True)
+                                    st.download_button(label="📥 Descargar Métricas de Estado (CSV)", data=csv_ban_data, file_name="metricas_fisiologicas.csv", mime="text/csv", use_container_width=True)
                                 with c_ban_exp2:
-                                    st.download_button(label="📄 Descargar Reporte de Carga (TXT)", data=txt_ban_data, file_name="reporte_tapering.txt", mime="text/plain", use_container_width=True)
+                                    st.download_button(label="📄 Descargar Reporte de Carga (TXT)", data=txt_ban_data, file_name="reporte_carga.txt", mime="text/plain", use_container_width=True)
          
                 except Exception as e:
                     st.error(f"Error al computar el reporte analítico avanzado: {e}")             
