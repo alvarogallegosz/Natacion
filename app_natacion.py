@@ -2132,12 +2132,12 @@ with tab_reportes:
                             for inten, mts in int_dict.items():
                                 global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
                         
-                        # =============================================================================
-                        # MOTOR GRÁFICO COMBINADO Y MATRIZ DE AUDITORÍA DIARIA (GRUPO)
+# =============================================================================
+                        # MOTOR GRÁFICO COMBINADO (ÁREAS ACUMULADAS) Y MATRIZ DE AUDITORÍA
                         # =============================================================================
                         st.markdown("---")
                         st.markdown("#### 🏊‍♂️ Evolución y Desglose de Volúmenes Diarios del Grupo")
-                        st.caption("Serie de tiempo continua del colectivo hasta el día de hoy. Barras: distribución por Estilos (Eje Izquierdo). Líneas: tendencias por Intensidad con marcadores y estilos diferenciados (Eje Derecho).")
+                        st.caption("Serie de tiempo continua del colectivo hasta el día de hoy. Áreas: volumen total acumulado y distribución por Estilos (Eje Izquierdo). Líneas: tendencias por Intensidad con marcadores y estilos diferenciados (Eje Derecho).")
 
                         estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
                         intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
@@ -2183,29 +2183,35 @@ with tab_reportes:
                         df_vol_diario = pd.DataFrame(matriz_volumen)
                         df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
 
-                        # RENDIMIENTO DEL LIENZO LIMPIO (Doble Eje)
+                        # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
                         fig_vol, ax1 = plt.subplots(figsize=(11, 5.2))
                         fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
-                        bottom_bars = np.zeros(len(df_vol_diario))
+                        
+                        # Preparar los datos vectoriales para las áreas acumulativas por estilo
+                        y_estilos = [df_vol_diario[est].values for est in estilos_lista]
                         colores_estilos = ["#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f", "#95a5a6"]
                         
-                        # Eje 1: Barras Acumuladas (Estilos)
-                        for idx, est in enumerate(estilos_lista):
-                            ax1.bar(fechas_str, df_vol_diario[est], bottom=bottom_bars, label=f"Estilo: {est}", color=colores_estilos[idx], alpha=0.80)
-                            bottom_bars += df_vol_diario[est].values
+                        # Eje 1: Renderizado de Áreas Acumuladas
+                        ax1.stackplot(
+                            fechas_str, 
+                            *y_estilos, 
+                            labels=[f"Estilo: {est}" for est in estilos_lista], 
+                            colors=colores_estilos, 
+                            alpha=0.65
+                        )
                             
                         ax1.set_xlabel("Días del Calendario (Serie de Tiempo Continua)", fontsize=9)
-                        ax1.set_ylabel("Volumen por Estilos (Metros)", fontsize=9)
+                        ax1.set_ylabel("Volumen Acumulado por Estilos (Metros)", fontsize=9)
                         ax1.tick_params(axis='y', labelsize=8)
                         ax1.grid(True, linestyle=":", alpha=0.3)
                         
-                        # Eje 2: Líneas de Tendencia con Estilos y Marcadores Únicos Completos
+                        # Eje 2: Líneas de Tendencia de Intensidad (Preservadas intactas)
                         ax2 = ax1.twinx()
                         config_lineas_int = [
                             {"color": "#27ae60", "linestyle": "-",  "marker": "x"}, # Aeróbico Ligero
                             {"color": "#f39c12", "linestyle": "--", "marker": "*"}, # Aeróbico Medio
-                            {"color": "#d35400", "linestyle": "-.", "marker": ">"}, # Umbral
-                            {"color": "#c0392b", "linestyle": ":",  "marker": "d"}  # Anaeróbico
+                            {"color": "#d35400", "linestyle": "-.", "marker": "+"}, # Umbral
+                            {"color": "#c0392b", "linestyle": ":",  "marker": "o"}  # Anaeróbico
                         ]
                         
                         for idx, inten in enumerate(intensidades_lista):
@@ -2224,7 +2230,7 @@ with tab_reportes:
                         ax2.set_ylabel("Carga por Intensidades (Metros)", fontsize=9)
                         ax2.tick_params(axis='y', labelsize=8)
                         
-                        # Unificación de leyendas en un solo recuadro
+                        # Unificación limpia de leyendas
                         lines1, labels1 = ax1.get_legend_handles_labels()
                         lines2, labels2 = ax2.get_legend_handles_labels()
                         ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, ncol=3)
@@ -2244,7 +2250,7 @@ with tab_reportes:
                         )
                         
                         # TABLA DIARIA DE SOPORTE CON FILA DE TOTALES ESTILIZADA
-                        st.markdown("##### 📋 Matriz de Auditoría Diaria Colectiva")
+                        st.markdown("##### 📋 Matriz de Auditoría de Entrenamiento Diaria")
                         df_tabla_vol = df_vol_diario.copy()
                         
                         fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
@@ -2362,6 +2368,12 @@ with tab_reportes:
                                 * **Fitness (CTL - Carga Crónica a 42 días):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
                                 * **Fatiga (ATL - Carga Aguda a 7 días):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
                                 * **Forma (TSB - Balance del Estado Fisiológico):** $$\text{TSB}_t = \text{CTL}_{t-1} - \text{ATL}_{t-1}$$
+                                **Donde (wt) representa la carga del día en Metros Equivalentes.**
+                                **Tabla de Factores de Corrección y Rangos Objetivos: Además de la tabla con los coeficientes multiplicadores por intensidad,**
+                                **incluímos de forma explícita la guía de valores objetivos para el macrociclo rumbo a la competencia**
+                                **(ej. zonas seguras de TSB para evitar sobreentrenamiento, rango óptimo de TSB positivo [+10 a +25] en la fase de tapering**
+                                **o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).Lógica Matemática del Tiempo Continuo**
+                                **(Días de Descanso = Esfuerzo 0)**
                                 """)
 
                             if rango_fechas_completo is not None:
