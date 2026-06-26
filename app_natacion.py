@@ -2144,13 +2144,19 @@ else:
                     # Fallback de emergencia: query sin filtros pesados para que la app no quede en pantalla roja
                     res_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador").execute()
             
-            # =============================================================================
-            # EVALUACIÓN DE RESULTADOS Y RENDERIZADO
+# =============================================================================
+            # EVALUACIÓN DE RESULTADOS Y RENDERIZADO DEL SELECTOR DESPLEGABLE
             # =============================================================================
             if not res_atlt.data:
                 st.info("No se encontraron nadadores bajo los filtros seleccionados.")
             else:
-                atletas_opciones_carga = {a["id"]: f"{a['nombre']}" for a in res_atlt.data}
+                # 🛠️ CORRECCIÓN CRÍTICA: Eliminamos 'apellido' para evitar el KeyError
+                # Usamos .get() por seguridad para evitar que cualquier campo ausente rompa la app
+                atletas_opciones_carga = {
+                    a["id"]: str(a.get("nombre", "Nadador sin nombre")).strip() 
+                    for a in res_atlt.data
+                }
+                
                 atleta_sel_id = st.selectbox(
                     "🎯 Seleccione el Nadador para el Reporte Analítico:",
                     options=list(atletas_opciones_carga.keys()),
