@@ -1322,7 +1322,7 @@ else:
                 st.dataframe(df_procesado.drop(columns=["id"], errors="ignore"), use_container_width=True)
 
     with tab_entrenador:
-        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+        if st.session_state.rol in ["Head Coach", "Administrador"]:
             st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
             
             if titulo_grafico in ['25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa', '100 Combinado'] or es_preinfantil:
@@ -1428,7 +1428,7 @@ else:
                                 supabase.table("asignaciones").delete().in_("atleta_id", ids_categoria).execute()
                                 
                                 # 2. Inserción por lotes adaptada a tus columnas id_entrenador e id_nadador
-                                nuevas_asig = [{"id_entrenador": entrenador_cat_sel, "atleta_id": nid} for nid in ids_categoria]
+                                nuevas_asig = [{"entrenador_id": entrenador_cat_sel, "atleta_id": nid} for nid in ids_categoria]
                                 supabase.table("asignaciones").insert(nuevas_asig).execute()
                                 
                                 st.success(f"🎉 Se asignaron {len(ids_categoria)} nadadores de la categoría **{categoria_sel}** a {dict_entrenadores[entrenador_cat_sel]}.")
@@ -1440,6 +1440,7 @@ else:
                     st.info("Debe contar con Entrenadores y Nadadores activos para habilitar las opciones de asignación.")
             except Exception as e:
                 st.error(f"Error operando la tabla de asignaciones: {e}")
+                
     # -------------------------------------------------------------
     # PESTAÑA: CALENDARIO ANUAL DE COMPETENCIAS
     # -------------------------------------------------------------
@@ -1468,8 +1469,8 @@ else:
         except Exception as e:
             st.error(f"Error cargando calendario: {e}")
 
-        # 2. Controles de Edición (Restringido a Entrenadores y Admins)
-        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+        # 2. Controles de Edición (Restringido a Head Coach y Adminstrador)
+        if st.session_state.rol in ["Head Coach", "Administrador"]:
             st.markdown("---")
             col_add, col_edit = st.columns(2)
             
@@ -1539,7 +1540,7 @@ else:
     # -------------------------------------------------------------
         # 3. GENERADOR AUTOMÁTICO DE HITOS (ASIGNACIÓN DE ATLETAS)
         # -------------------------------------------------------------
-        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+        if st.session_state.rol in ["Head Coach", "Administrador"]:
             st.markdown("---")
             st.markdown("### 🎯 Generación de Hitos y Auditoría de Elegibilidad")
             st.caption("Seleccione una competencia programada para evaluar a la nómina de nadadores activos y generar sus hitos de seguimiento.")
