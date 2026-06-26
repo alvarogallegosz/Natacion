@@ -1971,7 +1971,7 @@ else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
+    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA - ESTABLE)
     # -------------------------------------------------------------
     with tab_reportes:
         if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
@@ -2047,7 +2047,7 @@ else:
             ventana_sel = st.selectbox(
                 "⏳ Ventana Temporal de Análisis:",
                 options=list(opciones_tiempo.keys()),
-                index=3,  # Defecto en 42 días por su relevancia científica en el rendimiento
+                index=3,  # Defecto en 42 días por su relevancia científica
                 key="rep_selectbox_temporalidad"
             )
             
@@ -2058,175 +2058,187 @@ else:
             # =============================================================================
             col_rep1, col_rep2, col_rep3 = st.columns(3)
             
-            with col_rep1:
-                try:
-                    res_sedes = st.session_state.supabase_client.table("usuarios").select("sede").execute()
-                    sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes.data else []
-                except:
-                    sedes_disponibles = []
-                sedes_opciones = ["Todas"] + sedes_disponibles
-                sede_rep = st.selectbox("📍 Filtrar por Sede:", sedes_opciones, key="rep_filtro_sede")
-                
-            with col_rep2:
-                categorias_opciones = ["Todas", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
-                cat_rep = st.selectbox("🏊‍♂️ Filtrar por Categoría:", categorias_opciones, key="rep_filtro_categoria")
-                
-            with col_rep3:
-                genero_opciones = ["Todos", "Masculino", "Femenino"]
-                gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
-                
-            # =============================================================================
-            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER
-            # =============================================================================
-            query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
-            if sede_rep != "Todas":
-                query_atlt = query_atlt.eq("sede", sede_rep)
-            if cat_rep != "Todas":
-                query_atlt = query_atlt.eq("categoria", cat_rep)
-            if gen_rep != "Todos":
-                query_atlt = query_atlt.eq("genero", gen_rep)
-                
-            res_atlt = query_atlt.execute()
+            # Recuperar cliente seguro usando tu método nativo del archivo original
+            supabase = st.session_state.get("supabase_client")
             
-            if not res_atlt.data:
-                st.info("No se encontraron nadadores bajo los filtros seleccionados.")
+            if not supabase:
+                st.error("🔌 Conexión a base de datos no encontrada de forma segura en la sesión.")
             else:
-                atletas_opciones_carga = {a["id"]: f"{a['nombre']} {a['apellido']}" for a in res_atlt.data}
-                atleta_sel_id = st.selectbox(
-                    "🎯 Seleccione el Nadador para el Reporte Analítico:",
-                    options=list(atletas_opciones_carga.keys()),
-                    format_func=lambda x: atletas_opciones_carga[x],
-                    key="rep_atleta_analisis_id"
-                )
-                
-                if atleta_sel_id:
+                with col_rep1:
                     try:
-                        query_bit = st.session_state.supabase_client.table("bitacora_nadador").select("*").eq("nadador_id", atleta_sel_id).order("fecha", ascending=True)
-                        res_bit = query_bit.execute()
-                        
-                        if not res_bit.data:
-                            st.warning(f"El nadador {atletas_opciones_carga[atleta_sel_id]} no posee registros de volumen en su bitácora para procesar el modelo Bannister.")
-                        else:
-                            df_bit = pd.DataFrame(res_bit.data)
-                            df_bit["fecha"] = pd.to_datetime(df_bit["fecha"])
+                        res_sedes = supabase.table("usuarios").select("sede").execute()
+                        sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes.data else []
+                    except:
+                        sedes_disponibles = []
+                    sedes_opciones = ["Todas"] + sedes_disponibles
+                    sede_rep = st.selectbox("📍 Filtrar por Sede:", sedes_opciones, key="rep_filtro_sede")
+                    
+                with col_rep2:
+                    categorias_opciones = ["Todas", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+                    cat_rep = st.selectbox("🏊‍♂️ Filtrar por Categoría:", categorias_opciones, key="rep_filtro_categoria")
+                    
+                with col_rep3:
+                    genero_opciones = ["Todos", "Masculino", "Femenino"]
+                    gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
+                    
+                # =============================================================================
+                # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER
+                # =============================================================================
+                # CORRECCIÓN AQUÍ: Se utiliza la variable segura 'supabase' en lugar de la llamada directa que rompía la app
+                query_atlt = supabase.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
+                if sede_rep != "Todas":
+                    query_atlt = query_atlt.eq("sede", sede_rep)
+                if cat_rep != "Todas":
+                    query_atlt = query_atlt.eq("categoria", cat_rep)
+                if gen_rep != "Todos":
+                    query_atlt = query_atlt.eq("genero", gen_rep)
+                    
+                res_atlt = query_atlt.execute()
+                
+                if not res_atlt.data:
+                    st.info("No se encontraron nadadores bajo los filtros seleccionados.")
+                else:
+                    atletas_opciones_carga = {a["id"]: f"{a['nombre']} {a['apellido']}" for a in res_atlt.data}
+                    atleta_sel_id = st.selectbox(
+                        "🎯 Seleccione el Nadador para el Reporte Analítico:",
+                        options=list(atletas_opciones_carga.keys()),
+                        format_func=lambda x: atletas_opciones_carga[x],
+                        key="rep_atleta_analisis_id"
+                    )
+                    
+                    if atleta_sel_id:
+                        try:
+                            query_bit = supabase.table("bitacora_nadador").select("*").eq("nadador_id", atleta_sel_id).order("fecha", ascending=True)
+                            res_bit = query_bit.execute()
                             
-                            df_diario = df_bit.groupby("fecha")["volumen_metros"].sum().reset_index()
-                            df_diario.columns = ["Fecha", "Volumen"]
-                            
-                            fecha_min = df_diario["Fecha"].min()
-                            fecha_max = datetime.date.today()
-                            fecha_max = pd.to_datetime(fecha_max)
-                            
-                            rango_fechas = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
-                            df_cargas = pd.DataFrame({"Fecha": rango_fechas})
-                            
-                            df_cargas = df_cargas.merge(df_diario, on="Fecha", how="left")
-                            df_cargas["Volumen"] = df_cargas["Volumen"].fillna(0)
-                            
-                            # --- CÓMPUTO MATEMÁTICO DEL MODELO BANNISTER ---
-                            tau_ctl, tau_atl = 42, 7
-                            k1, k2 = 1.0, 2.0
-                            
-                            ctl_vals, atl_vals, tsb_vals = [], [], []
-                            ctl_ant, atl_ant = 0.0, 0.0
-                            
-                            for idx, row in df_cargas.iterrows():
-                                w = row["Volumen"]
-                                ctl_actual = ctl_ant * np.exp(-1.0 / tau_ctl) + w
-                                atl_actual = atl_ant * np.exp(-1.0 / tau_atl) + w
-                                tsb_actual = (ctl_ant * k1) - (atl_ant * k2)
-                                
-                                ctl_vals.append(ctl_actual)
-                                atl_vals.append(atl_actual)
-                                tsb_vals.append(tsb_actual)
-                                
-                                ctl_ant, atl_ant = ctl_actual, atl_actual
-                                
-                            df_cargas["CTL"] = ctl_vals
-                            df_cargas["ATL"] = atl_vals
-                            df_cargas["TSB"] = tsb_vals
-                            
-                            if dias_atras:
-                                fecha_corte = pd.to_datetime(datetime.date.today() - datetime.timedelta(days=dias_atras))
-                                df_cargas = df_cargas[df_cargas["Fecha"] >= fecha_corte].copy()
-                            
-                            if df_cargas.empty:
-                                st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
+                            if not res_bit.data:
+                                st.warning(f"El nadador {atletas_opciones_carga[atleta_sel_id]} no posee registros de volumen en su bitácora para procesar el modelo Bannister.")
                             else:
-                                # Renderizar gráfico predictivo utilizando Matplotlib de forma directa
-                                fig, ax = plt.subplots(figsize=(10, 4.5))
-                                ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
-                                ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
-                                ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
+                                df_bit = pd.DataFrame(res_bit.data)
+                                df_bit["fecha"] = pd.to_datetime(df_bit["fecha"])
                                 
-                                ax.set_title(f"Modelo de Rendimiento Bannister: {atletas_opciones_carga[atleta_sel_id]}", fontsize=12, fontweight="bold", pad=12)
-                                ax.set_xlabel("Línea de Tiempo (Días)", fontsize=10)
-                                ax.set_ylabel("Carga Equivalente (Metros)", fontsize=10)
-                                ax.grid(True, linestyle=":", alpha=0.5)
-                                ax.legend(loc="upper left")
-                                plt.xticks(rotation=15)
+                                df_diario = df_bit.groupby("fecha")["volumen_metros"].sum().reset_index()
+                                df_diario.columns = ["Fecha", "Volumen"]
                                 
-                                st.pyplot(fig)
+                                fecha_min = df_diario["Fecha"].min()
+                                fecha_max = datetime.date.today()
+                                fecha_max = pd.to_datetime(fecha_max)
                                 
-                                # Botón HTML inyectado funcional para activar diálogo de impresión
-                                st.markdown(f"""
-                                    <div style="margin-top: 10px; margin-bottom: 25px;">
-                                        <button onclick="window.print()" style="width: 100%; background-color: #007A87; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
-                                            🖨️ Imprimir Perfil Fisiológico Bannister (8.5 x 11 / PDF)
-                                        </button>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                rango_fechas = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
+                                df_cargas = pd.DataFrame({"Fecha": rango_fechas})
                                 
-                                # Matriz diaria individual
-                                st.markdown("##### 📋 Histórico Diario de Cargas e Índices de Estado")
-                                df_tabla_ban = df_cargas.copy()
-                                df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                df_cargas = df_cargas.merge(df_diario, on="Fecha", how="left")
+                                df_cargas["Volumen"] = df_cargas["Volumen"].fillna(0)
                                 
-                                # Preparación de buffers limpios para descarga antes de concatenar el total
-                                csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
+                                # --- CÓMPUTO MATEMÁTICO DEL MODELO BANNISTER ---
+                                tau_ctl, tau_atl = 42, 7
+                                k1, k2 = 1.0, 2.0
                                 
-                                txt_ban_buffer = io.StringIO()
-                                txt_ban_buffer.write("=========================================================\n")
-                                txt_ban_buffer.write(f" HISTÓRICO DIARIO DE CARGAS E ÍNDICES - ATLETA: {atletas_opciones_carga[atleta_sel_id].upper()}\n")
-                                txt_ban_buffer.write(f" Generado el: {datetime.date.today()} | Ventana: {ventana_sel}\n")
-                                txt_ban_buffer.write("=========================================================\n\n")
-                                txt_ban_buffer.write(df_tabla_ban.to_string(index=False))
-                                txt_ban_data = txt_ban_buffer.getvalue().encode('utf-8')
+                                ctl_vals, atl_vals, tsb_vals = [], [], []
+                                ctl_ant, atl_ant = 0.0, 0.0
                                 
-                                # Totales al pie exclusivos para el renderizado visual HTML
-                                fila_tot_ban = {
-                                    "Fecha": "TOTAL ACUMULADO",
-                                    "Volumen": df_tabla_ban["Volumen"].sum(),
-                                    "CTL": "", "ATL": "", "TSB": ""
-                                }
-                                df_tabla_visual = pd.concat([df_tabla_ban, pd.DataFrame([fila_tot_ban])], ignore_index=True)
-                                st.write(df_tabla_visual.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-                                
-                                # Botones nativos de descarga Streamlit posicionados debajo
-                                st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-                                col_down_ban1, col_down_ban2 = st.columns(2)
-                                
-                                with col_down_ban1:
-                                    st.download_button(
-                                        label="📥 Descargar Histórico Diario (CSV)",
-                                        data=csv_ban_data,
-                                        file_name=f"historico_bannister_{atleta_sel_id}_{datetime.date.today()}.csv",
-                                        mime="text/csv",
-                                        key=f"btn_csv_ban_{atleta_sel_id}",
-                                        use_container_width=True
-                                    )
+                                for idx, row in df_cargas.iterrows():
+                                    w = row["Volumen"]
+                                    ctl_actual = ctl_ant * np.exp(-1.0 / tau_ctl) + w
+                                    atl_actual = atl_ant * np.exp(-1.0 / tau_atl) + w
+                                    tsb_actual = (ctl_ant * k1) - (atl_ant * k2)
                                     
-                                with col_down_ban2:
-                                    st.download_button(
-                                        label="📄 Descargar Histórico Diario (TXT)",
-                                        data=txt_ban_data,
-                                        file_name=f"historico_bannister_{atleta_sel_id}_{datetime.date.today()}.txt",
-                                        mime="text/plain",
-                                        key=f"btn_txt_ban_{atleta_sel_id}",
-                                        use_container_width=True
-                                    )
+                                    ctl_vals.append(ctl_actual)
+                                    atl_vals.append(atl_actual)
+                                    tsb_vals.append(tsb_actual)
+                                    
+                                    ctl_ant, atl_ant = ctl_actual, atl_actual
+                                    
+                                df_cargas["CTL"] = ctl_vals
+                                df_cargas["ATL"] = atl_vals
+                                df_cargas["TSB"] = tsb_vals
                                 
-                    except Exception as e:
-                        st.error(f"Error al computar el reporte analítico avanzado: {e}")
+                                if dias_atras:
+                                    fecha_corte = pd.to_datetime(datetime.date.today() - datetime.timedelta(days=dias_atras))
+                                    df_cargas = df_cargas[df_cargas["Fecha"] >= fecha_corte].copy()
+                                
+                                if df_cargas.empty:
+                                    st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
+                                else:
+                                    # Renderizar gráfico de forma directa con tus configuraciones de Matplotlib fijadas en el archivo
+                                    fig_ban, ax = plt.subplots(figsize=(10, 4.5))
+                                    ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
+                                    ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga / Respuesta Aguda (ATL)", color="#d62728", linewidth=1.8, linestyle="--")
+                                    ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
+                                    
+                                    ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                    ax.set_xlabel("Línea de Tiempo (Días)", fontsize=10)
+                                    ax.set_ylabel("Carga Equivalente (Metros)", fontsize=10)
+                                    ax.grid(True, linestyle=":", alpha=0.4)
+                                    ax.legend(loc="upper left")
+                                    plt.xticks(rotation=25)
+                                    plt.tight_layout()
+                                    
+                                    st.pyplot(fig_ban)
+                                    
+                                    # =============================================================================
+                                    # ACTIVACIÓN DE BOTÓN DE IMPRESIÓN VÍA JAVASCRIPT INYECTADO
+                                    # =============================================================================
+                                    st.markdown(f"""
+                                        <div style="margin-top: 10px; margin-bottom: 25px;">
+                                            <button onclick="window.print()" style="width: 100%; background-color: #007A87; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+                                                🖨️ Imprimir Perfil Fisiológico Bannister (8.5 x 11 / PDF)
+                                            </button>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    # Matriz diaria de auditoría visual
+                                    st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
+                                    df_tabla_ban = df_cargas.copy()
+                                    df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                    
+                                    # Generación limpia de los datos crudos para las descargas (antes de añadir fila de total)
+                                    csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
+                                    
+                                    txt_ban_buffer = io.StringIO()
+                                    txt_ban_buffer.write("=========================================================\n")
+                                    txt_ban_buffer.write(f" HISTÓRICO DIARIO DE CARGAS E ÍNDICES - ATLETA: {atletas_opciones_carga[atleta_sel_id].upper()}\n")
+                                    txt_ban_buffer.write(f" Generado el: {datetime.date.today()} | Ventana: {ventana_sel}\n")
+                                    txt_ban_buffer.write("=========================================================\n\n")
+                                    txt_ban_buffer.write(df_tabla_ban.to_string(index=False))
+                                    txt_ban_data = txt_ban_buffer.getvalue().encode('utf-8')
+                                    
+                                    # Fila de TOTAL ACUMULADO exclusiva para la vista de pantalla HTML
+                                    fila_tot_ban = {
+                                        "Fecha": "TOTAL ACUMULADO",
+                                        "Volumen": df_tabla_ban["Volumen"].sum(),
+                                        "CTL": "", "ATL": "", "TSB": ""
+                                    }
+                                    df_tabla_visual = pd.concat([df_tabla_ban, pd.DataFrame([fila_tot_ban])], ignore_index=True)
+                                    st.write(df_tabla_visual.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
+                                    
+                                    # =============================================================================
+                                    # RETORNO COSMÉTICO DE BOTONES DE DESCARGA NATIVOS ABAJO
+                                    # =============================================================================
+                                    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+                                    col_down_ban1, col_down_ban2 = st.columns(2)
+                                    
+                                    with col_down_ban1:
+                                        st.download_button(
+                                            label="📥 Descargar Histórico Diario (CSV)",
+                                            data=csv_ban_data,
+                                            file_name=f"historico_bannister_{atleta_sel_id}_{datetime.date.today()}.csv",
+                                            mime="text/csv",
+                                            key=f"btn_csv_ban_{atleta_sel_id}",
+                                            use_container_width=True
+                                        )
+                                        
+                                    with col_down_ban2:
+                                        st.download_button(
+                                            label="📄 Descargar Histórico Diario (TXT)",
+                                            data=txt_ban_data,
+                                            file_name=f"historico_bannister_{atleta_sel_id}_{datetime.date.today()}.txt",
+                                            mime="text/plain",
+                                            key=f"btn_txt_ban_{atleta_sel_id}",
+                                            use_container_width=True
+                                        )
+                                    
+                        except Exception as e:
+                            st.error(f"Error al computar el reporte analítico avanzado: {e}")
         else:
-            st.warning("🔒 Esta función está reservada para el equipo técnico (Head Coach, Entrenadores o Administradores).")
+            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
