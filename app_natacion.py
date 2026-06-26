@@ -1971,12 +1971,15 @@ else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
 # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA - 100% ESTABLE)
+    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (SOLUCIÓN COMPLETA Y DEFINITIVA)
     # -------------------------------------------------------------
     with tab_reportes:
         if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
+
+            # Extracción del cliente nativo en la raíz de la pestaña para evitar desfases de rerun
+            supabase = st.session_state.get("supabase_client")
 
             # =============================================================================
             # ESTILOS CSS INYECTADOS PARA IMPRESIÓN LIMPIA EN 8.5 x 11 (CARTA)
@@ -2058,33 +2061,27 @@ else:
             # =============================================================================
             col_rep1, col_rep2, col_rep3 = st.columns(3)
             
-            # Tu asignación nativa original
-            supabase = st.session_state.get("supabase_client")
-            
-            # CONTROL DE SEGURIDAD CONTRA EL ATTRIBUTEERROR / NONETYPE
-            if supabase is None:
-                st.error("🔌 Conexión temporal con la base de datos interrumpida. Por favor, cambia de pestaña (vuelve a la Pizarra de marcas) para restablecer la sesión activa de Supabase.")
-            else:
-                with col_rep1:
-                    try:
-                        res_sedes = supabase.table("usuarios").select("sede").execute()
-                        sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes.data else []
-                    except:
-                        sedes_disponibles = []
-                    sedes_opciones = ["Todas"] + sedes_disponibles
-                    sede_rep = st.selectbox("📍 Filtrar por Sede:", sedes_opciones, key="rep_filtro_sede")
-                    
-                with col_rep2:
-                    categorias_opciones = ["Todas", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
-                    cat_rep = st.selectbox("🏊‍♂️ Filtrar por Categoría:", categorias_opciones, key="rep_filtro_categoria")
-                    
-                with col_rep3:
-                    genero_opciones = ["Todos", "Masculino", "Femenino"]
-                    gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
-                    
-                # =============================================================================
-                # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (LÓGICA ORIGINAL COMPLETA)
-                # =============================================================================
+            with col_rep1:
+                try:
+                    res_sedes = supabase.table("usuarios").select("sede").execute() if supabase else None
+                    sedes_disponibles = sorted(list(set([u["sede"] for u in res_sedes.data if u.get("sede")]))) if res_sedes and res_sedes.data else []
+                except:
+                    sedes_disponibles = []
+                sedes_opciones = ["Todas"] + sedes_disponibles
+                sede_rep = st.selectbox("📍 Filtrar por Sede:", sedes_opciones, key="rep_filtro_sede")
+                
+            with col_rep2:
+                categorias_opciones = ["Todas", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"]
+                cat_rep = st.selectbox("🏊‍♂️ Filtrar por Categoría:", categorias_opciones, key="rep_filtro_categoria")
+                
+            with col_rep3:
+                genero_opciones = ["Todos", "Masculino", "Femenino"]
+                gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
+                
+            # =============================================================================
+            # 3. CARGA DE ATLETAS FILTRADOS Y CÓMPUTO DE BANNISTER (LÓGICA ORIGINAL)
+            # =============================================================================
+            if supabase is not None:
                 atleta_ids = []
                 if st.session_state.rol == "Entrenador":
                     try:
@@ -2100,7 +2097,7 @@ else:
                     if atleta_ids:
                         query_atlt = query_atlt.in_("id", atleta_ids)
                     else:
-                        query_atlt = query_atlt.eq("id", "00000000-0000-0000-0000-000000000000") # Resguardo seguro original
+                        query_atlt = query_atlt.eq("id", "00000000-0000-0000-0000-000000000000")
                         
                 if sede_rep != "Todas":
                     query_atlt = query_atlt.eq("sede", sede_rep)
@@ -2128,7 +2125,7 @@ else:
                             res_bit = query_bit.execute()
                             
                             if not res_bit.data:
-                                st.warning(f"El nadador {atletas_opciones_carga[atleta_sel_id]} no posee registros de volumen en su bitácora para procesar el modelo Bannister.")
+                                st.warning(f"El nadador {atletas_opciones_carga[atleta_sel_id]} no posee registros de volumen en su bitácora.")
                             else:
                                 df_bit = pd.DataFrame(res_bit.data)
                                 df_bit["fecha"] = pd.to_datetime(df_bit["fecha"])
@@ -2142,7 +2139,6 @@ else:
                                 
                                 rango_fechas = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
                                 df_cargas = pd.DataFrame({"Fecha": rango_fechas})
-                                
                                 df_cargas = df_cargas.merge(df_diario, on="Fecha", how="left")
                                 df_cargas["Volumen"] = df_cargas["Volumen"].fillna(0)
                                 
@@ -2176,7 +2172,7 @@ else:
                                 if df_cargas.empty:
                                     st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
                                 else:
-                                    # Renderizar gráfico original respetando tus fuentes y rotaciones exactas de 25 grados
+                                    # Gráfico con tus dimensiones fijas y fuentes exactas
                                     fig_ban, ax = plt.subplots(figsize=(10, 4.5))
                                     ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
                                     ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
@@ -2191,7 +2187,7 @@ else:
                                     st.pyplot(fig_ban)
                                     
                                     # =============================================================================
-                                    # ACTIVACIÓN DEL BOTÓN DE IMPRESIÓN HTML / JAVASCRIPT
+                                    # BOTÓN DE IMPRESIÓN JAVASCRIPT ACTIVO Y SIN INTERRUPCIONES
                                     # =============================================================================
                                     st.markdown(f"""
                                         <div style="margin-top: 10px; margin-bottom: 25px;">
@@ -2201,12 +2197,10 @@ else:
                                         </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    # Exportar Matriz de Auditoría Diaria a HTML Estilizado
                                     st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
                                     df_tabla_ban = df_cargas.copy()
                                     df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
                                     
-                                    # Buffers de datos crudos intactos para descargas
                                     csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
                                     
                                     txt_ban_buffer = io.StringIO()
@@ -2217,7 +2211,6 @@ else:
                                     txt_ban_buffer.write(df_tabla_ban.to_string(index=False))
                                     txt_ban_data = txt_ban_buffer.getvalue().encode('utf-8')
                                     
-                                    # Renderizado visual HTML en pantalla con fila de TOTAL ACUMULADO
                                     fila_tot_ban = {
                                         "Fecha": "TOTAL ACUMULADO",
                                         "Volumen": df_tabla_ban["Volumen"].sum(),
@@ -2226,7 +2219,7 @@ else:
                                     df_tabla_visual = pd.concat([df_tabla_ban, pd.DataFrame([fila_tot_ban])], ignore_index=True)
                                     st.write(df_tabla_visual.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                     
-                                    # Preservación cosmética de tus botones tradicionales de descarga abajo
+                                    # Botones tradicionales de descarga al final de la matriz
                                     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
                                     col_down_ban1, col_down_ban2 = st.columns(2)
                                     
@@ -2252,5 +2245,7 @@ else:
                                     
                         except Exception as e:
                             st.error(f"Error al computar el reporte analítico avanzado: {e}")             
+            else:
+                st.info("🔄 Inicializando componentes del panel analítico. Si los selectores no aparecen automáticamente, haz un clic rápido en la pestaña Pizarra para sincronizar los estados.")
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
