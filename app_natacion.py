@@ -386,8 +386,8 @@ if not st.session_state.autenticado:
                 nuevo_email = st.text_input("Correo Electrónico:")
                 nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
                 
-                nuevo_genero = None
-                nueva_fecha_nac = None
+                
+                
                 
                 if es_nadador_reg:
                     st.markdown("---")
