@@ -2094,7 +2094,7 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (BLINDADO Y SIN FILTROS INCOMPATIBLES)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (BLINDADO CONTRA LISTAS VACÍAS EN .IN_())
             # =============================================================================
             atleta_ids = []
             if st.session_state.rol == "Entrenador":
@@ -2105,14 +2105,14 @@ else:
                 except Exception as e:
                     st.error(f"Error al cargar atletas asignados: {e}")
             
-            # Control estructural: Si es Entrenador y no tiene nadadores a cargo, evitamos ir a Supabase
+            # CONTROL CRÍTICO: Si es Entrenador y no tiene nadadores a cargo, evitamos ir a Supabase
             if st.session_state.rol == "Entrenador" and not atleta_ids:
-                # Simulamos una respuesta vacía segura que no romperá los condicionales inferiores
+                # Creamos un objeto simulado con .data vacío para que no rompa las validaciones de abajo
                 class RespuestaVacia:
                     data = []
                 res_atlt = RespuestaVacia()
             else:
-                # Si es Administrador/Head Coach o un Entrenador con atletas, ejecutamos la query original estable
+                # Si es Administrador/Head Coach o un Entrenador con atletas asignados, hacemos la query original estable
                 query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
                 
                 if st.session_state.rol == "Entrenador":
@@ -2125,6 +2125,7 @@ else:
                 if gen_rep != "Todos":
                     query_atlt = query_atlt.eq("genero", gen_rep)
                     
+                # Se ejecuta de forma segura solo si hay IDs válidos o si es Admin
                 res_atlt = query_atlt.execute()
             
             # =============================================================================
