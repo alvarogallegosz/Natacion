@@ -394,7 +394,9 @@ if not st.session_state.autenticado:
                     st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")
                     nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
                     nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
-                    
+                else
+                    nuevo_genero = "M"
+                    nueva_fecha_nac = datetime.date(1950, 1, 1)
                 if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
                     if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
                         try:
