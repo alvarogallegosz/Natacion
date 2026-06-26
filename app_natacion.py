@@ -2176,7 +2176,7 @@ else:
                             df_bit = pd.DataFrame(res_bit.data)
                             df_bit["fecha"] = pd.to_datetime(df_bit["fecha"])
                             
-                            df_diario = df_bit.groupby("fecha")["volumen_metros"].sum().reset_index()
+                            df_diario = df_bit.groupby("fecha")["metros_totales"].sum().reset_index()
                             df_diario.columns = ["Fecha", "Volumen"]
                             
                             fecha_min = df_diario["Fecha"].min()
