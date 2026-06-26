@@ -477,8 +477,20 @@ if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
     spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
-        resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-        if resp_atletas.data:
+        # Filtrado basado en tu tabla intermedia "asignaciones"
+        if st.session_state.rol == "Entrenador":
+            resp_asig = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
+            ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
+            
+            if ids_asignados:
+                resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").in_("id", ids_asignados).execute()
+            else:
+                resp_atletas = None  # No tiene nadadores asignados
+        else:
+            # Head Coach y Administrador tienen acceso global
+            resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+        
+        if resp_atletas and resp_atletas.data:
             df_atl = pd.DataFrame(resp_atletas.data)
             dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
             
@@ -491,14 +503,16 @@ if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
             
             cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
             st.session_state.nadador_seleccionado_categoria = cat_calc
+        else:
+            st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
+            st.session_state.nadador_seleccionado_id = None
     except Exception as e:
-        st.error(f"Error cargando nómina de atletas: {e}")
+        st.error(f"Error cargando nómina de atletas filtrada: {e}")
 else:
     st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
     st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
     st.session_state.nadador_seleccionado_genero = st.session_state.genero
     st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
-
 modo_equipo = False
 tipo_filtro = "Todos los Atletas"
 filtro_genero = "Todos"
