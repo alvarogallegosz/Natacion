@@ -2123,27 +2123,119 @@ else:
                                 for inten, mts in int_dict.items():
                                     global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
                             
-                            # Despliegue en columnas estables con barras de progreso
-                            c_est_graf, c_int_graf = st.columns(2)
-                            with c_est_graf:
-                                st.markdown("#### 🏊‍♂️ Distribución por Estilos (Metros)")
-                                if global_estilos:
-                                    for est, mts in global_estilos.items():
-                                        porcentaje = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                        st.write(f"**{est}**: {mts:,} m ({porcentaje:.1f}%)")
-                                        st.progress(min(porcentaje / 100, 1.0))
+                            # Ubicación anterior en columnas estables con barras de progreso
+    # =============================================================================
+                            # NUEVO: MOTOR GRÁFICO COMBINADO Y MATRIZ DE AUDITORÍA DIARIA (GRUPO)
+                            # =============================================================================
+                            st.markdown("---")
+                            st.markdown("#### 🏊‍♂️ Evolución y Desglose de Volúmenes Diarios del Grupo")
+                            st.caption("Serie de tiempo continua del colectivo. Barras: distribución por Estilos (Eje Izquierdo). Líneas: tendencias por Intensidad (Eje Derecho).")
+    
+                            # Definición estricta de categorías
+                            estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
+                            intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
+                            
+                            columnas_vol = ["Fecha"] + estilos_lista + intensidades_lista + ["Total Día"]
+                            matriz_volumen = []
+                            
+                            # Si no hay rango de fechas (Total Histórico), construimos uno basado en los registros
+                            if rango_fechas_completo is None:
+                                fechas_instancias = []
+                                for r in records:
+                                    if r.get("fecha"):
+                                        fechas_instancias.append(datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date())
+                                if fechas_instancias:
+                                    rango_analisis = pd.date_range(start=min(fechas_instancias), end=max(fechas_instancias)).date
                                 else:
-                                    st.caption("No hay desglose de estilos registrado.")
-                                    
-                            with c_int_graf:
-                                st.markdown("#### 🔥 Distribución por Zonas de Intensidad")
-                                if global_intensidades:
-                                    for inten, mts in global_intensidades.items():
-                                        porcentaje = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                        st.write(f"**{inten}**: {mts:,} m ({porcentaje:.1f}%)")
-                                        st.progress(min(porcentaje / 100, 1.0))
-                                else:
-                                    st.caption("No hay desglose de intensidades registrado.")
+                                    rango_analisis = [datetime.date.today()]
+                            else:
+                                rango_analisis = rango_fechas_completo
+    
+                            # Construcción de la matriz estructurada día por día
+                            for f in rango_analisis:
+                                dia_recs = [r for r in records if (datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]) == f]
+                                row_vol = {col: 0 for col in columnas_vol}
+                                row_vol["Fecha"] = f
+                                
+                                for r in dia_recs:
+                                    # Procesar JSONB de Estilos
+                                    dict_est = r.get("desglose_estilos") or {}
+                                    for k_est, v_m in dict_est.items():
+                                        target_est = k_est if k_est in estilos_lista else "Otros"
+                                        row_vol[target_est] += v_m
+                                        row_vol["Total Día"] += v_m
+                                        
+                                    # Procesar JSONB de Intensidades
+                                    dict_int = r.get("desglose_intensidad") or {}
+                                    for k_int, v_m in dict_int.items():
+                                        target_int = "Aeróbico Ligero"
+                                        if "Medio" in k_int: target_int = "Aeróbico Medio"
+                                        elif "Umbral" in k_int or "Fuerte" in k_int: target_int = "Umbral"
+                                        elif "Sprint" in k_int or "Anaeróbico" in k_int: target_int = "Anaeróbico"
+                                        row_vol[target_int] += v_m
+                                        
+                                matriz_volumen.append(row_vol)
+                                
+                            df_vol_diario = pd.DataFrame(matriz_volumen)
+                            df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
+    
+                            # RENDIMIENTO DEL LIENZO LIMPIO (Doble Eje)
+                            fig_vol, ax1 = plt.subplots(figsize=(11, 4.5))
+                            fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
+                            bottom_bars = np.zeros(len(df_vol_diario))
+                            colores_estilos = ["#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f", "#95a5a6"]
+                            
+                            # Eje 1: Barras Acumuladas (Estilos)
+                            for idx, est in enumerate(estilos_lista):
+                                ax1.bar(fechas_str, df_vol_diario[est], bottom=bottom_bars, label=f"Estilo: {est}", color=colores_estilos[idx], alpha=0.80)
+                                bottom_bars += df_vol_diario[est].values
+                                
+                            ax1.set_xlabel("Días del Calendario (Serie de Tiempo Continua)", fontsize=9)
+                            ax1.set_ylabel("Volumen por Estilos (Metros)", fontsize=9)
+                            ax1.tick_params(axis='y', labelsize=8)
+                            ax1.grid(True, linestyle=":", alpha=0.3)
+                            
+                            # Eje 2: Líneas de Tendencia (Intensidades)
+                            ax2 = ax1.twinx()
+                            colores_int = ["#27ae60", "#f39c12", "#d35400", "#c0392b"]
+                            for idx, inten in enumerate(intensidades_lista):
+                                ax2.plot(fechas_str, df_vol_diario[inten], label=f"Zona: {inten}", color=colores_int[idx], linewidth=1.8, linestyle="--")
+                                
+                            ax2.set_ylabel("Carga por Intensidades (Metros)", fontsize=9)
+                            ax2.tick_params(axis='y', labelsize=8)
+                            
+                            # Unificación de leyendas en un solo recuadro
+                            lines1, labels1 = ax1.get_legend_handles_labels()
+                            lines2, labels2 = ax2.get_legend_handles_labels()
+                            ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, ncol=3)
+                            
+                            plt.xticks(rotation=45, fontsize=8)
+                            plt.tight_layout()
+                            st.pyplot(fig_vol)
+                            
+                            # Botón para descargar el gráfico de volúmenes en PNG de alta calidad
+                            buf_png_vol = io.BytesIO()
+                            fig_vol.savefig(buf_png_vol, format="png", dpi=300)
+                            st.download_button(
+                                "🖼️ Guardar Gráfico de Volúmenes (PNG)", 
+                                data=buf_png_vol.getvalue(), 
+                                file_name=f"grafico_volumen_colectivo_{ventana_sel.split()[0]}.png", 
+                                mime="image/png"
+                            )
+                            
+                            # TABLA DIARIA DE SOPORTE CON FILA DE TOTALES ESTILIZADA
+                            st.markdown("##### 📋 Matriz de Auditoría Diaria Colectiva")
+                            df_tabla_vol = df_vol_diario.copy()
+                            
+                            fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
+                            for col in columnas_vol[1:]:
+                                fila_totales_vol[col] = df_tabla_vol[col].sum()
+                                
+                            df_tabla_vol["Fecha"] = df_tabla_vol["Fecha"].map(lambda x: x.strftime("%Y-%m-%d"))
+                            df_tabla_vol = pd.concat([df_tabla_vol, pd.DataFrame([fila_totales_vol])], ignore_index=True)
+                            
+                            # Inyección HTML con la clase estilizada global de bordes finos
+                            st.write(df_tabla_vol.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
     
                             # =============================================================================
                             # 4. EXPORTACIONES LIMPIAS (CSV Y TXT PRESERVADOS)
