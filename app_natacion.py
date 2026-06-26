@@ -2341,70 +2341,14 @@ with tab_reportes:
                                 use_container_width=True
                             )
 
-                        # =============================================================================
-                        # 5. ANÁLISIS CIENTÍFICO AVANZADO INDIVIDUALIZADO (BANNISTER)
-                        # =============================================================================
-                        st.markdown("---")
-                        st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
-                        st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB) usando la serie continua diaria.")
-
-                        atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
-                        atleta_sel_id = st.selectbox(
-                            "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
-                            options=list(atletas_opciones_carga.keys()),
-                            format_func=lambda x: atletas_opciones_carga[x],
-                            key="rep_selectbox_atleta_carga_avanzada"
-                        )
-                        
-                        # Filtrado estricto aplicando la regla del día de hoy
-                        records_atleta = [r for r in records_hasta_hoy if r.get("atleta_id") == atleta_sel_id]
-                        
-                        if not records_atleta:
-                            st.info("💡 Este atleta no cuenta con registros de volumen específicos válidos ejecutados hasta el día de hoy.")
-                        else:
-                            with st.expander("📘 Ver Fórmulas de Modelado y Rangos Metodológicos Objetivos", expanded=False):
-                                st.markdown(r"""
-                                **Ecuaciones Fundamentales del Modelo Biológico:**
-                                * **Fitness (CTL - Carga Crónica a 42 días):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
-                                * **Fatiga (ATL - Carga Aguda a 7 días):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
-                                * **Forma (TSB - Balance del Estado Fisiológico):** $$\text{TSB}_t = \text{CTL}_{t-1} - \text{ATL}_{t-1}$$
-                                * Donde **$$(w_t)$$** representa la carga del día en Metros Equivalentes.
-                                * **Tabla de Factores de Corrección y Rangos Objetivos**, con los coeficientes multiplicadores por intensidad,
-                                incluímos de forma explícita la guía de valores objetivos para el macrociclo rumbo a la competencia
-                                (ej. zonas seguras de TSB para evitar sobreentrenamiento, rango óptimo de TSB positivo [+10 a +25] en la fase de tapering
-                                o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).
-                                * Lógica Matemática del Tiempo Continuo **(Días de Descanso = Esfuerzo 0)**
-                                """)
-
-                            if rango_fechas_completo is not None:
-                                vol_diario_map = {f: 0.0 for f in rango_fechas_completo}
-                                mapeo_factores = {"Aeróbico Ligero": 1.0, "Aeróbico Medio": 1.2, "Umbral": 1.4, "Anaeróbico": 1.7, "Sprint": 1.7}
-                                
-                                for r in records_atleta:
-                                    f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
-                                    if f_rec in vol_diario_map:
-                                        int_dict = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
-                                        subtotal_ponderado = 0.0
-                                        for k_int, m_int in int_dict.items():
-                                            factor = 1.0
-                                            for key_map, f_val in mapeo_factores.items():
-                                                if key_map in k_int:
-                                                    factor = f_val
-                                                    break
-                                            subtotal_ponderado += (m_int * factor)
-                                        
-                                        if not int_dict:  # Fallback
-                                            subtotal_ponderado = r.get("metros_totales", 0) * r.get("factor_exigencia", 1.0)
-                                        
-                                        vol_diario_map[f_rec] += subtotal_ponderado
-                                
+                                # =============================================================================
+                                # MOTOR EWMA CIENTÍFICO (PRESERVANDO METROS EQUIVALENTES EN GRÁFICO Y TABLA)
+                                # =============================================================================
                                 df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_fechas_completo])
                                 df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
                                 df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
                                 
-                                # =============================================================================
-                                # MOTOR EWMA CIENTÍFICO DE DECAIMIENTO EXPONENCIAL
-                                # =============================================================================
+                                # El decaimiento exponencial opera directo sobre los metros ponderados reales de la BD
                                 df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
                                 df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
                                 df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
@@ -2414,55 +2358,70 @@ with tab_reportes:
                                 val_atl = int(ultima_fila["ATL"])
                                 val_tsb = int(ultima_fila["TSB"])
                                 
-                                # CÓMPUTO CIENTÍFICO RELATIVO: Evita mezcla de escalas usando porcentajes del CTL actual
+                                # APLICACIÓN ESTRICTA DEL MÉTODO PORCENTUAL RELATIVO ACORDADO
+                                # Evaluamos qué porcentaje representa el TSB respecto al CTL real del nadador
                                 pct_tsb = (val_tsb / val_ctl) * 100 if val_ctl > 0 else 0.0
                                 
-                                # Ajuste de umbrales metodológicos relativos para metros equivalentes
+                                # Los umbrales ahora son porcentajes del estado físico actual, no enteros fijos
                                 if pct_tsb > 15.0: 
-                                    estado_forma = f"🟢 Frescura / Tapering Óptimo (+{pct_tsb:.1f}% del CTL)"
+                                    estado_forma = f"🟢 Zona de Frescura / Tapering (+{pct_tsb:.1f}% del CTL)"
                                 elif pct_tsb < -40.0: 
-                                    estado_forma = f"🔴 Fatiga Sobrecargada / Riesgo de Lesión ({pct_tsb:.1f}% del CTL)"
+                                    estado_forma = f"🔴 Zona de Fatiga Sobrecargada ({pct_tsb:.1f}% del CTL)"
                                 else: 
-                                    estado_forma = f"🟡 Zona de Estímulo y Adaptación Óptima ({pct_tsb:.1f}% del CTL)"
+                                    estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb:.1f}% del CTL)"
                                 
-                                # Despliegue de métricas con etiquetas consistentes en metros equivalentes
+                                # Tarjetas de control en metros equivalentes exactos
                                 c_m1, c_m2, c_m3 = st.columns(3)
-                                with c_m1: 
-                                    st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m equiv.")
-                                with c_m2: 
-                                    st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m equiv.")
-                                with c_m3: 
-                                    st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
-                       
-                                # Renderizado Gráfico de Bannister Pro
+                                with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
+                                with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
+                                with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
+                                
+                                # =============================================================================
+                                # RENDERIZADO DEL GRÁFICO (EJE Y EN METROS EQUIVALENTES SIN REESCALAR)
+                                # =============================================================================
                                 fig_ban, ax = plt.subplots(figsize=(11, 4.5))
+                                
                                 ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
                                 ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
                                 ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
-                                ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                
+                                ax.set_title(f"Evolución del Perfil Fisiológico (Metros Equivalentes): {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                ax.set_ylabel("Volumen de Carga Ponderado (Metros)", fontsize=9)
                                 ax.grid(True, linestyle=":", alpha=0.4)
                                 ax.legend(loc="upper left", fontsize=8)
                                 plt.xticks(rotation=25, fontsize=8)
                                 plt.tight_layout()
                                 st.pyplot(fig_ban)
                                 
-                                # ADICIÓN (Punto i): Botón de descarga de imagen PNG para el modelo científico
+                                # Botones de descarga de la sección de Bannister (Requerimiento i)
                                 buf_png_ban = io.BytesIO()
                                 fig_ban.savefig(buf_png_ban, format="png", dpi=300)
                                 st.download_button(
                                     "🖼️ Guardar Gráfico Fisiológico (PNG)", 
                                     data=buf_png_ban.getvalue(), 
-                                    file_name=f"bannister_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
+                                    file_name=f"perfil_fisiologico_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
                                     mime="image/png"
                                 )
-
-                                # Exportar Matriz de Auditoría Diaria a HTML Estilizado
+                                
+                                # =============================================================================
+                                # VISTA DE LA TABLA COMPLEMENTARIA EXACTA (CONTRALORÍA DE DATOS)
+                                # =============================================================================
                                 st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
                                 df_tabla_ban = df_cargas.copy()
                                 df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                
+                                # Redondeo estético sin alterar las dimensiones en metros de la BD
+                                df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
+                                df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
+                                df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
+                                df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
+                                
+                                # Manteniendo los nombres de columnas limpios y comprensibles
+                                df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness)", "ATL (Fatiga)", "TSB (Forma)"]
+                                
                                 st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                 
-                                # ADICIÓN (Punto i): Botones de exportación de la tabla científica
+                                # Descargas asociadas de la matriz en metros equivalentes
                                 csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
                                 txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
                                 
