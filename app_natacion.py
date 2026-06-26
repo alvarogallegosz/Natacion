@@ -2094,39 +2094,45 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (FILTRADO COMPATIBLE CON TIPOS POSTGREST)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (BLINDADO Y SIN FILTROS INCOMPATIBLES)
             # =============================================================================
-            # Volvemos a tu llamada directa original que ya sabías que conectaba perfectamente
-            query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
-            
-            # Filtro de asignación seguro para Entrenadores
+            atleta_ids = []
             if st.session_state.rol == "Entrenador":
-                if atleta_ids:
+                try:
+                    res_asig = st.session_state.supabase_client.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
+                    if res_asig.data:
+                        atleta_ids = [r["nadador_id"] for r in res_asig.data]
+                except Exception as e:
+                    st.error(f"Error al cargar atletas asignados: {e}")
+            
+            # Control estructural: Si es Entrenador y no tiene nadadores a cargo, evitamos ir a Supabase
+            if st.session_state.rol == "Entrenador" and not atleta_ids:
+                # Simulamos una respuesta vacía segura que no romperá los condicionales inferiores
+                class RespuestaVacia:
+                    data = []
+                res_atlt = RespuestaVacia()
+            else:
+                # Si es Administrador/Head Coach o un Entrenador con atletas, ejecutamos la query original estable
+                query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
+                
+                if st.session_state.rol == "Entrenador":
                     query_atlt = query_atlt.in_("id", atleta_ids)
-                else:
-                    # Usamos un filtro de texto e introducimos un valor vacío universal. 
-                    # Si tu ID es entero o texto, buscar una cadena vacía en una columna poblada 
-                    # simplemente retornará cero filas sin romper la sintaxis de PostgREST.
-                    query_atlt = query_atlt.is_("id", "null")
+                        
+                if sede_rep != "Todas":
+                    query_atlt = query_atlt.eq("sede", sede_rep)
+                if cat_rep != "Todas":
+                    query_atlt = query_atlt.eq("categoria", cat_rep)
+                if gen_rep != "Todos":
+                    query_atlt = query_atlt.eq("genero", gen_rep)
                     
-            if sede_rep != "Todas":
-                query_atlt = query_atlt.eq("sede", sede_rep)
-            if cat_rep != "Todas":
-                query_atlt = query_atlt.eq("categoria", cat_rep)
-            if gen_rep != "Todos":
-                query_atlt = query_atlt.eq("genero", gen_rep)
-                
-            # Ejecución limpia y directa original
-            res_atlt = query_atlt.execute()
-
-            # Ajustamos la validación posterior para verificar que res_atlt exista y no sea None
-            if res_atlt is None:
-                st.stop() # Detiene la ejecución limpia hasta el próximo ciclo si el cliente no estaba listo
-                
-            elif not res_atlt.data:
+                res_atlt = query_atlt.execute()
+            
+            # =============================================================================
+            # EVALUACIÓN DE RESULTADOS Y RENDERIZADO
+            # =============================================================================
+            if not res_atlt.data:
                 st.info("No se encontraron nadadores bajo los filtros seleccionados.")
             else:
-                # Todo tu bloque de procesamiento analítico y gráfico (Bannister Model, df_cargas, etc.) continúa aquí...
                 atletas_opciones_carga = {a["id"]: f"{a['nombre']} {a['apellido']}" for a in res_atlt.data}
                 atleta_sel_id = st.selectbox(
                     "🎯 Seleccione el Nadador para el Reporte Analítico:",
@@ -2182,31 +2188,31 @@ else:
                             df_cargas["TSB"] = tsb_vals
                             
                             if dias_atras:
-                                  fecha_corte = pd.to_datetime(datetime.date.today() - datetime.timedelta(days=dias_atras))
-                                  df_cargas = df_cargas[df_cargas["Fecha"] >= fecha_corte].copy()
+                                fecha_corte = pd.to_datetime(datetime.date.today() - datetime.timedelta(days=dias_atras))
+                                df_cargas = df_cargas[df_cargas["Fecha"] >= fecha_corte].copy()
                             
                             if df_cargas.empty:
-                                  st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
+                                st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
                             else:
-                                  fig_ban, ax = plt.subplots(figsize=(10, 4.5))
-                                  ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
-                                  ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
-                                  ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
-                                  
-                                  ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
-                                  ax.grid(True, linestyle=":", alpha=0.4)
-                                  ax.legend(loc="upper left", fontsize=8)
-                                  plt.xticks(rotation=25, fontsize=8)
-                                  plt.tight_layout()
-                                  
-                                  st.pyplot(fig_ban)
-                                  
-                                  # Exportar Matriz de Auditoría Diaria a HTML Estilizado
-                                  st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
-                                  df_tabla_ban = df_cargas.copy()
-                                  df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
-                                  st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-                                  
+                                fig_ban, ax = plt.subplots(figsize=(10, 4.5))
+                                ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
+                                ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
+                                ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
+                                
+                                ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                ax.grid(True, linestyle=":", alpha=0.4)
+                                ax.legend(loc="upper left", fontsize=8)
+                                plt.xticks(rotation=25, fontsize=8)
+                                plt.tight_layout()
+                                
+                                st.pyplot(fig_ban)
+                                
+                                # Exportar Matriz de Auditoría Diaria a HTML Estilizado
+                                st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
+                                df_tabla_ban = df_cargas.copy()
+                                df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
+                                
                     except Exception as e:
                         st.error(f"Error al computar el reporte analítico avanzado: {e}")             
         else:
