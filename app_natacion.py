@@ -2167,7 +2167,7 @@ else:
                 if atleta_sel_id:
                     try:
                         # Corregido usando 'desc=False' para orden ascendente nativo de Supabase
-                        query_bit = supabase.table("bitacora_nadador").select("*").eq("nadador_id", atleta_sel_id).order("fecha", desc=False)
+                        query_bit = supabase.table("bitacora_entrenamientos").select("*").eq("nadador_id", atleta_sel_id).order("fecha", desc=False)
                         res_bit = query_bit.execute()
                         
                         if not res_bit.data:
