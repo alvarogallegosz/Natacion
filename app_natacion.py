@@ -118,8 +118,8 @@ def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
     """
     entes_internacionales = ["PANAM AQUATICS", "WORLD AQUATICS"]
     if ente_rector in entes_internacionales:
-        if edad_tecnica < 12:
-            return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 12 años."
+        if edad_tecnica < 14:
+            return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 14 años."
     return True, None
 
 # ... (El resto de tu script continúa exactamente igual a partir de aquí) ...
@@ -228,15 +228,17 @@ def calcular_categoria_competencia(fecha_nac_str):
         cat = "Preinfantil B"
     elif edad_competencia == 9:
         cat = "Preinfantil C"
-    elif 10 <= edad_competencia <= 11:
+    elif 10 <= edad_competencia < 12:
         cat = "Infantil A"
-    elif 12 <= edad_competencia <= 13:
+    elif 12 <= edad_competencia < 14:
         cat = "Infantil B"
-    elif 14 <= edad_competencia <= 15:
+    elif 14 <= edad_competencia < 16:
         cat = "Juvenil A"
-    elif 16 <= edad_competencia <= 18:
+    elif 16 <= edad_competencia < 18:
         cat = "Juvenil B"
-    elif edad_competencia > 18:
+    elif 18 <= edad_competencia < 25:
+        cat = "Máxima">
+    elif edad_competencia >= 25:
         cat = "Máxima"
     else:
         cat = "Semillero / Menor"
