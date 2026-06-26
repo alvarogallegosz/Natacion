@@ -1400,9 +1400,9 @@ else:
                         
                         if st.button("Confirmar Asignación Individual", type="primary"):
                             # 1. Eliminar cualquier vinculación previa de ese nadador
-                            supabase.table("asignaciones").delete().eq("id_nadador", nadador_sel).execute()
+                            supabase.table("asignaciones").delete().eq("atleta_id", nadador_sel).execute()
                             # 2. Registrar nueva vinculación en la tabla asignaciones
-                            supabase.table("asignaciones").insert({"id_entrenador": entrenador_sel, "id_nadador": nadador_sel}).execute()
+                            supabase.table("asignaciones").insert({"entrenador_id": entrenador_sel, "atleta_id": nadador_sel}).execute()
                             
                             st.success(f"✅ Nadador asignado con éxito a {dict_entrenadores[entrenador_sel]}.")
                             st.cache_data.clear()
@@ -1425,10 +1425,10 @@ else:
                             
                             if ids_categoria:
                                 # 1. Limpiar asignaciones previas de estos atletas específicos
-                                supabase.table("asignaciones").delete().in_("id_nadador", ids_categoria).execute()
+                                supabase.table("asignaciones").delete().in_("atleta_id", ids_categoria).execute()
                                 
                                 # 2. Inserción por lotes adaptada a tus columnas id_entrenador e id_nadador
-                                nuevas_asig = [{"id_entrenador": entrenador_cat_sel, "id_nadador": nid} for nid in ids_categoria]
+                                nuevas_asig = [{"id_entrenador": entrenador_cat_sel, "atleta_id": nid} for nid in ids_categoria]
                                 supabase.table("asignaciones").insert(nuevas_asig).execute()
                                 
                                 st.success(f"🎉 Se asignaron {len(ids_categoria)} nadadores de la categoría **{categoria_sel}** a {dict_entrenadores[entrenador_cat_sel]}.")
