@@ -2092,6 +2092,9 @@ else:
             # =============================================================================
             supabase_ctx = st.session_state.get("supabase_client")
             
+            # Inicializamos la variable en None para evitar el NameError bajo cualquier flujo
+            res_atlt = None 
+            
             if not supabase_ctx:
                 st.caption("🔄 Estableciendo enlace seguro con el servidor de datos...")
             else:
@@ -2100,7 +2103,6 @@ else:
                     try:
                         res_asig = supabase_ctx.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                         if res_asig.data:
-                            # Extraemos los IDs de forma plana tal como vienen de tu base de datos
                             atleta_ids = [r["nadador_id"] for r in res_asig.data]
                     except Exception as e:
                         st.error(f"Error al cargar atletas asignados: {e}")
@@ -2108,12 +2110,11 @@ else:
                 # Query base de la tabla usuarios
                 query_atlt = supabase_ctx.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
                 
-                # Filtro de asignación seguro para Entrenadores
+                # Filtro de asignación seguro para Entrenadores sin UUIDs
                 if st.session_state.rol == "Entrenador":
                     if atleta_ids:
                         query_atlt = query_atlt.in_("id", atleta_ids)
                     else:
-                        # Fallback seguro usando un id genérico de texto plano/entero en lugar de un UUID
                         query_atlt = query_atlt.eq("id", "0")
                         
                 if sede_rep != "Todas":
@@ -2123,11 +2124,17 @@ else:
                 if gen_rep != "Todos":
                     query_atlt = query_atlt.eq("genero", gen_rep)
                     
+                # Aquí se ejecuta y guarda de forma segura si la conexión está lista
                 res_atlt = query_atlt.execute()
-            
-            if not res_atlt.data:
+
+            # Ajustamos la validación posterior para verificar que res_atlt exista y no sea None
+            if res_atlt is None:
+                st.stop() # Detiene la ejecución limpia hasta el próximo ciclo si el cliente no estaba listo
+                
+            elif not res_atlt.data:
                 st.info("No se encontraron nadadores bajo los filtros seleccionados.")
             else:
+                # Todo tu bloque de procesamiento analítico y gráfico (Bannister Model, df_cargas, etc.) continúa aquí...
                 atletas_opciones_carga = {a["id"]: f"{a['nombre']} {a['apellido']}" for a in res_atlt.data}
                 atleta_sel_id = st.selectbox(
                     "🎯 Seleccione el Nadador para el Reporte Analítico:",
