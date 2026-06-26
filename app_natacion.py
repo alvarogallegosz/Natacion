@@ -2368,12 +2368,12 @@ with tab_reportes:
                                 * **Fitness (CTL - Carga Crónica a 42 días):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
                                 * **Fatiga (ATL - Carga Aguda a 7 días):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
                                 * **Forma (TSB - Balance del Estado Fisiológico):** $$\text{TSB}_t = \text{CTL}_{t-1} - \text{ATL}_{t-1}$$
-                                * **Donde (wt) representa la carga del día en Metros Equivalentes.
-                                * **Tabla de Factores de Corrección y Rangos Objetivos, con los coeficientes multiplicadores por intensidad,
+                                * Donde (wt) representa la carga del día en Metros Equivalentes.
+                                * Tabla de Factores de Corrección y Rangos Objetivos, con los coeficientes multiplicadores por intensidad,
                                 **incluímos de forma explícita la guía de valores objetivos para el macrociclo rumbo a la competencia
                                 **(ej. zonas seguras de TSB para evitar sobreentrenamiento, rango óptimo de TSB positivo [+10 a +25] en la fase de tapering
-                                **o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).Lógica Matemática del Tiempo Continuo
-                                **(Días de Descanso = Esfuerzo 0)**
+                                **o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).
+                                * Lógica Matemática del Tiempo Continuo **(Días de Descanso = Esfuerzo 0)**
                                 """)
 
                             if rango_fechas_completo is not None:
