@@ -2150,94 +2150,94 @@ else:
             if not res_atlt.data:
                 st.info("No se encontraron nadadores bajo los filtros seleccionados.")
             else:
-                # 🛠️ CORRECCIÓN CRÍTICA: Eliminamos 'apellido' para evitar el KeyError
-                # Usamos .get() por seguridad para evitar que cualquier campo ausente rompa la app
+                # Diccionario seguro usando únicamente campos existentes (nombre)
                 atletas_opciones_carga = {
                     a["id"]: str(a.get("nombre", "Nadador sin nombre")).strip() 
                     for a in res_atlt.data
                 }
                 
-                    atleta_sel_id = st.selectbox(
-                        "🎯 Seleccione el Nadador para el Reporte Analítico:",
-                        options=list(atletas_opciones_carga.keys()),
-                        format_func=lambda x: atletas_opciones_carga[x],
-                        key="rep_atleta_analisis_id"
-                    )
-                    
-                    if atleta_sel_id:
-                        try:
-                            # Corregido usando 'desc=False' para orden ascendente nativo de Supabase
-                            query_bit = supabase.table("bitacora_nadador").select("*").eq("nadador_id", atleta_sel_id).order("fecha", desc=False)
-                            res_bit = query_bit.execute()
+                # Alineación corregida a 16 espacios exactos desde el borde izquierdo
+                atleta_sel_id = st.selectbox(
+                    "🎯 Seleccione el Nadador para el Reporte Analítico:",
+                    options=list(atletas_opciones_carga.keys()),
+                    format_func=lambda x: atletas_opciones_carga[x],
+                    key="rep_atleta_analisis_id"
+                )
+                
+                if atleta_sel_id:
+                    try:
+                        # Corregido usando 'desc=False' para orden ascendente nativo de Supabase
+                        query_bit = supabase.table("bitacora_nadador").select("*").eq("nadador_id", atleta_sel_id).order("fecha", desc=False)
+                        res_bit = query_bit.execute()
+                        
+                        if not res_bit.data:
+                            st.warning(f"El nadador {atletas_opciones_carga[atleta_sel_id]} no posee registros de volumen en su bitácora.")
+                        else:
+                            df_bit = pd.DataFrame(res_bit.data)
+                            df_bit["fecha"] = pd.to_datetime(df_bit["fecha"])
                             
-                            if not res_bit.data:
-                                st.warning(f"El nadador {atletas_opciones_carga[atleta_sel_id]} no posee registros de volumen en su bitácora.")
+                            df_diario = df_bit.groupby("fecha")["volumen_metros"].sum().reset_index()
+                            df_diario.columns = ["Fecha", "Volumen"]
+                            
+                            fecha_min = df_diario["Fecha"].min()
+                            fecha_max = datetime.date.today()
+                            fecha_max = pd.to_datetime(fecha_max)
+                            
+                            rango_fechas = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
+                            df_cargas = pd.DataFrame({"Fecha": rango_fechas})
+                            df_cargas = df_cargas.merge(df_diario, on="Fecha", how="left")
+                            df_cargas["Volumen"] = df_cargas["Volumen"].fillna(0)
+                            
+                            # --- CÓMPUTO MATEMÁTICO DEL MODELO BANNISTER ---
+                            tau_ctl, tau_atl = 42, 7
+                            k1, k2 = 1.0, 2.0
+                            
+                            ctl_vals, atl_vals, tsb_vals = [], [], []
+                            ctl_ant, atl_ant = 0.0, 0.0
+                            
+                            for idx, row in df_cargas.iterrows():
+                                w = row["Volumen"]
+                                ctl_actual = ctl_ant * np.exp(-1.0 / tau_ctl) + w
+                                atl_actual = atl_ant * np.exp(-1.0 / tau_atl) + w
+                                tsb_actual = (ctl_ant * k1) - (atl_ant * k2)
+                                
+                                ctl_vals.append(ctl_actual)
+                                atl_vals.append(atl_actual)
+                                tsb_vals.append(tsb_actual)
+                                
+                                ctl_ant, atl_ant = ctl_actual, atl_actual
+                                
+                            df_cargas["CTL"] = ctl_vals
+                            df_cargas["ATL"] = atl_vals
+                            df_cargas["TSB"] = tsb_vals
+                            
+                            if dias_atras:
+                                fecha_corte = pd.to_datetime(datetime.date.today() - datetime.timedelta(days=dias_atras))
+                                df_cargas = df_cargas[df_cargas["Fecha"] >= fecha_corte].copy()
+                            
+                            if df_cargas.empty:
+                                st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
                             else:
-                                df_bit = pd.DataFrame(res_bit.data)
-                                df_bit["fecha"] = pd.to_datetime(df_bit["fecha"])
+                                fig_ban, ax = plt.subplots(figsize=(10, 4.5))
+                                ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
+                                ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
+                                ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
                                 
-                                df_diario = df_bit.groupby("fecha")["volumen_metros"].sum().reset_index()
-                                df_diario.columns = ["Fecha", "Volumen"]
+                                ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                ax.grid(True, linestyle=":", alpha=0.4)
+                                ax.legend(loc="upper left", fontsize=8)
+                                plt.xticks(rotation=25, fontsize=8)
+                                plt.tight_layout()
                                 
-                                fecha_min = df_diario["Fecha"].min()
-                                fecha_max = datetime.date.today()
-                                fecha_max = pd.to_datetime(fecha_max)
+                                st.pyplot(fig_ban)
                                 
-                                rango_fechas = pd.date_range(start=fecha_min, end=fecha_max, freq="D")
-                                df_cargas = pd.DataFrame({"Fecha": rango_fechas})
-                                df_cargas = df_cargas.merge(df_diario, on="Fecha", how="left")
-                                df_cargas["Volumen"] = df_cargas["Volumen"].fillna(0)
+                                # Exportar Matriz de Auditoría Diaria a HTML Estilizado
+                                st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
+                                df_tabla_ban = df_cargas.copy()
+                                df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                                 
-                                # --- CÓMPUTO MATEMÁTICO DEL MODELO BANNISTER ---
-                                tau_ctl, tau_atl = 42, 7
-                                k1, k2 = 1.0, 2.0
-                                
-                                ctl_vals, atl_vals, tsb_vals = [], [], []
-                                ctl_ant, atl_ant = 0.0, 0.0
-                                
-                                for idx, row in df_cargas.iterrows():
-                                    w = row["Volumen"]
-                                    ctl_actual = ctl_ant * np.exp(-1.0 / tau_ctl) + w
-                                    atl_actual = atl_ant * np.exp(-1.0 / tau_atl) + w
-                                    tsb_actual = (ctl_ant * k1) - (atl_ant * k2)
-                                    
-                                    ctl_vals.append(ctl_actual)
-                                    atl_vals.append(atl_actual)
-                                    tsb_vals.append(tsb_actual)
-                                    
-                                    ctl_ant, atl_ant = ctl_actual, atl_actual
-                                    
-                                df_cargas["CTL"] = ctl_vals
-                                df_cargas["ATL"] = atl_vals
-                                df_cargas["TSB"] = tsb_vals
-                                
-                                if dias_atras:
-                                    fecha_corte = pd.to_datetime(datetime.date.today() - datetime.timedelta(days=dias_atras))
-                                    df_cargas = df_cargas[df_cargas["Fecha"] >= fecha_corte].copy()
-                                
-                                if df_cargas.empty:
-                                    st.info("No existen métricas acumuladas en la ventana de tiempo seleccionada.")
-                                else:
-                                    fig_ban, ax = plt.subplots(figsize=(10, 4.5))
-                                    ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness / Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.5)
-                                    ax.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
-                                    ax.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB)", color="#2ca02c", alpha=0.35, width=1.0)
-                                    
-                                    ax.set_title(f"Evolución del Perfil Fisiológico: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
-                                    ax.grid(True, linestyle=":", alpha=0.4)
-                                    ax.legend(loc="upper left", fontsize=8)
-                                    plt.xticks(rotation=25, fontsize=8)
-                                    plt.tight_layout()
-                                    
-                                    st.pyplot(fig_ban)
-                                    
-                                    # Exportar Matriz de Auditoría Diaria a HTML Estilizado
-                                    st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
-                                    df_tabla_ban = df_cargas.copy()
-                                    df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
-                                    st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-                                    
-                        except Exception as e:
-                            st.error(f"Error al computar el reporte analítico avanzado: {e}")             
+                    except Exception as e:
+                        st.error(f"Error al computar el reporte analítico avanzado: {e}")             
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
