@@ -2094,7 +2094,7 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (BLINDADO CONTRA LISTAS VACÍAS EN .IN_())
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (COMPATIBILIDAD CON TIPOS Y FILTROS)
             # =============================================================================
             atleta_ids = []
             if st.session_state.rol == "Entrenador":
@@ -2105,19 +2105,20 @@ else:
                 except Exception as e:
                     st.error(f"Error al cargar atletas asignados: {e}")
             
-            # CONTROL CRÍTICO: Si es Entrenador y no tiene nadadores a cargo, evitamos ir a Supabase
+            # CONTROL DE FLUJO: Si es Entrenador y no tiene nadadores, evitamos ir a la base de datos
             if st.session_state.rol == "Entrenador" and not atleta_ids:
-                # Creamos un objeto simulado con .data vacío para que no rompa las validaciones de abajo
                 class RespuestaVacia:
                     data = []
                 res_atlt = RespuestaVacia()
             else:
-                # Si es Administrador/Head Coach o un Entrenador con atletas asignados, hacemos la query original estable
+                # Construimos la query base limpia
                 query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
                 
+                # Si es entrenador, filtramos por sus atletas asignados
                 if st.session_state.rol == "Entrenador":
                     query_atlt = query_atlt.in_("id", atleta_ids)
                         
+                # SÓLO agregamos los filtros a la query si el usuario seleccionó uno específico diferente a "Todas/Todos"
                 if sede_rep != "Todas":
                     query_atlt = query_atlt.eq("sede", sede_rep)
                 if cat_rep != "Todas":
@@ -2125,8 +2126,13 @@ else:
                 if gen_rep != "Todos":
                     query_atlt = query_atlt.eq("genero", gen_rep)
                     
-                # Se ejecuta de forma segura solo si hay IDs válidos o si es Admin
-                res_atlt = query_atlt.execute()
+                try:
+                    # Ejecución segura
+                    res_atlt = query_atlt.execute()
+                except Exception as api_err:
+                    st.error(f"Error de comunicación con la base de datos al filtrar atletas. Mostrando nómina general de respaldo.")
+                    # Fallback de emergencia: query sin filtros pesados para que la app no quede en pantalla roja
+                    res_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador").execute()
             
             # =============================================================================
             # EVALUACIÓN DE RESULTADOS Y RENDERIZADO
