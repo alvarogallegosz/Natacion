@@ -1372,7 +1372,7 @@ else:
                             st.success(f"Tiempos de referencia actualizados para {u_cat}.")
                             st.rerun()
         else:
-            st.warning("🔒 Requiere credenciales de Dirección Técnico o Entrenador.")
+            st.warning("🔒 Requiere credenciales de Head Coach.")
     
     with tab_asignaciones:
         if st.session_state.rol in ["Head Coach", "Administrador"]:
@@ -1440,7 +1440,8 @@ else:
                     st.info("Debe contar con Entrenadores y Nadadores activos para habilitar las opciones de asignación.")
             except Exception as e:
                 st.error(f"Error operando la tabla de asignaciones: {e}")
-                
+        else:
+            st.warning("🔒 Requiere credenciales de Head Coach.")        
     # -------------------------------------------------------------
     # PESTAÑA: CALENDARIO ANUAL DE COMPETENCIAS
     # -------------------------------------------------------------
@@ -1609,7 +1610,8 @@ else:
                                 
                         except Exception as e:
                             st.error(f"Error durante la generación de hitos: {e}")
-
+        else:
+            st.warning("🔒 Requiere credenciales de Head Coach.")
     with tab_admin:
         if st.session_state.rol == "Administrador":
             st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")
