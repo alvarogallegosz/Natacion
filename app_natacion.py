@@ -2402,7 +2402,9 @@ with tab_reportes:
                                 df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
                                 df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
                                 
-                                # Motor EWMA Científico de Decaimiento Exponencial
+                                # =============================================================================
+                                # MOTOR EWMA CIENTÍFICO DE DECAIMIENTO EXPONENCIAL
+                                # =============================================================================
                                 df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
                                 df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
                                 df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
@@ -2412,20 +2414,25 @@ with tab_reportes:
                                 val_atl = int(ultima_fila["ATL"])
                                 val_tsb = int(ultima_fila["TSB"])
                                 
-                                # CÓMPUTO CIENTÍFICO RELATIVO: TSB como % del Fitness Actual (Evita mezcla de escalas)
-                                pct_tsb = (val_tsb / val_ctl) * 100 if val_ctl > 0 else 0
+                                # CÓMPUTO CIENTÍFICO RELATIVO: Evita mezcla de escalas usando porcentajes del CTL actual
+                                pct_tsb = (val_tsb / val_ctl) * 100 if val_ctl > 0 else 0.0
                                 
-                                if pct_tsb > 10.0: 
-                                    estado_forma = f"🟢 Zona de Frescura / Tapering ({pct_tsb:.1f}% del CTL)"
-                                elif pct_tsb < -25.0: 
-                                    estado_forma = f"🔴 Zona de Fatiga Sobrecargada ({pct_tsb:.1f}% del CTL)"
+                                # Ajuste de umbrales metodológicos relativos para metros equivalentes
+                                if pct_tsb > 15.0: 
+                                    estado_forma = f"🟢 Frescura / Tapering Óptimo (+{pct_tsb:.1f}% del CTL)"
+                                elif pct_tsb < -40.0: 
+                                    estado_forma = f"🔴 Fatiga Sobrecargada / Riesgo de Lesión ({pct_tsb:.1f}% del CTL)"
                                 else: 
-                                    estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb:.1f}% del CTL)"
+                                    estado_forma = f"🟡 Zona de Estímulo y Adaptación Óptima ({pct_tsb:.1f}% del CTL)"
                                 
+                                # Despliegue de métricas con etiquetas consistentes en metros equivalentes
                                 c_m1, c_m2, c_m3 = st.columns(3)
-                                with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m equivalentes")
-                                with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m equivalentes")
-                                with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
+                                with c_m1: 
+                                    st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m equiv.")
+                                with c_m2: 
+                                    st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m equiv.")
+                                with c_m3: 
+                                    st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                        
                                 # Renderizado Gráfico de Bannister Pro
                                 fig_ban, ax = plt.subplots(figsize=(11, 4.5))
