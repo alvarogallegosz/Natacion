@@ -2102,7 +2102,7 @@ else:
             
             if st.session_state.rol == "Entrenador" and client_db:
                 try:
-                    res_asig = client_db.table("asignaciones_entrenador").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
+                    res_asig = client_db.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                     if res_asig.data:
                         atleta_ids = [r["atleta_id"] for r in res_asig.data]
                 except Exception as e:
