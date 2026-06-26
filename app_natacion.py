@@ -2094,58 +2094,48 @@ else:
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
 # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (CON FILTROS TOLERANTES Y DEPURACIÓN)
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (VÍNCULO REAL CON TU BASE DE DATOS)
             # =============================================================================
             atleta_ids = []
             client_db = st.session_state.get("supabase_client")
             
             if st.session_state.rol == "Entrenador" and client_db:
                 try:
-                    # Traemos los atletas vinculados en la tabla real
+                    # Buscamos en la tabla intermedia real que usa tu barra lateral
                     res_asig = client_db.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                     if res_asig.data:
                         atleta_ids = [r["atleta_id"] for r in res_asig.data]
                 except Exception as e:
-                    st.error(f"Error al cargar atletas asignados: {e}")
+                    st.error(f"Error al cargar atletas asignados desde la tabla real: {e}")
             
-            # CONTROL DE SEGURIDAD: Si es Entrenador y no tiene nadadores en 'asignaciones', evitamos la llamada
+            # CONTROL CRÍTICO: Si es Entrenador y no tiene nadadores en 'asignaciones', evitamos la llamada
             if st.session_state.rol == "Entrenador" and not atleta_ids:
                 class RespuestaVacia:
                     data = []
                 res_atlt = RespuestaVacia()
             else:
-                # Inicializamos la query base sobre la tabla de usuarios
-                query_atlt = client_db.table("usuarios").select("id, nombre, apellido, sede, categoria, genero").eq("rol", "Nadador")
+                # Consulta limpia sobre la tabla de usuarios con campos 100% reales
+                query_atlt = client_db.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador")
                 
-                # Si el usuario es Entrenador, restringimos SÓLO a sus IDs asignados
+                # Si es Entrenador, limitamos a su nómina asignada
                 if st.session_state.rol == "Entrenador":
                     query_atlt = query_atlt.in_("id", atleta_ids)
-                        
-                # FILTROS FLEXIBLES: Sólo se aplican si se ha seleccionado una opción específica y válida
-                if 'sede_rep' in locals() and sede_rep not in ["Todas", "", None]:
-                    query_atlt = query_atlt.eq("sede", sede_rep)
-                    
-                if 'cat_rep' in locals() and cat_rep not in ["Todas", "", None]:
-                    query_atlt = query_atlt.eq("categoria", cat_rep)
-                    
-                if 'gen_rep' in locals() and gen_rep not in ["Todos", "", None]:
-                    # Mapeo por si en base de datos usas "M"/"F" en vez de Masculino/Femenino
-                    genero_busqueda = gen_rep
-                    if gen_rep == "Masculino": genero_busqueda = "M"
-                    if gen_rep == "Femenino": genero_busqueda = "F"
+                
+                # FILTROS REPT: Se aplican SOLO si existen y no están en modo "Todos"
+                if 'gen_rep' in locals() and gen_rep not in ["Todos", "Todas", "", None]:
+                    # Mapeamos "Masculino" -> "M" o "Femenino" -> "F" según tus registros
+                    genero_busqueda = "M" if "Masculino" in gen_rep or gen_rep == "M" else "F"
                     query_atlt = query_atlt.eq("genero", genero_busqueda)
                     
                 try:
                     res_atlt = query_atlt.execute()
                     
-                    # Si no encuentra nada con los filtros de Sede/Categoría/Género, hacemos un Fallback automático
-                    # para mostrarle al entrenador a TODOS sus atletas ignorando esos filtros secundarios.
+                    # Si no encuentra coincidencia con los filtros secundarios,
+                    # le muestra por defecto todos sus atletas para que la pantalla no quede en blanco
                     if not res_atlt.data and st.session_state.rol == "Entrenador":
-                        st.info("💡 Mostrando todos tus atletas asignados (Se omitieron filtros de sede/categoría por falta de coincidencias).")
-                        res_atlt = client_db.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador").in_("id", atleta_ids).execute()
+                        res_atlt = client_db.table("usuarios").select("id, nombre").eq("rol", "Nadador").in_("id", atleta_ids).execute()
                         
-                except Exception as err:
-                    # Respaldo absoluto para evitar pantallas rotas
+                except Exception:
                     class RespuestaVacia:
                         data = []
                     res_atlt = RespuestaVacia()
