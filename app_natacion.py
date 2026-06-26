@@ -2408,10 +2408,10 @@ with tab_reportes:
                                 val_atl = int(ultima_fila["ATL"])
                                 val_tsb = int(ultima_fila["TSB"])
                                 
-                                # CÓMPUTO CIENTÍFICO PORCENTUAL (CAMINO 1)
+                                # CÓMPUTO CIENTÍFICO PORCENTUAL RELATIVO
                                 pct_tsb = (val_tsb / val_ctl) * 100 if val_ctl > 0 else 0.0
                                 
-                                # Evaluación basada estrictamente en los parámetros porcentuales solicitados
+                                # Evaluación basada estrictamente en parámetros porcentuales
                                 if pct_tsb <= -25.0:
                                     estado_forma = f"🔴 Zona de Fatiga Crítica ({pct_tsb:.1f}% del CTL)"
                                 elif -10.0 <= pct_tsb <= 5.0:
@@ -2428,7 +2428,7 @@ with tab_reportes:
                                 with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                                 
                                 # =============================================================================
-                                # RENDERIZADO GRÁFICO (CONSERVA TOTALMENTE LOS METROS EQUIVALENTES)
+                                # RENDERIZADO GRÁFICO (METROS EQUIVALENTES INTACTOS)
                                 # =============================================================================
                                 fig_ban, ax = plt.subplots(figsize=(11, 4.5))
                                 ax.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
