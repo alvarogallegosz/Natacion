@@ -2087,34 +2087,43 @@ else:
                 genero_opciones = ["Todos", "Masculino", "Femenino"]
                 gen_rep = st.selectbox("🧬 Filtrar por Género:", genero_opciones, key="rep_filtro_genero")
                 
+# =============================================================================
+            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (COMPATIBLE CON IDS NO-UUID)
             # =============================================================================
-            # 3. PROCESAMIENTO DINÁMICO DE ATLETAS (ASIGNACIONES DE ENTRENADOR PROTEGIDAS)
-            # =============================================================================
-            atleta_ids = []
-            if st.session_state.rol == "Entrenador":
-                try:
-                    res_asig = st.session_state.supabase_client.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
-                    if res_asig.data:
-                        atleta_ids = [r["nadador_id"] for r in res_asig.data]
-                except Exception as e:
-                    st.error(f"Error al cargar atletas asignados: {e}")
+            supabase_ctx = st.session_state.get("supabase_client")
             
-            query_atlt = st.session_state.supabase_client.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
-            
-            if st.session_state.rol == "Entrenador":
-                if atleta_ids:
-                    query_atlt = query_atlt.in_("id", atleta_ids)
-                else:
-                    query_atlt = query_atlt.eq("id", "00000000-0000-0000-0000-000000000000")
-                    
-            if sede_rep != "Todas":
-                query_atlt = query_atlt.eq("sede", sede_rep)
-            if cat_rep != "Todas":
-                query_atlt = query_atlt.eq("categoria", cat_rep)
-            if gen_rep != "Todos":
-                query_atlt = query_atlt.eq("genero", gen_rep)
+            if not supabase_ctx:
+                st.caption("🔄 Estableciendo enlace seguro con el servidor de datos...")
+            else:
+                atleta_ids = []
+                if st.session_state.rol == "Entrenador":
+                    try:
+                        res_asig = supabase_ctx.table("asignaciones_entrenador").select("nadador_id").eq("entrenador_id", st.session_state.usuario_id).execute()
+                        if res_asig.data:
+                            # Extraemos los IDs de forma plana tal como vienen de tu base de datos
+                            atleta_ids = [r["nadador_id"] for r in res_asig.data]
+                    except Exception as e:
+                        st.error(f"Error al cargar atletas asignados: {e}")
                 
-            res_atlt = query_atlt.execute()
+                # Query base de la tabla usuarios
+                query_atlt = supabase_ctx.table("usuarios").select("id, nombre, apellido").eq("rol", "Nadador")
+                
+                # Filtro de asignación seguro para Entrenadores
+                if st.session_state.rol == "Entrenador":
+                    if atleta_ids:
+                        query_atlt = query_atlt.in_("id", atleta_ids)
+                    else:
+                        # Fallback seguro usando un id genérico de texto plano/entero en lugar de un UUID
+                        query_atlt = query_atlt.eq("id", "0")
+                        
+                if sede_rep != "Todas":
+                    query_atlt = query_atlt.eq("sede", sede_rep)
+                if cat_rep != "Todas":
+                    query_atlt = query_atlt.eq("categoria", cat_rep)
+                if gen_rep != "Todos":
+                    query_atlt = query_atlt.eq("genero", gen_rep)
+                    
+                res_atlt = query_atlt.execute()
             
             if not res_atlt.data:
                 st.info("No se encontraron nadadores bajo los filtros seleccionados.")
