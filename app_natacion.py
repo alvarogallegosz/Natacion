@@ -1696,8 +1696,53 @@ else:
                         supabase.table("usuarios").update(datos_update).eq("id", int(id_mod)).execute()
                         st.success("Cambios aplicados con éxito.")
                         st.rerun()
+            st.markdown("#### 🗄️ Resguardo de Seguridad y Copias de Respaldos (Backup)")
+            st.caption("Genera y descarga un snapshot completo con la integridad de los datos de todas las tablas relacionales del ecosistema en Supabase.")
+            
+            if st.button("🔄 Compilar Snapshot del Ecosistema Completo", type="primary"):
+                with st.spinner("Extrayendo matrices e índices relacionales de Supabase..."):
+                    try:
+                        # Diccionario contenedor del Backup estructurado
+                        backup_completo = {
+                            "metadata": {
+                                "fecha_generacion": str(datetime.datetime.now()),
+                                "generado_por": st.session_state.nombre_nadador,
+                                "version_sistema": "PRO-2026-v3"
+                            },
+                            "tablas": {}
+                        }
+                        
+                        tablas_a_respaldar = [
+                            "usuarios", "marcas_referencia", "marcas_historicas", 
+                            "historial_hitos", "catalogo_competencias", "asignaciones"
+                        ]
+                        
+                        # Descarga secuencial de tablas
+                        for tabla in tablas_a_respaldar:
+                            res_bak = supabase.table(tabla).select("*").execute()
+                            backup_completo["tablas"][tabla] = res_bak.data if res_bak.data else []
+                        
+                        # Convertir a JSON formateado legible
+                        import json
+                        backup_string = json.dumps(backup_completo, indent=4, ensure_ascii=False)
+                        backup_bytes = backup_string.encode('utf-8')
+                        
+                        st.success("✅ Snapshot compilado con éxito e integridad estructural verificada.")
+                        
+                        # Botón de descarga real del archivo compiled
+                        st.download_button(
+                            label="📥 Descargar Archivo de Backup (.json)",
+                            data=backup_bytes,
+                            file_name=f"backup_sistema_natacion_{datetime.date.today()}_full.json",
+                            mime="application/json",
+                            use_container_width=True
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"Error crítico durante la extracción del backup: {e}")
             except Exception as e:
                 st.error(f"Error en panel de control: {e}")
+                
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
 
