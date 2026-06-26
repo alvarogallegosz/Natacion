@@ -234,14 +234,20 @@ def spc():
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# CONEXIÓN SEGURA CON SUPABASE
+# CONEXIÓN SEGURA CON SUPABASE (CORREGIDA E INYECTADA EN EL ESTADO)
 # -------------------------------------------------------------
 try:
     url: str = st.secrets["SUPABASE_URL"]
     key: str = st.secrets["SUPABASE_KEY"]
+    # Creamos la instancia local original
     supabase: Client = create_client(url, key)
+    
+    # 🔥 LA CLAVE DE LA SOLUCIÓN: Aseguramos la persistencia en el proxy de Streamlit
+    if "supabase_client" not in st.session_state:
+        st.session_state["supabase_client"] = supabase
+        
 except Exception as e:
-    st.error("Faltan las credenciales de Supabase en los Secrets de la aplicación.")
+    st.error("Faltan las credenciales de Supabase en los Secrets de la aplicación o la URL es inaccesible.")
     st.stop()
 
 
