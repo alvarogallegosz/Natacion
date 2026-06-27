@@ -1160,7 +1160,7 @@ else:
 
     ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
     ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
-    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.3)
+    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
     ax.set_axisbelow(True) 
     
     # Leyenda dinámica más pequeña si estamos en modo Micro
@@ -1205,12 +1205,9 @@ else:
             instancia_tabla.set_fontsize(8.5)
             instancia_tabla.scale(1.0, 1.3)
             for (row, col), cell in instancia_tabla.get_celld().items():
-                # 1. Configuración de Bordes Estilizados y Minimalistas
-                cell.set_linewidth(0.5)            # Línea sutil muy delgada
-                cell.set_edgecolor('#E5E7EB')       # Gris claro moderno (estilo Tailwind/HTML)
                 if row == 0:
-                    cell.set_text_props(color='black', weight='light')
-                    cell.set_facecolor('#D3D3D3')
+                    cell.set_text_props(color='white', weight='bold')
+                    cell.set_facecolor('#007A87')
                 else:
                     cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
@@ -1289,14 +1286,13 @@ st.markdown("---")
 if simulacion_externa:
     st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
 else:
-    tab_pizarra, tab_reportes, tab_marcas, tab_entrenador, tab_asignaciones, tab_calendario, tab_respaldo, tab_admin = st.tabs([
+    tab_pizarra, tab_reportes, tab_marcas, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
         "📝 Pizarra Diaria", 
         "📊 Reportes de Entrenamiento", 
         "📋 Resultados de competencias", 
         "⏱️ Configurar Marcas Mínimas",
         "🎯 Asignaciones de Nadadores",
         "📅 Calendario Anual de Competencias", 
-        "💾 Respaldo de Datos",
         "🛡️ Consola Global (Admin)"
     ])
     with tab_marcas:
@@ -1705,7 +1701,7 @@ else:
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
 
-    # -------------------------------------------------------------
+# -------------------------------------------------------------
     # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (WIDGETS GARANTIZADOS)
     # -------------------------------------------------------------
     with tab_pizarra:
@@ -1859,7 +1855,7 @@ else:
                 else:
                     st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
 
-                # =# =============================================================================
+# =# =============================================================================
                 # 5. CENTRO DE DIFUSIÓN Y EXPORTACIÓN DE LA JORNADA (PIZARRA)
                 # =============================================================================
                 st.markdown("---")
@@ -1917,7 +1913,7 @@ else:
                 with st.expander("👀 Ver vista previa del mensaje a enviar"):
                     st.code(texto_entrenamiento, language="markdown")
                 
-                # =============================================================================
+# =============================================================================
                 # 4. BLOQUE DE CONSOLIDACIÓN FINAL (REGISTRO HISTÓRICO)
                 # =============================================================================
                 st.markdown("#### 💾 Consolidar y Registrar Jornada")
@@ -1974,714 +1970,571 @@ else:
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
 
-    # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
-    # -------------------------------------------------------------
-    with tab_reportes:
-        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
-            st.markdown("### 📊 Panel de Control y Análisis de Carga")
-            st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
+# -------------------------------------------------------------
+# PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
+# -------------------------------------------------------------
+with tab_reportes:
+    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
+        st.markdown("### 📊 Panel de Control y Análisis de Carga")
+        st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
+
+        # =============================================================================
+        # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS EXTENDIDAS)
+        # =============================================================================
+        opciones_tiempo = {
+            "7 días (Última semana)": 7,
+            "28 días (Ciclo Corto)": 28,
+            "30 días (Mensual)": 30,
+            "42 días (Carga Crónica - CTL)": 42,
+            "90 días (Macrociclo Trimestral)": 90,
+            "180 días (Semestral)": 180,
+            "365 días (Anual)": 365,
+            "Total Histórico": None
+        }
+        
+        ventana_sel = st.selectbox(
+            "⏳ Ventana Temporal de Análisis:",
+            options=list(opciones_tiempo.keys()),
+            index=3,  # Defecto en 42 días por su relevancia científica
+            key="rep_selectbox_temporalidad"
+        )
+        
+        dias_atras = opciones_tiempo[ventana_sel]
+        fecha_fin_rep = datetime.date.today()
     
-            # =============================================================================
-            # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS EXTENDIDAS)
-            # =============================================================================
-            opciones_tiempo = {
-                "7 días (Última semana)": 7,
-                "28 días (Ciclo Corto)": 28,
-                "30 días (Mensual)": 30,
-                "42 días (Carga Crónica - CTL)": 42,
-                "90 días (Macrociclo Trimestral)": 90,
-                "180 días (Semestral)": 180,
-                "365 días (Anual)": 365,
-                "Total Histórico": None
-            }
-            
-            ventana_sel = st.selectbox(
-                "⏳ Ventana Temporal de Análisis:",
-                options=list(opciones_tiempo.keys()),
-                index=3,  # Defecto en 42 días por su relevancia científica
-                key="rep_selectbox_temporalidad"
+        if dias_atras:
+            fecha_limite = fecha_fin_rep - datetime.timedelta(days=dias_atras)
+            rango_fechas_completo = pd.date_range(start=fecha_limite + datetime.timedelta(days=1), end=fecha_fin_rep).date
+        else:
+            fecha_limite = None
+            rango_fechas_completo = None
+
+        st.markdown("---")
+
+        # =============================================================================
+        # 2. SECCIÓN DE SEGMENTACIÓN (PRESERVADA DE LA VERSIÓN ESTABLE)
+        # =============================================================================
+        st.markdown("### 🔍 Segmentación de Destinatarios (Filtros Activos)")
+        
+        col_rep1, col_rep2 = st.columns(2)
+        with col_rep1:
+            filtro_genero_rep = st.radio(
+                "Segmentar por Género:", 
+                options=["Todos", "Femenino (F)", "Masculino (M)"],
+                horizontal=True,
+                key="rep_radio_genero_idx"
             )
-            
-            dias_atras = opciones_tiempo[ventana_sel]
-            fecha_fin_rep = datetime.date.today()
-        
-            if dias_atras:
-                fecha_limite = fecha_fin_rep - datetime.timedelta(days=dias_atras)
-                rango_fechas_completo = pd.date_range(start=fecha_limite + datetime.timedelta(days=1), end=fecha_fin_rep).date
-            else:
-                fecha_limite = None
-                rango_fechas_completo = None
-    
-            st.markdown("---")
-    
-            # =============================================================================
-            # 2. SECCIÓN DE SEGMENTACIÓN (PRESERVADA DE LA VERSIÓN ESTABLE)
-            # =============================================================================
-            st.markdown("### 🔍 Segmentación de Destinatarios (Filtros Activos)")
-            
-            col_rep1, col_rep2 = st.columns(2)
-            with col_rep1:
-                filtro_genero_rep = st.radio(
-                    "Segmentar por Género:", 
-                    options=["Todos", "Femenino (F)", "Masculino (M)"],
-                    horizontal=True,
-                    key="rep_radio_genero_idx"
-                )
-            with col_rep2:
-                tipo_filtro_rep = st.radio(
-                    "Segmentar adicionalmente por:", 
-                    options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"],
-                    horizontal=True,
-                    key="rep_radio_tipo_idx"
-                )
-    
-            # Resolución del Cliente de Supabase
-            ctx_supabase_rep = None
+        with col_rep2:
+            tipo_filtro_rep = st.radio(
+                "Segmentar adicionalmente por:", 
+                options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"],
+                horizontal=True,
+                key="rep_radio_tipo_idx"
+            )
+
+        # Resolución del Cliente de Supabase
+        ctx_supabase_rep = None
+        try:
+            ctx_supabase_rep = supabase
+        except NameError:
+            ctx_supabase_rep = st.session_state.get("supabase_client")
+
+        atletas_pool_rep = []
+        if ctx_supabase_rep:
             try:
-                ctx_supabase_rep = supabase
-            except NameError:
-                ctx_supabase_rep = st.session_state.get("supabase_client")
-    
-            atletas_pool_rep = []
-            if ctx_supabase_rep:
+                resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+                if resp_sb.data:
+                    atletas_pool_rep = resp_sb.data
+            except Exception as e:
+                st.error(f"Error al cargar nómina para reportes: {e}")
+
+        # Aplicar filtros estables de género y categoría
+        if filtro_genero_rep == "Femenino (F)":
+            atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "F"]
+        elif filtro_genero_rep == "Masculino (M)":
+            atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "M"]
+
+        categorias_disponibles_rep = sorted(list(set([
+            calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
+            for a in atletas_pool_rep if a.get("fecha_nacimiento")
+        ]))) if atletas_pool_rep else []
+
+        dict_nom_rep = {a["id"]: a["nombre"] for a in atletas_pool_rep} if atletas_pool_rep else {}
+        atletas_finales_rep = []
+
+        if tipo_filtro_rep == "Categoría Etaria":
+            cat_sel_rep = st.selectbox(
+                "Seleccione la Categoría Etaria:", 
+                options=categorias_disponibles_rep if sorted(categorias_disponibles_rep) else ["Cargando categorías..."], 
+                key="rep_selectbox_cat"
+            )
+            if sorted(categorias_disponibles_rep):
+                atletas_finales_rep = [
+                    a for a in atletas_pool_rep 
+                    if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel_rep
+                ]
+        elif tipo_filtro_rep == "Atletas Específicos":
+            ids_sel_rep = st.multiselect(
+                "Seleccione Nadador(es) Individual(es):", 
+                options=list(dict_nom_rep.keys()), 
+                format_func=lambda x: dict_nom_rep.get(x, "Cargando atleta..."),
+                key="rep_multiselect_atletas"
+            )
+            if ids_sel_rep:
+                atletas_finales_rep = [a for a in atletas_pool_rep if a["id"] in ids_sel_rep]
+        else:
+            atletas_finales_rep = atletas_pool_rep
+
+        if not atletas_finales_rep:
+            st.info("💡 Selecciona atletas o categorías válidas para procesar el reporte.")
+        else:
+            st.success(f"🎯 Analizando métricas de {len(atletas_finales_rep)} atleta(s) en la ventana seleccionada.")
+            st.markdown("---")
+
+            # =============================================================================
+            # 3. CONSOLIDACIÓN COLECTIVA (ESTILOS E INTENSIDADES DESDE JSONB)
+            # =============================================================================
+            ids_interes = [at["id"] for at in atletas_finales_rep]
+   
+            with st.spinner("Compilando históricos e intensidades..."):
                 try:
-                    resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                    if resp_sb.data:
-                        atletas_pool_rep = resp_sb.data
-                except Exception as e:
-                    st.error(f"Error al cargar nómina para reportes: {e}")
-    
-            # Aplicar filtros estables de género y categoría
-            if filtro_genero_rep == "Femenino (F)":
-                atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "F"]
-            elif filtro_genero_rep == "Masculino (M)":
-                atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "M"]
-    
-            categorias_disponibles_rep = sorted(list(set([
-                calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
-                for a in atletas_pool_rep if a.get("fecha_nacimiento")
-            ]))) if atletas_pool_rep else []
-    
-            dict_nom_rep = {a["id"]: a["nombre"] for a in atletas_pool_rep} if atletas_pool_rep else {}
-            atletas_finales_rep = []
-    
-            if tipo_filtro_rep == "Categoría Etaria":
-                cat_sel_rep = st.selectbox(
-                    "Seleccione la Categoría Etaria:", 
-                    options=categorias_disponibles_rep if sorted(categorias_disponibles_rep) else ["Cargando categorías..."], 
-                    key="rep_selectbox_cat"
-                )
-                if sorted(categorias_disponibles_rep):
-                    atletas_finales_rep = [
-                        a for a in atletas_pool_rep 
-                        if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel_rep
-                    ]
-            elif tipo_filtro_rep == "Atletas Específicos":
-                ids_sel_rep = st.multiselect(
-                    "Seleccione Nadador(es) Individual(es):", 
-                    options=list(dict_nom_rep.keys()), 
-                    format_func=lambda x: dict_nom_rep.get(x, "Cargando atleta..."),
-                    key="rep_multiselect_atletas"
-                )
-                if ids_sel_rep:
-                    atletas_finales_rep = [a for a in atletas_pool_rep if a["id"] in ids_sel_rep]
-            else:
-                atletas_finales_rep = atletas_pool_rep
-    
-            if not atletas_finales_rep:
-                st.info("💡 Selecciona atletas o categorías válidas para procesar el reporte.")
-            else:
-                st.success(f"🎯 Analizando métricas de {len(atletas_finales_rep)} atleta(s) en la ventana seleccionada.")
-                st.markdown("---")
-    
-                # =============================================================================
-                # 3. CONSOLIDACIÓN COLECTIVA (ESTILOS E INTENSIDADES DESDE JSONB)
-                # =============================================================================
-                ids_interes = [at["id"] for at in atletas_finales_rep]
-       
-                with st.spinner("Compilando históricos e intensidades..."):
-                    try:
-                        query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
-                        if fecha_limite:
-                            query_rep = query_rep.gte("fecha", str(fecha_limite))
-                        
-                        data_historica = query_rep.execute()
-                        records = data_historica.data if data_historica else []
-                        
-                        if not records:
-                            st.warning(f"📭 No se encontraron registros de entrenamiento grabados para este grupo.")
-                        else:
-                            # Filtrar estrictamente hasta el día de hoy para los análisis continuos
-                            records_hasta_hoy = []
-                            for r in records:
-                                if r.get("fecha"):
-                                    f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
-                                    if f_rec <= fecha_fin_rep:
-                                        records_hasta_hoy.append(r)
-    
-                            # El volumen acumulado macro refleja exactamente lo que se está graficando
-                            volumen_acumulado_grupo = sum([r.get("metros_totales", 0) for r in records_hasta_hoy])
-                            st.metric(label="🏊‍♂️ Volumen Total Imputado (Grupo Filtrado)", value=f"{volumen_acumulado_grupo:,} metros")
-                            
-                            global_estilos = {}
-                            global_intensidades = {}
-                            
-                            for r in records_hasta_hoy:
-                                estilos_dict = r.get("desglose_estilos") or {}
-                                for est, mts in estilos_dict.items():
-                                    global_estilos[est] = global_estilos.get(est, 0) + mts
-                                
-                                int_dict = r.get("desglose_intensidad") or {}
-                                for inten, mts in int_dict.items():
-                                    global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
-                            
-                            # =============================================================================
-                            # MOTOR GRÁFICO COMBINADO (ÁREAS ACUMULADAS) Y MATRIZ DE AUDITORÍA
-                            # =============================================================================
-                            st.markdown("---")
-                            st.markdown("#### 🏊‍♂️ Evolución y Desglose de Volúmenes Diarios del Grupo")
-                            st.caption("Serie de tiempo continua del colectivo hasta el día de hoy. Áreas: volumen total acumulado y distribución por Estilos (Eje Izquierdo). Líneas: tendencias por Intensidad con marcadores y estilos diferenciados (Eje Derecho).")
-    
-                            estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
-                            intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
-                            
-                            columnas_vol = ["Fecha"] + estilos_lista + intensidades_lista + ["Total Día"]
-                            matriz_volumen = []
-                            
-                            if rango_fechas_completo is None:
-                                fechas_instancias = []
-                                for r in records_hasta_hoy:
-                                    if r.get("fecha"):
-                                        fechas_instancias.append(datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date())
-                                if fechas_instancias:
-                                    rango_analisis = pd.date_range(start=min(fechas_instancias), end=max(fechas_instancias)).date
-                                else:
-                                    rango_analisis = [datetime.date.today()]
-                            else:
-                                rango_analisis = rango_fechas_completo
-    
-                            # Construcción de la matriz estructurada día por día
-                            for f in rango_analisis:
-                                dia_recs = [r for r in records_hasta_hoy if (datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]) == f]
-                                row_vol = {col: 0 for col in columnas_vol}
-                                row_vol["Fecha"] = f
-                                
-                                for r in dia_recs:
-                                    dict_est = r.get("desglose_estilos") or {}
-                                    for k_est, v_m in dict_est.items():
-                                        target_est = k_est if k_est in estilos_lista else "Otros"
-                                        row_vol[target_est] += v_m
-                                        row_vol["Total Día"] += v_m
-                        
-                                    dict_int = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
-                                    for k_int, v_m in dict_int.items():
-                                        target_int = "Aeróbico Ligero"
-                                        if "Medio" in k_int: target_int = "Aeróbico Medio"
-                                        elif "Umbral" in k_int or "Fuerte" in k_int: target_int = "Umbral"
-                                        elif "Sprint" in k_int or "Anaeróbico" in k_int: target_int = "Anaeróbico"
-                                        row_vol[target_int] += v_m
-                                
-                                matriz_volumen.append(row_vol)
-                                
-                            df_vol_diario = pd.DataFrame(matriz_volumen)
-                            df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
-    
-                            # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
-                            fig_vol, ax1 = plt.subplots(figsize=(7.5, 5.2))
-                            fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
-                            
-                            # Preparar los datos vectoriales para las áreas acumulativas por estilo
-                            y_estilos = [df_vol_diario[est].values for est in estilos_lista]
-                            colores_estilos = ["#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f", "#95a5a6"]
-                            
-                            # Eje 1: Renderizado de Áreas Acumuladas
-                            ax1.stackplot(
-                                fechas_str, 
-                                *y_estilos, 
-                                labels=[f"Estilo: {est}" for est in estilos_lista], 
-                                colors=colores_estilos, 
-                                alpha=0.65
-                            )
-                                
-                            ax1.set_xlabel("Días del Calendario (Serie de Tiempo Continua)", fontsize=9)
-                            ax1.set_ylabel("Volumen Acumulado por Estilos (Metros)", fontsize=9)
-                            ax1.tick_params(axis='y', labelsize=8)
-                            ax1.grid(True, linestyle=":", alpha=0.3)
-                            
-                            # Eje 2: Líneas de Tendencia de Intensidad (Preservadas intactas)
-                            ax2 = ax1.twinx()
-                            config_lineas_int = [
-                                {"color": "#27ae60", "linestyle": "-",  "marker": "x"}, # Aeróbico Ligero
-                                {"color": "#f39c12", "linestyle": "--", "marker": "*"}, # Aeróbico Medio
-                                {"color": "#d35400", "linestyle": "-.", "marker": ">"}, # Umbral
-                                {"color": "#c0392b", "linestyle": ":",  "marker": "d"}  # Anaeróbico
-                            ]
-                            
-                            for idx, inten in enumerate(intensidades_lista):
-                                cfg = config_lineas_int[idx]
-                                ax2.plot(
-                                    fechas_str, 
-                                    df_vol_diario[inten], 
-                                    label=f"Zona: {inten}", 
-                                    color=cfg["color"], 
-                                    linewidth=2.0, 
-                                    linestyle=cfg["linestyle"], 
-                                    marker=cfg["marker"], 
-                                    markersize=6
-                                )
-                                
-                            ax2.set_ylabel("Carga por Intensidades (Metros)", fontsize=9)
-                            ax2.tick_params(axis='y', labelsize=8)
-                            
-                            # Unificación limpia de leyendas
-                            lines1, labels1 = ax1.get_legend_handles_labels()
-                            lines2, labels2 = ax2.get_legend_handles_labels()
-                            ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, ncol=3)
-                          
-                            plt.xticks(rotation=45, fontsize=8)
-                            plt.tight_layout()
-                            st.pyplot(fig_vol)
-             
-                            # Botón para descargar el gráfico de volúmenes en PNG
-                            buf_png_vol = io.BytesIO()
-                            fig_vol.savefig(buf_png_vol, format="png", dpi=300)
-                            st.download_button(
-                                "🖼️ Guardar Gráfico de Volúmenes (PNG)", 
-                                data=buf_png_vol.getvalue(), 
-                                file_name=f"grafico_volumen_colectivo_{ventana_sel.split()[0]}.png", 
-                                mime="image/png"
-                            )
-                            
-                            # TABLA DIARIA DE SOPORTE CON FILA DE TOTALES ESTILIZADA
-                            st.markdown("##### 📋 Matriz de Auditoría Diaria de Entrenamientos")
-                            df_tabla_vol = df_vol_diario.copy()
-                            
-                            fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
-                            for col in columnas_vol[1:]:
-                                fila_totales_vol[col] = df_tabla_vol[col].sum()
-                                
-                            df_tabla_vol["Fecha"] = df_tabla_vol["Fecha"].map(lambda x: x.strftime("%Y-%m-%d"))
-                            df_tabla_vol = pd.concat([df_tabla_vol, pd.DataFrame([fila_totales_vol])], ignore_index=True)
-                            
-                            st.write(df_tabla_vol.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-    
-                            # =============================================================================
-                            # 4. EXPORTACIONES LIMPIAS EN 2 BOTONES (CSV Y TXT CON REPORTE INTEGRADO)
-                            # =============================================================================
-                            st.markdown("---")
-                            st.markdown("#### 📥 Exportación de Reportes Consolidados")
-                            
-                            # Generación del Bloque de Texto de Resumen Analítico
-                            resumen_lineas = [
-                                "=========================================",
-                                "   RESUMEN ANALÍTICO DE CARGA Y VOLUMEN  ",
-                                "=========================================",
-                                f"Fecha de Reporte: {datetime.date.today()}",
-                                f"Ventana Seleccionada: {ventana_sel}",
-                                f"Atletas Analizados: {len(atletas_finales_rep)}",
-                                f"Volumen Total del Grupo: {volumen_acumulado_grupo:,} metros\n",
-                                "--- DESGLOSE POR ESTILOS ---"
-                            ]
-                            for est in estilos_lista:
-                                mts = global_estilos.get(est, 0)
-                                pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                resumen_lineas.append(f"- {est}: {mts:,} m ({pct:.1f}%)")
-                                       
-                            resumen_lineas.append("\n--- DESGLOSE POR INTENSIDADES ---")
-                            for inten in intensidades_lista:
-                                mts = global_intensidades.get(inten, 0)
-                                pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                resumen_lineas.append(f"- {inten}: {mts:,} m ({pct:.1f}%)")
-                            
-                            resumen_txt_bloque = "\n".join(resumen_lineas)
-    
-                            # 1. Preparar CSV Unificado (Matriz diaria + Filas de Resumen Porcentual al final)
-                            df_csv_base = df_tabla_vol.copy()
-                            # Filas en blanco decorativas para separar la matriz del resumen dentro del CSV
-                            fila_vacia = {col: "" for col in columnas_vol}
-                            fila_titulo_est = {col: "" for col in columnas_vol}; fila_titulo_est["Fecha"] = "--- RESUMEN PORCENTUAL ESTILOS ---"
-                            
-                            df_csv_base = pd.concat([df_csv_base, pd.DataFrame([fila_vacia, fila_titulo_est])], ignore_index=True)
-                            for est in estilos_lista:
-                                mts = global_estilos.get(est, 0)
-                                pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                row_pct = {col: "" for col in columnas_vol}
-                                row_pct["Fecha"] = est
-                                row_pct["Total Día"] = f"{pct:.1f}%"
-                                df_csv_base = pd.concat([df_csv_base, pd.DataFrame([row_pct])], ignore_index=True)
-                                
-                            fila_titulo_int = {col: "" for col in columnas_vol}; fila_titulo_int["Fecha"] = "--- RESUMEN PORCENTUAL INTENSIDADES ---"
-                            df_csv_base = pd.concat([df_csv_base, pd.DataFrame([fila_vacia, fila_titulo_int])], ignore_index=True)
-                            for inten in intensidades_lista:
-                                mts = global_intensidades.get(inten, 0)
-                                pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
-                                row_pct = {col: "" for col in columnas_vol}
-                                row_pct["Fecha"] = inten
-                                row_pct["Total Día"] = f"{pct:.1f}%"
-                                df_csv_base = pd.concat([df_csv_base, pd.DataFrame([row_pct])], ignore_index=True)
-                            
-                            csv_unificado_data = df_csv_base.to_csv(index=False).encode('utf-8')
-    
-                            # 2. Preparar TXT Unificado (Matriz estructurada + Bloque analítico)
-                            matriz_txt_string = df_tabla_vol.to_string(index=False)
-                            txt_unificado_final = f"{matriz_txt_string}\n\n{resumen_txt_bloque}"
-    
-                            c_exp1, c_exp2 = st.columns(2)
-                            with c_exp1:
-                                st.download_button(
-                                    label="📥 Descargar Matriz de Volúmenes (CSV)", 
-                                    data=csv_unificado_data, 
-                                    file_name=f"matriz_completa_volumen_{ventana_sel.split()[0]}.csv", 
-                                    mime="text/csv", 
-                                    use_container_width=True
-                                )
-                            with c_exp2:
-                                st.download_button(
-                                    label="📄 Descargar Reporte de Volúmenes (TXT)", 
-                                    data=txt_unificado_final.encode('utf-8'), 
-                                    file_name=f"reporte_completo_volumen_{ventana_sel.split()[0]}.txt", 
-                                    mime="text/plain", 
-                                    use_container_width=True
-                                )
-    
-                            # =============================================================================
-                            # 5. ANÁLISIS CIENTÍFICO AVANZADO INDIVIDUALIZADO (BANNISTER)
-                            # =============================================================================
-                            st.markdown("---")
-                            st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
-                            st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB) usando la serie continua diaria.")
-    
-                            atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
-                            atleta_sel_id = st.selectbox(
-                                "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
-                                options=list(atletas_opciones_carga.keys()),
-                                format_func=lambda x: atletas_opciones_carga[x],
-                                key="rep_selectbox_atleta_carga_avanzada"
-                            )
-                            
-                            # Filtrado estricto aplicando la regla del día de hoy
-                            records_atleta = [r for r in records_hasta_hoy if r.get("atleta_id") == atleta_sel_id]
-                            
-                            if not records_atleta:
-                                st.info("💡 Este atleta no cuenta con registros de volumen específicos válidos ejecutados hasta el día de hoy.")
-                            else:
-                                with st.expander("📘 Ver Fórmulas de Modelado y Rangos Metodológicos Objetivos", expanded=False):
-                                    st.markdown(r"""
-                                    **Ecuaciones del Modelo Híbrido (Metros + Porcentaje):**
-                                    * **Fitness (CTL):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
-                                    * **Fatiga (ATL):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
-                                    * **Balance de Forma Porcentual (Eje Derecho):** $$\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\text{CTL}_t} \right) \cdot 100$$
-                                    * Donde **$$(w_t)$$** representa la carga del día en Metros Equivalentes.
-                                    * **Coeficientes multiplicadores por intensidad:** Aeróbico Ligero: 1.0, Aeróbico Medio: 1.2, Umbral: 1.4, Anaeróbico: 1.7, Sprint: 1.7. Transforman los metros reales en *Metros Equivalentes**.
-                                    * **Rangos Objetivos:** Guía de valores objetivos para el macrociclo rumbo a la competencia (ej. zonas seguras de TSB para evitar sobreentrenamiento, rango óptimo de TSB positivo [+10 a +25] en la fase de tapering o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).
-                                    * 🔴 Zona de Fatiga Crítica: %TSB < -25    ⚠️ Fatiga Acumulada Alta: -25.0 < %TSB < -10.0    🟡 Zona de Estímulo Óptimo: -10.0 <= %TSB <= 5.0    🟢 Puesta a Punto / Tapering Óptimo: 10.0 <= %TSB <= 25.0
-                                    * Lógica Matemática del Tiempo Continuo **(Días de Descanso = Esfuerzo 0)**
-                                    """)
-    
-                                if rango_fechas_completo is not None:
-                                    vol_diario_map = {f: 0.0 for f in rango_fechas_completo}
-                                    mapeo_factores = {"Aeróbico Ligero": 1.0, "Aeróbico Medio": 1.2, "Umbral": 1.4, "Anaeróbico": 1.7, "Sprint": 1.7}
-                                    
-                                    for r in records_atleta:
-                                        f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
-                                        if f_rec in vol_diario_map:
-                                            int_dict = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
-                                            subtotal_ponderado = 0.0
-                                            for k_int, m_int in int_dict.items():
-                                                factor = 1.0
-                                                for key_map, f_val in mapeo_factores.items():
-                                                    if key_map in k_int:
-                                                        factor = f_val
-                                                        break
-                                                subtotal_ponderado += (m_int * factor)
-                                            
-                                            if not int_dict:  # Fallback
-                                                subtotal_ponderado = r.get("metros_totales", 0) * r.get("factor_exigencia", 1.0)
-                                            
-                                            vol_diario_map[f_rec] += subtotal_ponderado
-                                    
-                                    # =============================================================================
-                                    # CÓMPUTO DE MATRICES (METROS + COMPONENTE PORCENTUAL)
-                                    # =============================================================================
-                                    df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_fechas_completo])
-                                    df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
-                                    df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
-                                    
-                                    df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
-                                    df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
-                                    df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
-                                    
-                                    # Serie temporal del TSB porcentual relativo
-                                    df_cargas["TSB_Pct"] = ((df_cargas["CTL"] - df_cargas["ATL"]) / df_cargas["CTL"]) * 100
-                                    df_cargas["TSB_Pct"] = df_cargas["TSB_Pct"].fillna(0.0)
-                                    
-                                    ultima_fila = df_cargas.iloc[-1]
-                                    val_ctl = int(ultima_fila["CTL"])
-                                    val_atl = int(ultima_fila["ATL"])
-                                    val_tsb = int(ultima_fila["TSB"])
-                                    pct_tsb = round(float(ultima_fila["TSB_Pct"]), 1)
-                                    
-                                    # Evaluación semántica estricta del estado actual
-                                    if pct_tsb <= -25.0:
-                                        estado_forma = f"🔴 Zona de Fatiga Crítica ({pct_tsb}% del CTL)"
-                                    elif -25.0 < pct_tsb < -10.0:
-                                        estado_forma = f"⚠️ Fatiga Acumulada Alta ({pct_tsb}% del CTL)"
-                                    elif -10.0 <= pct_tsb <= 5.0:
-                                        estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb}% del CTL)"
-                                    elif 10.0 <= pct_tsb <= 25.0:
-                                        estado_forma = f"🟢 Puesta a Punto / Tapering Óptimo (+{pct_tsb}% del CTL)"
-                                    else:
-                                        estado_forma = f"❌ Exceso de Puesta a Punto / Desentrenamiento (+{pct_tsb}% del CTL)"
-                                    
-                                    # Despliegue de tarjetas de control
-                                    c_m1, c_m2, c_m3 = st.columns(3)
-                                    with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
-                                    with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
-                                    with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
+                    query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
+                    if fecha_limite:
+                        query_rep = query_rep.gte("fecha", str(fecha_limite))
+                    
+                    data_historica = query_rep.execute()
+                    records = data_historica.data if data_historica else []
+                    
+                    if not records:
+                        st.warning(f"📭 No se encontraron registros de entrenamiento grabados para este grupo.")
+                    else:
+                        # Filtrar estrictamente hasta el día de hoy para los análisis continuos
+                        records_hasta_hoy = []
+                        for r in records:
+                            if r.get("fecha"):
+                                f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
+                                if f_rec <= fecha_fin_rep:
+                                    records_hasta_hoy.append(r)
 
-                                    # =============================================================================
-                                    # VISTA DE LA TABLA DIARIA COMPLEMENTARIA
-                                    # =============================================================================
-                                    st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
-                                    df_tabla_ban = df_cargas.copy()
-                                    df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
-                                    
-                                    df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
-                                    df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
-                                    df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
-                                    df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
-                                    df_tabla_ban["TSB_Pct"] = df_tabla_ban["TSB_Pct"].round(1).astype(str) + " %"
-                                    
-                                    df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", "ATL (Fatiga m)", "TSB (Forma m)", "TSB Relativo (% del CTL)"]
-                                    st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-                                    
-                                    # Botonera de descargas asociadas
-                                    csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
-                                    txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
-                                    
-                                    c_ban_exp1, c_ban_exp2 = st.columns(2)
-                                    with c_ban_exp1:
-                                        st.download_button(label="📥 Descargar Métricas de Estado (CSV)", data=csv_ban_data, file_name="metricas_fisiologicas.csv", mime="text/csv", use_container_width=True)
-                                    with c_ban_exp2:
-                                        st.download_button(label="📄 Descargar Reporte de Carga (TXT)", data=txt_ban_data, file_name="reporte_carga.txt", mime="text/plain", use_container_width=True)
-                                    
-                                    
-                                    # =============================================================================
-                                    # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
-                                    # =============================================================================
-                                    fig_ban, ax1 = plt.subplots(figsize=(7.5, 5.2))
-                                    
-                                    # --- EJE 1 (Izquierdo): Métricas Clásicas en Metros ---
-                                    l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
-                                    l_atl = ax1.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
-                                    b_tsb = ax1.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB m)", color="#2ca02c", alpha=0.25, width=1.0)
-                                    
-                                    ax1.set_ylabel("Volumen de Carga Ponderado (Metros)", color="#1f77b4", fontsize=9)
-                                    ax1.tick_params(axis='y', labelcolor="#1f77b4", labelsize=8)
-                                    ax1.grid(True, linestyle=":", alpha=0.2)
-                                    
-                                    # --- CORRECCIÓN DE ESCALA ASIMÉTRICA ---
-                                    # Buscamos los valores máximos y mínimos alcanzados en metros para ajustar ax1
-                                    max_metros = max(df_cargas["CTL"].max(), df_cargas["ATL"].max(), df_cargas["Volumen"].max(), 500.0)
-                                    min_metros = min(df_cargas["TSB"].min(), 0.0)
-                                    
-                                    # Le damos una holgura del 20% para que las líneas respiren y no se aplasten arriba
-                                    ax1.set_ylim(min_metros * 1.2, max_metros * 1.2)
-                                    
-                                    # --- EJE 2 (Derecho): Curva Porcentual Relativa y Líneas de Control ---
-                                    ax2 = ax1.twinx()
-                                    l_pct = ax2.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Índice TSB (%)", color="#2c3e50", linewidth=2.5, marker="o", markersize=3)
-                                    
-                                    # Líneas horizontales límites solicitadas
-                                    ax2.axhline(25.0, color="#b03a2e", linestyle="-", linewidth=1.2, alpha=0.7)  # Máximo Positivo
-                                    ax2.axhline(10.0, color="#1e8449", linestyle=":", linewidth=1.2, alpha=0.7)  # Límite superior Tapering
-                                    ax2.axhline(-10.0, color="#1e8449", linestyle=":", linewidth=1.2, alpha=0.7) # Límite inferior Tapering
-                                    ax2.axhline(-25.0, color="#b03a2e", linestyle="-", linewidth=1.2, alpha=0.7) # Máximo Negativo
-                                    ax2.axhline(0.0, color="#7f8c8d", linestyle="-", linewidth=0.8, alpha=0.4)
-                                    
-                                    # Sombreando las Áreas Fisiológicas solicitadas
-                                    # Ajustamos los límites de los spans para que no distorsionen los límites del eje
-                                    ax2.axhspan(25.0, 500.0, color="#fbc4b7", alpha=0.35, label="Rosado: Exceso de Descanso (>+25%)")
-                                    ax2.axhspan(-500.0, -25.0, color="#fbc4b7", alpha=0.35, label="Rosado: Fatiga Crónica Máxima (<-25%)")
-                                    
-                                    # Áreas Amarillas (Zonas de transición/aproximación)
-                                    ax2.axhspan(5.0, 25.0, color="#f9e79f", alpha=0.3, label="Amarillo: Transición a Puesta a Punto")
-                                    ax2.axhspan(-25.0, -10.0, color="#f9e79f", alpha=0.3, label="Amarillo: Carga Exigente")
-                                    
-                                    # Área Verde Central (Puesta a punto óptima)
-                                    ax2.axhspan(10.0, 25.0, color="#abebc6", alpha=0.4, label="🟢 Tapering Óptimo (+10% a +25%)")
-                                    
-                                    ax2.set_ylabel("Balance Fisiológico Porcentual (% del CTL)", color="#2c3e50", fontsize=9)
-                                    ax2.tick_params(axis='y', labelcolor="#2c3e50", labelsize=8)
-                                    
-                                    # Ajuste de límites del eje porcentual basado en el extremo alcanzado
-                                    max_abs_pct = max(df_cargas["TSB_Pct"].abs().max(), 35.0)
-                                    ax2.set_ylim(-max_abs_pct - 15, max_abs_pct + 15)
-                                    
-                                    # Consolidación unificada de leyendas de ambos ejes
-                                    lineas_totales = l_ctl + l_atl + [b_tsb] + l_pct
-                                    etiquetas_totales = [l.get_label() for l in lineas_totales]
-                                    ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=8, ncol=2)
-                                    
-                                    ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
-                                    plt.xticks(rotation=25, fontsize=8)
-                                    plt.tight_layout()
-                                    
-                                    if 'df_tabla_ban' in locals() and not df_tabla_ban.empty:
-    
-                                        # Si quieres limitar las filas en la imagen para que no se sature el lienzo
-                                        df_tabla_render_rep = df_tabla_ban.tail(12).copy() # Muestra por ejemplo los últimos 12 registros de carga
-                                        
-                                        # Formateamos los números a valores limpios con 1 o 2 decimales para que queden impecables en el lienzo
-                                        for col in df_tabla_render_rep.select_dtypes(include=[np.number]).columns:
-                                            df_tabla_render_rep[col] = df_tabla_render_rep[col].map(lambda x: f"{x:.1f}")
-                                    
-                                        # 4. Añadimos el eje exclusivo para la tabla en la mitad inferior del lienzo
-                                        # [izq, abajo, ancho, alto]
-                                        ax_tabla_rep = fig_rep.add_axes([0.05, 0.05, 0.90, 0.32])
-                                        ax_tabla_rep.axis('off') # Apagamos las líneas de los ejes del gráfico
-                                    
-                                        # 5. Dibujamos la tabla nativa
-                                        mpl_tabla_rep = ax_tabla_rep.table(
-                                            cellText=df_tabla_render_rep.values,
-                                            colLabels=["Fecha", "Ponderado", "CTL (Fit)", "ATL (Fat)", "TSB (Forma)", "TSB %"],
-                                            cellLoc='center',
-                                            loc='upper center',
-                                            colWidths=[0.16, 0.20, 0.16, 0.16, 0.16, 0.16]
-                                        )
-                                    
-                                        # 6. Aplicamos la estética unificada que tanto te gustó (Bordes limpios y suaves)
-                                        def estilizar_tabla_reporte(instancia_tabla):
-                                            instancia_tabla.auto_set_font_size(False)
-                                            instancia_tabla.set_fontsize(8.0)
-                                            instancia_tabla.scale(1.0, 1.4)  # Altura perfecta por fila
-                                            
-                                            for (row, col), cell in instancia_tabla.get_celld().items():
-                                                cell.set_linewidth(0.5)            # Línea delgada impecable
-                                                cell.set_edgecolor('#E5E7EB')       # Gris claro unificado
-                                                
-                                                if row == 0:
-                                                    cell.set_text_props(color='white', weight='bold', fontfamily='sans-serif')
-                                                    cell.set_facecolor('#1E293B')   # Un gris oscuro/azul pizarra muy elegante para reportes
-                                                    cell.set_linewidth(0.8)
-                                                    cell.set_edgecolor('#0F172A')
-                                                else:
-                                                    cell.set_text_props(color='#374151', fontfamily='sans-serif')
-                                                    # Zebra striping suave
-                                                    cell.set_facecolor('#F9FAFB' if row % 2 == 0 else '#FFFFFF')
-                                    
-                                        estilizar_tabla_reporte(mpl_tabla_rep)
-                                    
-                                   
-                                    st.pyplot(fig_ban)
-                                    
-                                    # Botón para descargar gráfico híbrido
-                                    buf_png_ban = io.BytesIO()
-                                    fig_ban.savefig(buf_png_ban, format="png", dpi=300)
-                                    st.download_button(
-                                        "🖼️ Guardar Gráfico Fisiológico (PNG)", 
-                                        data=buf_png_ban.getvalue(), 
-                                        file_name=f"perfil_hibrido_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
-                                        mime="image/png"
-                                    )
-
-             
-                    except Exception as e:
-                        st.error(f"Error al computar el reporte analítico avanzado: {e}")   
-             
-        else:
-            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).") 
-           
-    with tab_respaldo:
-        st.markdown("### 💾 Centro de Exportación y Respaldo de Datos")
-        st.write("Genera y descarga copias locales de la información del sistema en archivos planos CSV.")
-        
-        # 1. Definición de funciones utilitarias locales para descargas
-        def convertir_a_csv(df_datos: pd.DataFrame) -> bytes:
-            return df_datos.to_csv(index=False).encode('utf-8')
-        
-        def despachar_boton_descarga(df_datos: pd.DataFrame, file_name: str, label: str):
-            if not df_datos.empty:
-                csv_bytes = convertir_a_csv(df_datos)
-                st.download_button(
-                    label=label,
-                    data=csv_bytes,
-                    file_name=file_name,
-                    mime='text/csv',
-                    key=f"dl_{file_name}_{st.session_state.usuario_id}"
-                )
-            else:
-                st.info(f"No se encontraron registros para exportar en: {file_name}")
-        
-        # 2. Control de flujos de extracción según el Rol de sesión
-        rol_actual = st.session_state.rol
-        id_actual = st.session_state.usuario_id
-        
-        # Identificadores de tus tablas en Supabase
-        TABLA_HISTORICAS = "marcas_historicas"
-        TABLA_HITOS = "historial_hitos"
-        TABLA_USUARIOS = "usuarios"
-        
-        # --- ROL: NADADOR (Acceso exclusivo a su propia data) ---
-        if rol_actual == "Nadador":
-            st.info("Como Nadador, puedes descargar el historial completo de tus marcas y registros personales.")
-            
-            with st.spinner("Compilando tus archivos de respaldo..."):
-                res_marcas = supabase.table(TABLA_HISTORICAS).select("*").eq("usuario_id", id_actual).execute()
-                res_hitos = supabase.table(TABLA_HITOS).select("*").eq("usuario_id", id_actual).execute()
-                
-                df_marcas = pd.DataFrame(res_marcas.data)
-                df_hitos = pd.DataFrame(res_hitos.data)
-                
-                despachar_boton_descarga(df_marcas, f"mis_marcas_historicas_{id_actual}.csv", "📥 Descargar Mis Marcas Históricas (CSV)")
-                despachar_boton_descarga(df_hitos, f"mis_hitos_competencia_{id_actual}.csv", "📥 Descargar Mis Hitos y Competencias (CSV)")
-        
-        # --- ROL: HEAD COACH / ENTRENADOR (Acceso a todos los nadadores) ---
-        elif rol_actual in ["Head Coach", "Entrenador"]:
-            st.subheader("📋 Respaldo Colectivo del Club")
-            st.caption("Nota: Actualmente exporta la totalidad de atletas registrados en la aplicación.")
-            
-            with st.spinner("Compilando base de datos deportiva..."):
-                res_marcas = supabase.table(TABLA_HISTORICAS).select("*").execute()
-                res_hitos = supabase.table(TABLA_HITOS).select("*").execute()
-                res_atletas = supabase.table(TABLA_USUARIOS).select("id, nombre, email, genero, fecha_nacimiento, estatus").eq("rol", "Nadador").execute()
-                
-                df_marcas = pd.DataFrame(res_marcas.data)
-                df_hitos = pd.DataFrame(res_hitos.data)
-                df_atletas = pd.DataFrame(res_atletas.data)
-                
-                c_ch1, c_ch2, c_ch3 = st.columns(3)
-                with c_ch1:
-                    despachar_boton_descarga(df_atletas, "club_nomina_nadadores.csv", "📥 Exportar Nómina de Nadadores")
-                with c_ch2:
-                    despachar_boton_descarga(df_marcas, "club_marcas_historicas.csv", "📥 Exportar Registro de Tiempos")
-                with c_ch3:
-                    despachar_boton_descarga(df_hitos, "club_hitos_competencias.csv", "📥 Exportar Historial de Hitos")
-        
-        # --- ROL: ADMINISTRADOR (Respaldo total del sistema, tabla por tabla) ---
-        elif rol_actual == "Administrador":
-            st.subheader("🛡️ Consola de Respaldo Global (Administrador)")
-            st.warning("⚠️ Atención: Tienes acceso a la descarga íntegra de las tablas estructurales de la base de datos.")
-            
-            # Lista explícita de todas las tablas existentes en tu esquema
-            todas_las_tablas = [TABLA_USUARIOS, TABLA_HISTORICAS, TABLA_HITOS, "marcas_referencia", "catalogo_competencias", "asignaciones"]
-            
-            with st.expander("📂 Desplegar Tablas del Sistema para Copia de Seguridad", expanded=True):
-                for tabla in todas_las_tablas:
-                    try:
-                        respuesta = supabase.table(tabla).select("*").execute()
-                        df_tabla = pd.DataFrame(respuesta.data)
+                        # El volumen acumulado macro refleja exactamente lo que se está graficando
+                        volumen_acumulado_grupo = sum([r.get("metros_totales", 0) for r in records_hasta_hoy])
+                        st.metric(label="🏊‍♂️ Volumen Total Imputado (Grupo Filtrado)", value=f"{volumen_acumulado_grupo:,} metros")
                         
-                        col_t1, col_t2 = st.columns([2, 1])
-                        with col_t1:
-                            st.markdown(f"**Tabla:** `{tabla}` — *({len(df_tabla)} filas encontradas)*")
-                        with col_t2:
-                            despachar_boton_descarga(df_tabla, f"respaldo_sistema_{tabla}.csv", f"💾 Descargar {tabla}")
+                        global_estilos = {}
+                        global_intensidades = {}
+                        
+                        for r in records_hasta_hoy:
+                            estilos_dict = r.get("desglose_estilos") or {}
+                            for est, mts in estilos_dict.items():
+                                global_estilos[est] = global_estilos.get(est, 0) + mts
+                            
+                            int_dict = r.get("desglose_intensidad") or {}
+                            for inten, mts in int_dict.items():
+                                global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
+                        
+                        # =============================================================================
+                        # MOTOR GRÁFICO COMBINADO (ÁREAS ACUMULADAS) Y MATRIZ DE AUDITORÍA
+                        # =============================================================================
                         st.markdown("---")
-                    except Exception as e_db:
-                        st.error(f"Error al leer la tabla `{tabla}`: {e_db}")
-            
-        else:
-            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
+                        st.markdown("#### 🏊‍♂️ Evolución y Desglose de Volúmenes Diarios del Grupo")
+                        st.caption("Serie de tiempo continua del colectivo hasta el día de hoy. Áreas: volumen total acumulado y distribución por Estilos (Eje Izquierdo). Líneas: tendencias por Intensidad con marcadores y estilos diferenciados (Eje Derecho).")
 
+                        estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
+                        intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
+                        
+                        columnas_vol = ["Fecha"] + estilos_lista + intensidades_lista + ["Total Día"]
+                        matriz_volumen = []
+                        
+                        if rango_fechas_completo is None:
+                            fechas_instancias = []
+                            for r in records_hasta_hoy:
+                                if r.get("fecha"):
+                                    fechas_instancias.append(datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date())
+                            if fechas_instancias:
+                                rango_analisis = pd.date_range(start=min(fechas_instancias), end=max(fechas_instancias)).date
+                            else:
+                                rango_analisis = [datetime.date.today()]
+                        else:
+                            rango_analisis = rango_fechas_completo
+
+                        # Construcción de la matriz estructurada día por día
+                        for f in rango_analisis:
+                            dia_recs = [r for r in records_hasta_hoy if (datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]) == f]
+                            row_vol = {col: 0 for col in columnas_vol}
+                            row_vol["Fecha"] = f
+                            
+                            for r in dia_recs:
+                                dict_est = r.get("desglose_estilos") or {}
+                                for k_est, v_m in dict_est.items():
+                                    target_est = k_est if k_est in estilos_lista else "Otros"
+                                    row_vol[target_est] += v_m
+                                    row_vol["Total Día"] += v_m
+                    
+                                dict_int = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
+                                for k_int, v_m in dict_int.items():
+                                    target_int = "Aeróbico Ligero"
+                                    if "Medio" in k_int: target_int = "Aeróbico Medio"
+                                    elif "Umbral" in k_int or "Fuerte" in k_int: target_int = "Umbral"
+                                    elif "Sprint" in k_int or "Anaeróbico" in k_int: target_int = "Anaeróbico"
+                                    row_vol[target_int] += v_m
+                            
+                            matriz_volumen.append(row_vol)
+                            
+                        df_vol_diario = pd.DataFrame(matriz_volumen)
+                        df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
+
+                        # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
+                        fig_vol, ax1 = plt.subplots(figsize=(11, 5.2))
+                        fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
+                        
+                        # Preparar los datos vectoriales para las áreas acumulativas por estilo
+                        y_estilos = [df_vol_diario[est].values for est in estilos_lista]
+                        colores_estilos = ["#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f", "#95a5a6"]
+                        
+                        # Eje 1: Renderizado de Áreas Acumuladas
+                        ax1.stackplot(
+                            fechas_str, 
+                            *y_estilos, 
+                            labels=[f"Estilo: {est}" for est in estilos_lista], 
+                            colors=colores_estilos, 
+                            alpha=0.65
+                        )
+                            
+                        ax1.set_xlabel("Días del Calendario (Serie de Tiempo Continua)", fontsize=9)
+                        ax1.set_ylabel("Volumen Acumulado por Estilos (Metros)", fontsize=9)
+                        ax1.tick_params(axis='y', labelsize=8)
+                        ax1.grid(True, linestyle=":", alpha=0.3)
+                        
+                        # Eje 2: Líneas de Tendencia de Intensidad (Preservadas intactas)
+                        ax2 = ax1.twinx()
+                        config_lineas_int = [
+                            {"color": "#27ae60", "linestyle": "-",  "marker": "x"}, # Aeróbico Ligero
+                            {"color": "#f39c12", "linestyle": "--", "marker": "*"}, # Aeróbico Medio
+                            {"color": "#d35400", "linestyle": "-.", "marker": ">"}, # Umbral
+                            {"color": "#c0392b", "linestyle": ":",  "marker": "d"}  # Anaeróbico
+                        ]
+                        
+                        for idx, inten in enumerate(intensidades_lista):
+                            cfg = config_lineas_int[idx]
+                            ax2.plot(
+                                fechas_str, 
+                                df_vol_diario[inten], 
+                                label=f"Zona: {inten}", 
+                                color=cfg["color"], 
+                                linewidth=2.0, 
+                                linestyle=cfg["linestyle"], 
+                                marker=cfg["marker"], 
+                                markersize=6
+                            )
+                            
+                        ax2.set_ylabel("Carga por Intensidades (Metros)", fontsize=9)
+                        ax2.tick_params(axis='y', labelsize=8)
+                        
+                        # Unificación limpia de leyendas
+                        lines1, labels1 = ax1.get_legend_handles_labels()
+                        lines2, labels2 = ax2.get_legend_handles_labels()
+                        ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, ncol=3)
+                      
+                        plt.xticks(rotation=45, fontsize=8)
+                        plt.tight_layout()
+                        st.pyplot(fig_vol)
+         
+                        # Botón para descargar el gráfico de volúmenes en PNG
+                        buf_png_vol = io.BytesIO()
+                        fig_vol.savefig(buf_png_vol, format="png", dpi=300)
+                        st.download_button(
+                            "🖼️ Guardar Gráfico de Volúmenes (PNG)", 
+                            data=buf_png_vol.getvalue(), 
+                            file_name=f"grafico_volumen_colectivo_{ventana_sel.split()[0]}.png", 
+                            mime="image/png"
+                        )
+                        
+                        # TABLA DIARIA DE SOPORTE CON FILA DE TOTALES ESTILIZADA
+                        st.markdown("##### 📋 Matriz de Auditoría Diaria Colectiva")
+                        df_tabla_vol = df_vol_diario.copy()
+                        
+                        fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
+                        for col in columnas_vol[1:]:
+                            fila_totales_vol[col] = df_tabla_vol[col].sum()
+                            
+                        df_tabla_vol["Fecha"] = df_tabla_vol["Fecha"].map(lambda x: x.strftime("%Y-%m-%d"))
+                        df_tabla_vol = pd.concat([df_tabla_vol, pd.DataFrame([fila_totales_vol])], ignore_index=True)
+                        
+                        st.write(df_tabla_vol.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
+
+                        # =============================================================================
+                        # 4. EXPORTACIONES LIMPIAS EN 2 BOTONES (CSV Y TXT CON REPORTE INTEGRADO)
+                        # =============================================================================
+                        st.markdown("---")
+                        st.markdown("#### 📥 Exportación de Reportes Consolidados")
+                        
+                        # Generación del Bloque de Texto de Resumen Analítico
+                        resumen_lineas = [
+                            "=========================================",
+                            "   RESUMEN ANALÍTICO DE CARGA Y VOLUMEN  ",
+                            "=========================================",
+                            f"Fecha de Reporte: {datetime.date.today()}",
+                            f"Ventana Seleccionada: {ventana_sel}",
+                            f"Atletas Analizados: {len(atletas_finales_rep)}",
+                            f"Volumen Total del Grupo: {volumen_acumulado_grupo:,} metros\n",
+                            "--- DESGLOSE POR ESTILOS ---"
+                        ]
+                        for est in estilos_lista:
+                            mts = global_estilos.get(est, 0)
+                            pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
+                            resumen_lineas.append(f"- {est}: {mts:,} m ({pct:.1f}%)")
+                                   
+                        resumen_lineas.append("\n--- DESGLOSE POR INTENSIDADES ---")
+                        for inten in intensidades_lista:
+                            mts = global_intensidades.get(inten, 0)
+                            pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
+                            resumen_lineas.append(f"- {inten}: {mts:,} m ({pct:.1f}%)")
+                        
+                        resumen_txt_bloque = "\n".join(resumen_lineas)
+
+                        # 1. Preparar CSV Unificado (Matriz diaria + Filas de Resumen Porcentual al final)
+                        df_csv_base = df_tabla_vol.copy()
+                        # Filas en blanco decorativas para separar la matriz del resumen dentro del CSV
+                        fila_vacia = {col: "" for col in columnas_vol}
+                        fila_titulo_est = {col: "" for col in columnas_vol}; fila_titulo_est["Fecha"] = "--- RESUMEN PORCENTUAL ESTILOS ---"
+                        
+                        df_csv_base = pd.concat([df_csv_base, pd.DataFrame([fila_vacia, fila_titulo_est])], ignore_index=True)
+                        for est in estilos_lista:
+                            mts = global_estilos.get(est, 0)
+                            pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
+                            row_pct = {col: "" for col in columnas_vol}
+                            row_pct["Fecha"] = est
+                            row_pct["Total Día"] = f"{pct:.1f}%"
+                            df_csv_base = pd.concat([df_csv_base, pd.DataFrame([row_pct])], ignore_index=True)
+                            
+                        fila_titulo_int = {col: "" for col in columnas_vol}; fila_titulo_int["Fecha"] = "--- RESUMEN PORCENTUAL INTENSIDADES ---"
+                        df_csv_base = pd.concat([df_csv_base, pd.DataFrame([fila_vacia, fila_titulo_int])], ignore_index=True)
+                        for inten in intensidades_lista:
+                            mts = global_intensidades.get(inten, 0)
+                            pct = (mts / volumen_acumulado_grupo) * 100 if volumen_acumulado_grupo else 0
+                            row_pct = {col: "" for col in columnas_vol}
+                            row_pct["Fecha"] = inten
+                            row_pct["Total Día"] = f"{pct:.1f}%"
+                            df_csv_base = pd.concat([df_csv_base, pd.DataFrame([row_pct])], ignore_index=True)
+                        
+                        csv_unificado_data = df_csv_base.to_csv(index=False).encode('utf-8')
+
+                        # 2. Preparar TXT Unificado (Matriz estructurada + Bloque analítico)
+                        matriz_txt_string = df_tabla_vol.to_string(index=False)
+                        txt_unificado_final = f"{matriz_txt_string}\n\n{resumen_txt_bloque}"
+
+                        c_exp1, c_exp2 = st.columns(2)
+                        with c_exp1:
+                            st.download_button(
+                                label="📥 Descargar Matriz de Volúmenes (CSV)", 
+                                data=csv_unificado_data, 
+                                file_name=f"matriz_completa_volumen_{ventana_sel.split()[0]}.csv", 
+                                mime="text/csv", 
+                                use_container_width=True
+                            )
+                        with c_exp2:
+                            st.download_button(
+                                label="📄 Descargar Reporte de Volúmenes (TXT)", 
+                                data=txt_unificado_final.encode('utf-8'), 
+                                file_name=f"reporte_completo_volumen_{ventana_sel.split()[0]}.txt", 
+                                mime="text/plain", 
+                                use_container_width=True
+                            )
+
+                        # =============================================================================
+                        # 5. ANÁLISIS CIENTÍFICO AVANZADO INDIVIDUALIZADO (BANNISTER)
+                        # =============================================================================
+                        st.markdown("---")
+                        st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
+                        st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB) usando la serie continua diaria.")
+
+                        atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
+                        atleta_sel_id = st.selectbox(
+                            "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
+                            options=list(atletas_opciones_carga.keys()),
+                            format_func=lambda x: atletas_opciones_carga[x],
+                            key="rep_selectbox_atleta_carga_avanzada"
+                        )
+                        
+                        # Filtrado estricto aplicando la regla del día de hoy
+                        records_atleta = [r for r in records_hasta_hoy if r.get("atleta_id") == atleta_sel_id]
+                        
+                        if not records_atleta:
+                            st.info("💡 Este atleta no cuenta con registros de volumen específicos válidos ejecutados hasta el día de hoy.")
+                        else:
+                            with st.expander("📘 Ver Fórmulas de Modelado y Rangos Metodológicos Objetivos", expanded=False):
+                                st.markdown(r"""
+                                **Ecuaciones del Modelo Híbrido (Metros + Porcentaje):**
+                                * **Fitness (CTL):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
+                                * **Fatiga (ATL):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
+                                * **Balance de Forma Porcentual (Eje Derecho):** $$\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\text{CTL}_t} \right) \cdot 100$$
+                                * Donde **$$(w_t)$$** representa la carga del día en Metros Equivalentes.
+                                * **Coeficientes multiplicadores por intensidad:** Aeróbico Ligero: 1.0, Aeróbico Medio: 1.2, Umbral: 1.4, Anaeróbico: 1.7, Sprint: 1.7. Transforman los metros reales en *Metros Equivalentes**.
+                                * **Rangos Objetivos:** Guía de valores objetivos para el macrociclo rumbo a la competencia (ej. zonas seguras de TSB para evitar sobreentrenamiento, rango óptimo de TSB positivo [+10 a +25] en la fase de tapering o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).
+                                * 🔴 Zona de Fatiga Crítica: %TSB < -25    ⚠️ Fatiga Acumulada Alta: -25.0 < %TSB < -10.0    🟡 Zona de Estímulo Óptimo: -10.0 <= %TSB <= 5.0    🟢 Puesta a Punto / Tapering Óptimo: 10.0 <= %TSB <= 25.0
+                                * Lógica Matemática del Tiempo Continuo **(Días de Descanso = Esfuerzo 0)**
+                                """)
+
+                            if rango_fechas_completo is not None:
+                                vol_diario_map = {f: 0.0 for f in rango_fechas_completo}
+                                mapeo_factores = {"Aeróbico Ligero": 1.0, "Aeróbico Medio": 1.2, "Umbral": 1.4, "Anaeróbico": 1.7, "Sprint": 1.7}
+                                
+                                for r in records_atleta:
+                                    f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
+                                    if f_rec in vol_diario_map:
+                                        int_dict = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
+                                        subtotal_ponderado = 0.0
+                                        for k_int, m_int in int_dict.items():
+                                            factor = 1.0
+                                            for key_map, f_val in mapeo_factores.items():
+                                                if key_map in k_int:
+                                                    factor = f_val
+                                                    break
+                                            subtotal_ponderado += (m_int * factor)
+                                        
+                                        if not int_dict:  # Fallback
+                                            subtotal_ponderado = r.get("metros_totales", 0) * r.get("factor_exigencia", 1.0)
+                                        
+                                        vol_diario_map[f_rec] += subtotal_ponderado
+                                
+                                # =============================================================================
+                                # CÓMPUTO DE MATRICES (METROS + COMPONENTE PORCENTUAL)
+                                # =============================================================================
+                                df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_fechas_completo])
+                                df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
+                                df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
+                                
+                                df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
+                                df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
+                                df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
+                                
+                                # Serie temporal del TSB porcentual relativo
+                                df_cargas["TSB_Pct"] = ((df_cargas["CTL"] - df_cargas["ATL"]) / df_cargas["CTL"]) * 100
+                                df_cargas["TSB_Pct"] = df_cargas["TSB_Pct"].fillna(0.0)
+                                
+                                ultima_fila = df_cargas.iloc[-1]
+                                val_ctl = int(ultima_fila["CTL"])
+                                val_atl = int(ultima_fila["ATL"])
+                                val_tsb = int(ultima_fila["TSB"])
+                                pct_tsb = round(float(ultima_fila["TSB_Pct"]), 1)
+                                
+                                # Evaluación semántica estricta del estado actual
+                                if pct_tsb <= -25.0:
+                                    estado_forma = f"🔴 Zona de Fatiga Crítica ({pct_tsb}% del CTL)"
+                                elif -25.0 < pct_tsb < -10.0:
+                                    estado_forma = f"⚠️ Fatiga Acumulada Alta ({pct_tsb}% del CTL)"
+                                elif -10.0 <= pct_tsb <= 5.0:
+                                    estado_forma = f"🟡 Zona de Estímulo Óptimo ({pct_tsb}% del CTL)"
+                                elif 10.0 <= pct_tsb <= 25.0:
+                                    estado_forma = f"🟢 Puesta a Punto / Tapering Óptimo (+{pct_tsb}% del CTL)"
+                                else:
+                                    estado_forma = f"❌ Exceso de Puesta a Punto / Desentrenamiento (+{pct_tsb}% del CTL)"
+                                
+                                # Despliegue de tarjetas de control
+                                c_m1, c_m2, c_m3 = st.columns(3)
+                                with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
+                                with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
+                                with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
+                                
+# =============================================================================
+                                # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
+                                # =============================================================================
+                                fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
+                                
+                                # --- EJE 1 (Izquierdo): Métricas Clásicas en Metros ---
+                                l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
+                                l_atl = ax1.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Respuesta Aguda / Fatiga (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
+                                b_tsb = ax1.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance de Forma (TSB m)", color="#2ca02c", alpha=0.25, width=1.0)
+                                
+                                ax1.set_ylabel("Volumen de Carga Ponderado (Metros)", color="#1f77b4", fontsize=9)
+                                ax1.tick_params(axis='y', labelcolor="#1f77b4", labelsize=8)
+                                ax1.grid(True, linestyle=":", alpha=0.2)
+                                
+                                # --- CORRECCIÓN DE ESCALA ASIMÉTRICA ---
+                                # Buscamos los valores máximos y mínimos alcanzados en metros para ajustar ax1
+                                max_metros = max(df_cargas["CTL"].max(), df_cargas["ATL"].max(), df_cargas["Volumen"].max(), 500.0)
+                                min_metros = min(df_cargas["TSB"].min(), 0.0)
+                                
+                                # Le damos una holgura del 20% para que las líneas respiren y no se aplasten arriba
+                                ax1.set_ylim(min_metros * 1.2, max_metros * 1.2)
+                                
+                                # --- EJE 2 (Derecho): Curva Porcentual Relativa y Líneas de Control ---
+                                ax2 = ax1.twinx()
+                                l_pct = ax2.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Índice TSB (%)", color="#2c3e50", linewidth=2.5, marker="o", markersize=3)
+                                
+                                # Líneas horizontales límites solicitadas
+                                ax2.axhline(25.0, color="#b03a2e", linestyle="-", linewidth=1.2, alpha=0.7)  # Máximo Positivo
+                                ax2.axhline(10.0, color="#1e8449", linestyle=":", linewidth=1.2, alpha=0.7)  # Límite superior Tapering
+                                ax2.axhline(-10.0, color="#1e8449", linestyle=":", linewidth=1.2, alpha=0.7) # Límite inferior Tapering
+                                ax2.axhline(-25.0, color="#b03a2e", linestyle="-", linewidth=1.2, alpha=0.7) # Máximo Negativo
+                                ax2.axhline(0.0, color="#7f8c8d", linestyle="-", linewidth=0.8, alpha=0.4)
+                                
+                                # Sombreando las Áreas Fisiológicas solicitadas
+                                # Ajustamos los límites de los spans para que no distorsionen los límites del eje
+                                ax2.axhspan(25.0, 500.0, color="#fbc4b7", alpha=0.35, label="Rosado: Exceso de Descanso (>+25%)")
+                                ax2.axhspan(-500.0, -25.0, color="#fbc4b7", alpha=0.35, label="Rosado: Fatiga Crónica Máxima (<-25%)")
+                                
+                                # Áreas Amarillas (Zonas de transición/aproximación)
+                                ax2.axhspan(5.0, 25.0, color="#f9e79f", alpha=0.3, label="Amarillo: Transición a Puesta a Punto")
+                                ax2.axhspan(-25.0, -10.0, color="#f9e79f", alpha=0.3, label="Amarillo: Carga Exigente")
+                                
+                                # Área Verde Central (Puesta a punto óptima)
+                                ax2.axhspan(10.0, 25.0, color="#abebc6", alpha=0.4, label="🟢 Tapering Óptimo (+10% a +25%)")
+                                
+                                ax2.set_ylabel("Balance Fisiológico Porcentual (% del CTL)", color="#2c3e50", fontsize=9)
+                                ax2.tick_params(axis='y', labelcolor="#2c3e50", labelsize=8)
+                                
+                                # Ajuste de límites del eje porcentual basado en el extremo alcanzado
+                                max_abs_pct = max(df_cargas["TSB_Pct"].abs().max(), 35.0)
+                                ax2.set_ylim(-max_abs_pct - 15, max_abs_pct + 15)
+                                
+                                # Consolidación unificada de leyendas de ambos ejes
+                                lineas_totales = l_ctl + l_atl + [b_tsb] + l_pct
+                                etiquetas_totales = [l.get_label() for l in lineas_totales]
+                                ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=8, ncol=2)
+                                
+                                ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                plt.xticks(rotation=25, fontsize=8)
+                                plt.tight_layout()
+                                st.pyplot(fig_ban)
+                                
+                                # Botón para descargar gráfico híbrido
+                                buf_png_ban = io.BytesIO()
+                                fig_ban.savefig(buf_png_ban, format="png", dpi=300)
+                                st.download_button(
+                                    "🖼️ Guardar Gráfico Fisiológico (PNG)", 
+                                    data=buf_png_ban.getvalue(), 
+                                    file_name=f"perfil_hibrido_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
+                                    mime="image/png"
+                                )
+
+                                # =============================================================================
+                                # VISTA DE LA TABLA DIARIA COMPLEMENTARIA
+                                # =============================================================================
+                                st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
+                                df_tabla_ban = df_cargas.copy()
+                                df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                
+                                df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
+                                df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
+                                df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
+                                df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
+                                df_tabla_ban["TSB_Pct"] = df_tabla_ban["TSB_Pct"].round(1).astype(str) + " %"
+                                
+                                df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", "ATL (Fatiga m)", "TSB (Forma m)", "TSB Relativo (% del CTL)"]
+                                st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
+                                
+                                # Botonera de descargas asociadas
+                                csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
+                                txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
+                                
+                                c_ban_exp1, c_ban_exp2 = st.columns(2)
+                                with c_ban_exp1:
+                                    st.download_button(label="📥 Descargar Métricas de Estado (CSV)", data=csv_ban_data, file_name="metricas_fisiologicas.csv", mime="text/csv", use_container_width=True)
+                                with c_ban_exp2:
+                                    st.download_button(label="📄 Descargar Reporte de Carga (TXT)", data=txt_ban_data, file_name="reporte_carga.txt", mime="text/plain", use_container_width=True)
+         
+                except Exception as e:
+                    st.error(f"Error al computar el reporte analítico avanzado: {e}")             
+    else:
+        st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
