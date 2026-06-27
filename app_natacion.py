@@ -95,7 +95,55 @@ def obtener_marcas_historicas_cache(prueba, usuario_id):
         return response.data if response.data else []
     except Exception:
         return []
+# =============================================================================
+# CAPA 2: MOTOR MATEMÁTICO (Ecuaciones Puras y Curvas Biomecánicas)
+# =============================================================================
 
+@st.cache_data(ttl=300, show_spinner=False)
+def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
+    """Resuelve mediante fsolve el coeficiente k de curvatura fisiológica."""
+    # Evitar división por cero o inconsistencias de tiempo
+    if eq_t_peak <= eq_t0 or eq_t_pb <= eq_t0 or (eq_t_peak - eq_t0) == 0:
+        return 0.3
+        
+    tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
+    
+    def ecuacion_k_eq(k_val):
+        denominador = 1 - np.exp(-k_val)
+        # Protección matemática contra desbordamiento o división por cero
+        if denominador == 0:
+            denominador = 1e-8
+        ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / denominador
+        return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
+        
+    try:
+        k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
+        return float(k_opt_eq[0])
+    except Exception:
+        return 0.3
+# -------------------------------------------------------------
+# MOTOR MATEMATICO DE CALCULO DE CURVA PROYECTADA
+# -------------------------------------------------------------
+def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
+    """Genera el array de tiempos proyectados para un vector de edades determinado."""
+    tiempos = []
+    D_eq = eq_T_pb - eq_T_target
+    denominador_comun = 1 - np.exp(-k_eq)
+    if denominador_comun == 0:
+        denominador_comun = 1e-8
+        
+    for t in edades_arr:
+        if t < eq_t_pb:
+            # Fase 1: Curva sigmoide asintótica (Crecimiento/Maduración)
+            denom_edad = eq_t_peak - eq_t0
+            tau_t = (t - eq_t0) / denom_edad if denom_edad != 0 else 0
+            ter_exp = (np.exp(-k_eq * tau_t) - np.exp(-k_eq)) / denominador_comun
+            T_t = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
+        else:
+            # Fase 2: Deriva de estabilización / pérdida de eficiencia por edad
+            T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
+        tiempos.append(T_t)
+    return np.array(tiempos)
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
@@ -795,30 +843,6 @@ else:
     st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
 
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
-
-@st.cache_data(ttl=300, show_spinner=False)
-def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
-    if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
-        tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
-        def ecuacion_k_eq(k_val):
-            ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-            return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
-        k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
-        return k_opt_eq[0]
-    return 0.3
-
-def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
-    tiempos = []
-    D_eq = eq_T_pb - eq_T_target
-    for t in edades_arr:
-        if t < eq_t_pb:
-            tau_t = (t - eq_t0) / (eq_t_peak - eq_t0)
-            ter_exp = (np.exp(-k_eq * tau_t) - np.exp(-k_eq)) / (1 - np.exp(-k_eq))
-            T_t = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
-        else:
-            T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
-        tiempos.append(T_t)
-    return np.array(tiempos)
 
 k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
 
