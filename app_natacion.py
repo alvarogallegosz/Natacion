@@ -1160,7 +1160,7 @@ else:
 
     ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
     ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
-    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
+    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.3)
     ax.set_axisbelow(True) 
     
     # Leyenda dinámica más pequeña si estamos en modo Micro
@@ -1206,7 +1206,7 @@ else:
             instancia_tabla.scale(1.0, 1.3)
             for (row, col), cell in instancia_tabla.get_celld().items():
                 if row == 0:
-                    cell.set_text_props(color='white', weight='bold')
+                    cell.set_text_props(color='black', weight='bold')
                     cell.set_facecolor('#007A87')
                 else:
                     cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
@@ -2251,7 +2251,7 @@ else:
                             )
                             
                             # TABLA DIARIA DE SOPORTE CON FILA DE TOTALES ESTILIZADA
-                            st.markdown("##### 📋 Matriz de Auditoría Diaria Colectiva")
+                            st.markdown("##### 📋 Matriz de Auditoría Diaria de Entrenamientos")
                             df_tabla_vol = df_vol_diario.copy()
                             
                             fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
