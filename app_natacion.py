@@ -871,18 +871,18 @@ if modo_equipo:
             # 1. Obtener la lista de IDs de los atletas filtrados
             lista_ids = [atl["id"] for atl in atletas_filtrados]
             
-            # 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
+# 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
             if lista_ids and len(lista_ids) > 0:
                 datos_colectivo = obtener_marcas_colectivo_cache(titulo_grafico, lista_ids)
             else:
                 datos_colectivo = []
             
-            # Estructura simulada para preservar compatibilidad con .data abajo
-            class ObjetoRespuestaSimulado:
-                def __init__(self, data):
-                    self.data = data
+            # Estructura limpia y compatible que emula perfectamente al cliente nativo de Supabase
+            class ContenedorRespuestaSupabase:
+                def __init__(self, data_list):
+                    self.data = data_list
             
-            res_marcas_colectivo = ObjetoRespuestaSimulado(datos_colectivo)
+            res_marcas_colectivo = ContenedorRespuestaSupabase(datos_colectivo)
                 
             # Convertir la respuesta a un DataFrame global para filtrarlo en memoria
             df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
