@@ -2443,7 +2443,7 @@ else:
                                     # =============================================================================
                                     # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
                                     # =============================================================================
-                                    fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
+                                    fig_ban, ax1 = plt.subplots(figsize=(7,5, 5.2))
                                     
                                     # --- EJE 1 (Izquierdo): Métricas Clásicas en Metros ---
                                     l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
