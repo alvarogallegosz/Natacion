@@ -98,17 +98,17 @@ def obtener_marcas_historicas_cache(prueba, usuario_id):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_marcas_colectivo_cache(prueba, lista_ids):
-    """Consulta masiva optimizada para el Modo Equipo (Análisis Colectivo). Caché 5 min."""
+    """Consulta masiva optimizada para el Modo Equipo. Evita viajes repetidos a Supabase."""
     try:
         supabase = st.session_state.get("supabase_client")
         if not supabase or not lista_ids:
             return []
-        response = supabase.table("marcas_historicas") \
-            .select("usuario_id, edad, tiempo, nota") \
-            .eq("prueba", prueba) \
-            .in_("usuario_id", lista_ids) \
+        res = supabase.table("marcas_historicas")\
+            .select("usuario_id, edad, tiempo, nota")\
+            .eq("prueba", prueba)\
+            .in_("usuario_id", lista_ids)\
             .order("edad", desc=False).execute()
-        return response.data if response.data else []
+        return res.data if res.data else []
     except Exception:
         return []
 # -------------------------------------------------------------
