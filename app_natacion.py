@@ -2436,7 +2436,7 @@ with tab_reportes:
                                 with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
                                 with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                                 
-# =============================================================================
+                                # =============================================================================
                                 # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
                                 # =============================================================================
                                 fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
@@ -2538,3 +2538,91 @@ with tab_reportes:
                     st.error(f"Error al computar el reporte analítico avanzado: {e}")             
     else:
         st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
+with tab_respaldo:
+st.markdown("### 💾 Centro de Exportación y Respaldo de Datos")
+st.write("Genera y descarga copias locales de la información del sistema en archivos planos CSV.")
+
+# 1. Definición de funciones utilitarias locales para descargas
+def convertir_a_csv(df_datos: pd.DataFrame) -> bytes:
+    return df_datos.to_csv(index=False).encode('utf-8')
+
+def despachar_boton_descarga(df_datos: pd.DataFrame, file_name: str, label: str):
+    if not df_datos.empty:
+        csv_bytes = convertir_a_csv(df_datos)
+        st.download_button(
+            label=label,
+            data=csv_bytes,
+            file_name=file_name,
+            mime='text/csv',
+            key=f"dl_{file_name}_{st.session_state.usuario_id}"
+        )
+    else:
+        st.info(f"No se encontraron registros para exportar en: {file_name}")
+
+# 2. Control de flujos de extracción según el Rol de sesión
+rol_actual = st.session_state.rol
+id_actual = st.session_state.usuario_id
+
+# Identificadores de tus tablas en Supabase
+TABLA_HISTORICAS = "marcas_historicas"
+TABLA_HITOS = "historial_hitos"
+TABLA_USUARIOS = "usuarios"
+
+# --- ROL: NADADOR (Acceso exclusivo a su propia data) ---
+if rol_actual == "Nadador":
+    st.info("Como Nadador, puedes descargar el historial completo de tus marcas y registros personales.")
+    
+    with st.spinner("Compilando tus archivos de respaldo..."):
+        res_marcas = supabase.table(TABLA_HISTORICAS).select("*").eq("usuario_id", id_actual).execute()
+        res_hitos = supabase.table(TABLA_HITOS).select("*").eq("usuario_id", id_actual).execute()
+        
+        df_marcas = pd.DataFrame(res_marcas.data)
+        df_hitos = pd.DataFrame(res_hitos.data)
+        
+        despachar_boton_descarga(df_marcas, f"mis_marcas_historicas_{id_actual}.csv", "📥 Descargar Mis Marcas Históricas (CSV)")
+        despachar_boton_descarga(df_hitos, f"mis_hitos_competencia_{id_actual}.csv", "📥 Descargar Mis Hitos y Competencias (CSV)")
+
+# --- ROL: HEAD COACH / ENTRENADOR (Acceso a todos los nadadores) ---
+elif rol_actual in ["Head Coach", "Entrenador"]:
+    st.subheader("📋 Respaldo Colectivo del Club")
+    st.caption("Nota: Actualmente exporta la totalidad de atletas registrados en la aplicación.")
+    
+    with st.spinner("Compilando base de datos deportiva..."):
+        res_marcas = supabase.table(TABLA_HISTORICAS).select("*").execute()
+        res_hitos = supabase.table(TABLA_HITOS).select("*").execute()
+        res_atletas = supabase.table(TABLA_USUARIOS).select("id, nombre, email, genero, fecha_nacimiento, estatus").eq("rol", "Nadador").execute()
+        
+        df_marcas = pd.DataFrame(res_marcas.data)
+        df_hitos = pd.DataFrame(res_hitos.data)
+        df_atletas = pd.DataFrame(res_atletas.data)
+        
+        c_ch1, c_ch2, c_ch3 = st.columns(3)
+        with c_ch1:
+            despachar_boton_descarga(df_atletas, "club_nomina_nadadores.csv", "📥 Exportar Nómina de Nadadores")
+        with c_ch2:
+            despachar_boton_descarga(df_marcas, "club_marcas_historicas.csv", "📥 Exportar Registro de Tiempos")
+        with c_ch3:
+            despachar_boton_descarga(df_hitos, "club_hitos_competencias.csv", "📥 Exportar Historial de Hitos")
+
+# --- ROL: ADMINISTRADOR (Respaldo total del sistema, tabla por tabla) ---
+elif rol_actual == "Administrador":
+    st.subheader("🛡️ Consola de Respaldo Global (Administrador)")
+    st.warning("⚠️ Atención: Tienes acceso a la descarga íntegra de las tablas estructurales de la base de datos.")
+    
+    # Lista explícita de todas las tablas existentes en tu esquema
+    todas_las_tablas = [TABLA_USUARIOS, TABLA_HISTORICAS, TABLA_HITOS, "marcas_referencia", "catalogo_competencias", "asignaciones"]
+    
+    with st.expander("📂 Desplegar Tablas del Sistema para Copia de Seguridad", expanded=True):
+        for tabla in todas_las_tablas:
+            try:
+                respuesta = supabase.table(tabla).select("*").execute()
+                df_tabla = pd.DataFrame(respuesta.data)
+                
+                col_t1, col_t2 = st.columns([2, 1])
+                with col_t1:
+                    st.markdown(f"**Tabla:** `{tabla}` — *({len(df_tabla)} filas encontradas)*")
+                with col_t2:
+                    despachar_boton_descarga(df_tabla, f"respaldo_sistema_{tabla}.csv", f"💾 Descargar {tabla}")
+                st.markdown("---")
+            except Exception as e_db:
+                st.error(f"Error al leer la tabla `{tabla}`: {e_db}")
