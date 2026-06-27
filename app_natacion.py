@@ -2500,6 +2500,53 @@ else:
                                     ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
                                     plt.xticks(rotation=25, fontsize=8)
                                     plt.tight_layout()
+                                    
+                                    if 'df_tabla_ban' in locals() and not df_tabla_ban.empty:
+    
+                                        # Si quieres limitar las filas en la imagen para que no se sature el lienzo
+                                        df_tabla_render_rep = df_tabla_ban.tail(12).copy() # Muestra por ejemplo los últimos 12 registros de carga
+                                        
+                                        # Formateamos los números a valores limpios con 1 o 2 decimales para que queden impecables en el lienzo
+                                        for col in df_tabla_render_rep.select_dtypes(include=[np.number]).columns:
+                                            df_tabla_render_rep[col] = df_tabla_render_rep[col].map(lambda x: f"{x:.1f}")
+                                    
+                                        # 4. Añadimos el eje exclusivo para la tabla en la mitad inferior del lienzo
+                                        # [izq, abajo, ancho, alto]
+                                        ax_tabla_rep = fig_rep.add_axes([0.05, 0.05, 0.90, 0.32])
+                                        ax_tabla_rep.axis('off') # Apagamos las líneas de los ejes del gráfico
+                                    
+                                        # 5. Dibujamos la tabla nativa
+                                        mpl_tabla_rep = ax_tabla_rep.table(
+                                            cellText=df_tabla_render_rep.values,
+                                            colLabels=["Fecha", "Ponderado", "CTL (Fit)", "ATL (Fat)", "TSB (Forma)", "TSB %"],
+                                            cellLoc='center',
+                                            loc='upper center',
+                                            colWidths=[0.16, 0.20, 0.16, 0.16, 0.16, 0.16]
+                                        )
+                                    
+                                        # 6. Aplicamos la estética unificada que tanto te gustó (Bordes limpios y suaves)
+                                        def estilizar_tabla_reporte(instancia_tabla):
+                                            instancia_tabla.auto_set_font_size(False)
+                                            instancia_tabla.set_fontsize(8.0)
+                                            instancia_tabla.scale(1.0, 1.4)  # Altura perfecta por fila
+                                            
+                                            for (row, col), cell in instancia_tabla.get_celld().items():
+                                                cell.set_linewidth(0.5)            # Línea delgada impecable
+                                                cell.set_edgecolor('#E5E7EB')       # Gris claro unificado
+                                                
+                                                if row == 0:
+                                                    cell.set_text_props(color='white', weight='bold', fontfamily='sans-serif')
+                                                    cell.set_facecolor('#1E293B')   # Un gris oscuro/azul pizarra muy elegante para reportes
+                                                    cell.set_linewidth(0.8)
+                                                    cell.set_edgecolor('#0F172A')
+                                                else:
+                                                    cell.set_text_props(color='#374151', fontfamily='sans-serif')
+                                                    # Zebra striping suave
+                                                    cell.set_facecolor('#F9FAFB' if row % 2 == 0 else '#FFFFFF')
+                                    
+                                        estilizar_tabla_reporte(mpl_tabla_rep)
+                                    
+                                   
                                     st.pyplot(fig_ban)
                                     
                                     # Botón para descargar gráfico híbrido
