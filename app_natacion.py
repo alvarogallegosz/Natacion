@@ -809,7 +809,7 @@ def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target
             return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
         k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
         return k_opt_eq[0]
-    return 0.4
+    return 0.3
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
     tiempos = []
