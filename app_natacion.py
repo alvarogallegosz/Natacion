@@ -799,6 +799,7 @@ else:
 
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
+@st.cache_data(ttl=300, show_spinner=False)
 def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
     if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
         tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
