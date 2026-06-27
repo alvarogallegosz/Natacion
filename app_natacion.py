@@ -2132,7 +2132,7 @@ with tab_reportes:
                             for inten, mts in int_dict.items():
                                 global_intensidades[inten] = global_intensidades.get(inten, 0) + mts
                         
-# =============================================================================
+                        # =============================================================================
                         # MOTOR GRÁFICO COMBINADO (ÁREAS ACUMULADAS) Y MATRIZ DE AUDITORÍA
                         # =============================================================================
                         st.markdown("---")
@@ -2431,8 +2431,8 @@ with tab_reportes:
                                 with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
                                 with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                                 
-                                # =============================================================================
-                                # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (DOBLE EJE + MAPA DE CALOR)
+# =============================================================================
+                                # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
                                 # =============================================================================
                                 fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
                                 
@@ -2444,6 +2444,14 @@ with tab_reportes:
                                 ax1.set_ylabel("Volumen de Carga Ponderado (Metros)", color="#1f77b4", fontsize=9)
                                 ax1.tick_params(axis='y', labelcolor="#1f77b4", labelsize=8)
                                 ax1.grid(True, linestyle=":", alpha=0.2)
+                                
+                                # --- CORRECCIÓN DE ESCALA ASIMÉTRICA ---
+                                # Buscamos los valores máximos y mínimos alcanzados en metros para ajustar ax1
+                                max_metros = max(df_cargas["CTL"].max(), df_cargas["ATL"].max(), df_cargas["Volumen"].max(), 500.0)
+                                min_metros = min(df_cargas["TSB"].min(), 0.0)
+                                
+                                # Le damos una holgura del 20% para que las líneas respiren y no se aplasten arriba
+                                ax1.set_ylim(min_metros * 1.2, max_metros * 1.2)
                                 
                                 # --- EJE 2 (Derecho): Curva Porcentual Relativa y Líneas de Control ---
                                 ax2 = ax1.twinx()
@@ -2457,23 +2465,23 @@ with tab_reportes:
                                 ax2.axhline(0.0, color="#7f8c8d", linestyle="-", linewidth=0.8, alpha=0.4)
                                 
                                 # Sombreando las Áreas Fisiológicas solicitadas
-                                # 1. Áreas Rosadas (Zonas de peligro por exceso o defecto)
-                                ax2.axhspan(25.0, 100.0, color="#fbc4b7", alpha=0.35, label="Rosado: Exceso de Descanso (>+25%)")
-                                ax2.axhspan(-100.0, -25.0, color="#fbc4b7", alpha=0.35, label="Rosado: Fatiga Crónica Máxima (<-25%)")
+                                # Ajustamos los límites de los spans para que no distorsionen los límites del eje
+                                ax2.axhspan(25.0, 500.0, color="#fbc4b7", alpha=0.35, label="Rosado: Exceso de Descanso (>+25%)")
+                                ax2.axhspan(-500.0, -25.0, color="#fbc4b7", alpha=0.35, label="Rosado: Fatiga Crónica Máxima (<-25%)")
                                 
-                                # 2. Áreas Amarillas (Zonas de transición/aproximación)
+                                # Áreas Amarillas (Zonas de transición/aproximación)
                                 ax2.axhspan(5.0, 25.0, color="#f9e79f", alpha=0.3, label="Amarillo: Transición a Puesta a Punto")
                                 ax2.axhspan(-25.0, -10.0, color="#f9e79f", alpha=0.3, label="Amarillo: Carga Exigente")
                                 
-                                # 3. Área Verde Central (Puesta a punto óptima en el núcleo central residual)
+                                # Área Verde Central (Puesta a punto óptima)
                                 ax2.axhspan(10.0, 25.0, color="#abebc6", alpha=0.4, label="🟢 Tapering Óptimo (+10% a +25%)")
                                 
                                 ax2.set_ylabel("Balance Fisiológico Porcentual (% del CTL)", color="#2c3e50", fontsize=9)
                                 ax2.tick_params(axis='y', labelcolor="#2c3e50", labelsize=8)
                                 
-                                # Ajuste dinámico de límites fijos del eje porcentual para centrar la visualización
+                                # Ajuste de límites del eje porcentual basado en el extremo alcanzado
                                 max_abs_pct = max(df_cargas["TSB_Pct"].abs().max(), 35.0)
-                                ax2.set_ylim(-max_abs_pct - 10, max_abs_pct + 10)
+                                ax2.set_ylim(-max_abs_pct - 15, max_abs_pct + 15)
                                 
                                 # Consolidación unificada de leyendas de ambos ejes
                                 lineas_totales = l_ctl + l_atl + [b_tsb] + l_pct
