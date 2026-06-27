@@ -679,14 +679,21 @@ else:
             st.session_state.nadador_seleccionado_genero, 
             st.session_state.nadador_seleccionado_categoria
         )
+        
+        # Inicializamos las marcas en 0 por seguridad
+        m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a = 0.0, 0.0, 0.0, 0.0, 0.0
+        m_wr = 25.0 # Valor de respaldo base
+        
         if ref_data_list:
-            ref_data = ref_data_list[0]
-            m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] else 0.0
-            m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] else 0.0
-            m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] else 0.0
-            m_wa_b = float(ref_data["m_wa_b"]) if ref_data["m_wa_b"] else 0.0
-            m_wa_a = float(ref_data["m_wa_a"]) if ref_data["m_wa_a"] else 0.0
-            m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] else 25.0
+            # Recorremos todas las filas devueltas para capturar cada marca por separado
+            for ref_data in ref_data_list:
+                if ref_data.get("m_ano"): m_ano = float(ref_data["m_ano"])
+                if ref_data.get("m_panam_b"): m_panam_b = float(ref_data["m_panam_b"])
+                if ref_data.get("m_panam_a"): m_panam_a = float(ref_data["m_panam_a"])
+                if ref_data.get("m_wa_b"): m_wa_b = float(ref_data["m_wa_b"])
+                if ref_data.get("m_wa_a"): m_wa_a = float(ref_data["m_wa_a"])
+                if ref_data.get("m_wr"): m_wr = float(ref_data["m_wr"])
+                
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
