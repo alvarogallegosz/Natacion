@@ -2627,6 +2627,6 @@ else:
                     except Exception as e_db:
                         st.error(f"Error al leer la tabla `{tabla}`: {e_db}")
             
-    else:
-        st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
+else:
+    st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).")
 
