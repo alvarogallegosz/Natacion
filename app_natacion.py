@@ -883,7 +883,7 @@ if modo_equipo:
                     self.data = data_list
             
             res_marcas_colectivo = ContenedorRespuestaSupabase(datos_colectivo)
-                
+            st.sidebar.write(f"DEBUG: IDs enviados: {len(lista_ids)} | Registros encontrados: {len(datos_colectivo)}")                
             # Convertir la respuesta a un DataFrame global para filtrarlo en memoria
             df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
 
