@@ -695,16 +695,16 @@ st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 try:
-    response = supabase.table("marcas_historicas") \
-        .select("id, edad, tiempo, nota") \
-        .eq("prueba", titulo_grafico) \
-        .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-        .order("edad", desc=False).execute() 
+    # 1. Llamamos a tu función de la cabecera (aquí supabase ya existe y está activo)
+    marcas_data_cache = obtener_marcas_historicas_cache(
+        prueba=titulo_grafico, 
+        usuario_id=st.session_state.nadador_seleccionado_id
+    )
         
-    if response.data:
-        df_procesado = pd.DataFrame(response.data)
+    # 2. Si la caché de la RAM trae registros, estructuramos el DataFrame de inmediato
+    if marcas_data_cache:
+        df_procesado = pd.DataFrame(marcas_data_cache)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-        
         df_procesado["Edad"] = pd.to_numeric(df_procesado["Edad"])
         df_procesado["Tiempo"] = pd.to_numeric(df_procesado["Tiempo"])
         df_procesado = df_procesado.sort_values("Edad").reset_index(drop=True)
