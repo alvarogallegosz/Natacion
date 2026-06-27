@@ -1975,7 +1975,7 @@ else:
     # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
     # -------------------------------------------------------------
     with tab_reportes:
-        if st.session_state.rol in ["Nadador", "Head Coach", "Entrenador", "Administrador"]:        
+        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
     
@@ -2537,7 +2537,9 @@ else:
              
                     except Exception as e:
                         st.error(f"Error al computar el reporte analítico avanzado: {e}")             
-
+       else:
+            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).") 
+           
     with tab_respaldo:
         st.markdown("### 💾 Centro de Exportación y Respaldo de Datos")
         st.write("Genera y descarga copias locales de la información del sistema en archivos planos CSV.")
