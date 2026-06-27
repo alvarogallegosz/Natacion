@@ -2439,6 +2439,36 @@ else:
                                     with c_m1: st.metric("💪 Fitness (CTL - Crónica)", value=f"{val_ctl:,} m")
                                     with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
                                     with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
+
+                                    # =============================================================================
+                                    # VISTA DE LA TABLA DIARIA COMPLEMENTARIA
+                                    # =============================================================================
+                                    st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
+                                    df_tabla_ban = df_cargas.copy()
+                                    df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
+                                    
+                                    df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
+                                    df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
+                                    df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
+                                    df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
+                                    df_tabla_ban["TSB_Pct"] = df_tabla_ban["TSB_Pct"].round(1).astype(str) + " %"
+                                    
+                                    df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", "ATL (Fatiga m)", "TSB (Forma m)", "TSB Relativo (% del CTL)"]
+                                    st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
+                                    
+                                    # Botonera de descargas asociadas
+                                    csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
+                                    txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
+                                    
+                                    c_ban_exp1, c_ban_exp2 = st.columns(2)
+                                    with c_ban_exp1:
+                                        st.download_button(label="📥 Descargar Métricas de Estado (CSV)", data=csv_ban_data, file_name="metricas_fisiologicas.csv", mime="text/csv", use_container_width=True)
+                                    with c_ban_exp2:
+                                        st.download_button(label="📄 Descargar Reporte de Carga (TXT)", data=txt_ban_data, file_name="reporte_carga.txt", mime="text/plain", use_container_width=True)
+             
+                    except Exception as e:
+                        st.error(f"Error al computar el reporte analítico avanzado: {e}")
+                                    
                                     
                                     # =============================================================================
                                     # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
@@ -2559,34 +2589,7 @@ else:
                                         mime="image/png"
                                     )
     
-                                    # =============================================================================
-                                    # VISTA DE LA TABLA DIARIA COMPLEMENTARIA
-                                    # =============================================================================
-                                    st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
-                                    df_tabla_ban = df_cargas.copy()
-                                    df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
-                                    
-                                    df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
-                                    df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
-                                    df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
-                                    df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
-                                    df_tabla_ban["TSB_Pct"] = df_tabla_ban["TSB_Pct"].round(1).astype(str) + " %"
-                                    
-                                    df_tabla_ban.columns = ["Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", "ATL (Fatiga m)", "TSB (Forma m)", "TSB Relativo (% del CTL)"]
-                                    st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-                                    
-                                    # Botonera de descargas asociadas
-                                    csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
-                                    txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
-                                    
-                                    c_ban_exp1, c_ban_exp2 = st.columns(2)
-                                    with c_ban_exp1:
-                                        st.download_button(label="📥 Descargar Métricas de Estado (CSV)", data=csv_ban_data, file_name="metricas_fisiologicas.csv", mime="text/csv", use_container_width=True)
-                                    with c_ban_exp2:
-                                        st.download_button(label="📄 Descargar Reporte de Carga (TXT)", data=txt_ban_data, file_name="reporte_carga.txt", mime="text/plain", use_container_width=True)
              
-                    except Exception as e:
-                        st.error(f"Error al computar el reporte analítico avanzado: {e}")             
         else:
             st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).") 
            
