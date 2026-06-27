@@ -1205,9 +1205,11 @@ else:
             instancia_tabla.set_fontsize(8.5)
             instancia_tabla.scale(1.0, 1.3)
             for (row, col), cell in instancia_tabla.get_celld().items():
+                cell.set_linewidth(0.5)            # Línea sutil muy delgada
+                cell.set_edgecolor('#E5E7EB')       # Gris claro moderno (estilo Tailwind/HTML)
                 if row == 0:
-                    cell.set_text_props(color='white', weight='bold')
-                    cell.set_facecolor('#007A87')
+                    cell.set_text_props(color='black', weight='light')
+                    cell.set_facecolor('#C0C0C0')
                 else:
                     cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
