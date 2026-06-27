@@ -98,17 +98,17 @@ def obtener_marcas_historicas_cache(prueba, usuario_id):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_marcas_colectivo_cache(prueba, lista_ids):
-    """Consulta masiva de marcas para el modo equipo. Evita re-consultas en competencias. Caché 5 min."""
+    """Consulta masiva optimizada para el Modo Equipo (Análisis Colectivo). Caché 5 min."""
     try:
         supabase = st.session_state.get("supabase_client")
         if not supabase or not lista_ids:
             return []
-        res = supabase.table("marcas_historicas")\
-            .select("usuario_id, edad, tiempo, nota")\
-            .eq("prueba", prueba)\
-            .in_("usuario_id", lista_ids)\
+        response = supabase.table("marcas_historicas") \
+            .select("usuario_id, edad, tiempo, nota") \
+            .eq("prueba", prueba) \
+            .in_("usuario_id", lista_ids) \
             .order("edad", desc=False).execute()
-        return res.data if res.data else []
+        return response.data if response.data else []
     except Exception:
         return []
 # -------------------------------------------------------------
@@ -871,19 +871,18 @@ if modo_equipo:
             # 1. Obtener la lista de IDs de los atletas filtrados
             lista_ids = [atl["id"] for atl in atletas_filtrados]
             
-# 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
+            # 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
             if lista_ids and len(lista_ids) > 0:
                 datos_colectivo = obtener_marcas_colectivo_cache(titulo_grafico, lista_ids)
             else:
                 datos_colectivo = []
-                st.sidebar.warning("⚠️ No hay atletas seleccionados en los filtros de arriba.")
             
             # Estructura simulada para preservar compatibilidad con .data abajo
-            class ObjetoRespuesta:
+            class ObjetoRespuestaSimulado:
                 def __init__(self, data):
                     self.data = data
             
-            res_marcas_colectivo = ObjetoRespuesta(datos_colectivo)
+            res_marcas_colectivo = ObjetoRespuestaSimulado(datos_colectivo)
                 
             # Convertir la respuesta a un DataFrame global para filtrarlo en memoria
             df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
