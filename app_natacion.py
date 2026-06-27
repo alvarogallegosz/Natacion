@@ -1206,8 +1206,8 @@ else:
             instancia_tabla.scale(1.0, 1.3)
             for (row, col), cell in instancia_tabla.get_celld().items():
                 if row == 0:
-                    cell.set_text_props(color='black', weight='bold')
-                    cell.set_facecolor('#007A87')
+                    cell.set_text_props(color='black', weight='light')
+                    cell.set_facecolor('#D3D3D3')
                 else:
                     cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
