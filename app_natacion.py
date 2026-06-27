@@ -1205,6 +1205,9 @@ else:
             instancia_tabla.set_fontsize(8.5)
             instancia_tabla.scale(1.0, 1.3)
             for (row, col), cell in instancia_tabla.get_celld().items():
+                # 1. Configuración de Bordes Estilizados y Minimalistas
+                cell.set_linewidth(0.5)            # Línea sutil muy delgada
+                cell.set_edgecolor('#E5E7EB')       # Gris claro moderno (estilo Tailwind/HTML)
                 if row == 0:
                     cell.set_text_props(color='black', weight='light')
                     cell.set_facecolor('#D3D3D3')
