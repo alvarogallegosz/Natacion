@@ -2188,7 +2188,7 @@ else:
                             df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
     
                             # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
-                            fig_vol, ax1 = plt.subplots(figsize=(11, 5.2))
+                            fig_vol, ax1 = plt.subplots(figsize=(7.5, 5.2))
                             fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
                             
                             # Preparar los datos vectoriales para las áreas acumulativas por estilo
