@@ -2368,7 +2368,7 @@ with tab_reportes:
                                 * **Fitness (CTL):** $$\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})$$
                                 * **Fatiga (ATL):** $$\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})$$
                                 * **Balance de Forma Porcentual (Eje Derecho):** $$\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\text{CTL}_t} \right) \cdot 100$$
-                                * Donde **$(w_t)$** representa la carga del día en Metros Equivalentes.
+                                * Donde **$$(w_t)$$** representa la carga del día en Metros Equivalentes.
                                 * **Coeficientes multiplicadores por intensidad:** Aeróbico Ligero: 1.0, Aeróbico Medio: 1.2, Umbral: 1.4, Anaeróbico: 1.7, Sprint: 1.7. Transforman los metros reales en *Metros Equivalentes**.
                                 * **Rangos Objetivos:** Guía de valores objetivos para el macrociclo rumbo a la competencia (ej. zonas seguras de TSB para evitar sobreentrenamiento, rango óptimo de TSB positivo [+10 a +25] en la fase de tapering o puesta a punto justo antes del hito competitivo, y niveles de fatiga tolerables).
                                 * 🔴 Zona de Fatiga Crítica: %TSB < -25    ⚠️ Fatiga Acumulada Alta: -25.0 < %TSB < -10.0    🟡 Zona de Estímulo Óptimo: -10.0 <= %TSB <= 5.0    🟢 Puesta a Punto / Tapering Óptimo: 10.0 <= %TSB <= 25.0
