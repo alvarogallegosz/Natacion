@@ -96,6 +96,21 @@ def obtener_marcas_historicas_cache(prueba, usuario_id):
     except Exception:
         return []
 
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_marcas_colectivo_cache(prueba, lista_ids):
+    """Consulta masiva de marcas para el modo equipo. Evita re-consultas en competencias. Caché 5 min."""
+    try:
+        supabase = st.session_state.get("supabase_client")
+        if not supabase or not lista_ids:
+            return []
+        res = supabase.table("marcas_historicas")\
+            .select("usuario_id, edad, tiempo, nota")\
+            .eq("prueba", prueba)\
+            .in_("usuario_id", lista_ids)\
+            .order("edad", desc=False).execute()
+        return res.data if res.data else []
+    except Exception:
+        return []
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
@@ -695,14 +710,10 @@ st.sidebar.subheader("🚨 Simulación de Escenarios")
 simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
 try:
-    response = supabase.table("marcas_historicas") \
-        .select("id, edad, tiempo, nota") \
-        .eq("prueba", titulo_grafico) \
-        .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-        .order("edad", desc=False).execute() 
+    marcas_data = obtener_marcas_historicas_cache(titulo_grafico, st.session_state.nadador_seleccionado_id)
         
-    if response.data:
-        df_procesado = pd.DataFrame(response.data)
+    if marcas_data:
+        df_procesado = pd.DataFrame(marcas_data)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
         
         df_procesado["Edad"] = pd.to_numeric(df_procesado["Edad"])
@@ -860,12 +871,15 @@ if modo_equipo:
             # 1. Obtener la lista de IDs de los atletas filtrados
             lista_ids = [atl["id"] for atl in atletas_filtrados]
             
-            # 2. Realizar UNA SOLA consulta masiva a Supabase para todo el colectivo
-            res_marcas_colectivo = supabase.table("marcas_historicas")\
-                .select("usuario_id, edad, tiempo, nota")\
-                .eq("prueba", titulo_grafico)\
-                .in_("usuario_id", lista_ids)\
-                .order("edad", desc=False).execute()
+            # 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
+            datos_colectivo = obtener_marcas_colectivo_cache(titulo_grafico, lista_ids)
+            
+            # Estructura simulada para que no rompa el procesamiento posterior de .data
+            class ObjetoRespuesta:
+                def __init__(self, data):
+                    self.data = data
+            
+            res_marcas_colectivo = ObjetoRespuesta(datos_colectivo)
                 
             # Convertir la respuesta a un DataFrame global para filtrarlo en memoria
             df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
