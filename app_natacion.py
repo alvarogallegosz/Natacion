@@ -674,12 +674,13 @@ if es_preinfantil:
         m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
 else:
     try:
-        ref_resp = supabase.table("marcas_referencia").select("*")\
-            .eq("prueba", titulo_grafico)\
-            .eq("genero", st.session_state.nadador_seleccionado_genero)\
-            .eq("categoria", st.session_state.nadador_seleccionado_categoria).execute()
-        if ref_resp.data:
-            ref_data = ref_resp.data[0]
+        ref_data_list = obtener_marcas_referencia_cache(
+            titulo_grafico, 
+            st.session_state.nadador_seleccionado_genero, 
+            st.session_state.nadador_seleccionado_categoria
+        )
+        if ref_data_list:
+            ref_data = ref_data_list[0]
             m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] else 0.0
             m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] else 0.0
             m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] else 0.0
