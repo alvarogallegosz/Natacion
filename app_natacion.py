@@ -2359,7 +2359,7 @@ with tab_reportes:
                         # Filtrado estricto aplicando la regla del día de hoy
                         records_atleta = [r for r in records_hasta_hoy if r.get("atleta_id") == atleta_sel_id]
                         
-if not records_atleta:
+                        if not records_atleta:
                             st.info("💡 Este atleta no cuenta con registros de volumen específicos válidos ejecutados hasta el día de hoy.")
                         else:
                             with st.expander("📘 Ver Fórmulas de Modelado y Rangos Metodológicos Objetivos", expanded=False):
