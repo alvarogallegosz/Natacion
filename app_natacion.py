@@ -871,10 +871,14 @@ if modo_equipo:
             # 1. Obtener la lista de IDs de los atletas filtrados
             lista_ids = [atl["id"] for atl in atletas_filtrados]
             
-            # 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
-            datos_colectivo = obtener_marcas_colectivo_cache(titulo_grafico, lista_ids)
+# 2. Realizar UNA SOLA consulta masiva utilizando la caché optimizada
+            if lista_ids and len(lista_ids) > 0:
+                datos_colectivo = obtener_marcas_colectivo_cache(titulo_grafico, lista_ids)
+            else:
+                datos_colectivo = []
+                st.sidebar.warning("⚠️ No hay atletas seleccionados en los filtros de arriba.")
             
-            # Estructura simulada para que no rompa el procesamiento posterior de .data
+            # Estructura simulada para preservar compatibilidad con .data abajo
             class ObjetoRespuesta:
                 def __init__(self, data):
                     self.data = data
