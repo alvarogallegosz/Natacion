@@ -2537,8 +2537,8 @@ else:
              
                     except Exception as e:
                         st.error(f"Error al computar el reporte analítico avanzado: {e}")             
-            else:
-                st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).") 
+        else:
+            st.warning("🔒 Esta función está reservada para el equipo técnico (Entrenadores y Administradores).") 
            
     with tab_respaldo:
         st.markdown("### 💾 Centro de Exportación y Respaldo de Datos")
