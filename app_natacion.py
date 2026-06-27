@@ -1975,7 +1975,7 @@ else:
     # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
     # -------------------------------------------------------------
     with tab_reportes:
-        if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
+        if st.session_state.rol in ["Nadador", "Head Coach", "Entrenador", "Administrador"]:        
             st.markdown("### 📊 Panel de Control y Análisis de Carga")
             st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
     
