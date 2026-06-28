@@ -783,7 +783,7 @@ else:
 with contenedor_sliders:
     spc()
     st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
-    h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.05)
+    h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.35, step=0.05)
     t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
 if not modo_equipo and st.session_state.rol == "Nadador":
