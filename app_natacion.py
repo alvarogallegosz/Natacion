@@ -674,26 +674,18 @@ if es_preinfantil:
         m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
 else:
     try:
-        ref_data_list = obtener_marcas_referencia_cache(
-            titulo_grafico, 
-            st.session_state.nadador_seleccionado_genero, 
-            st.session_state.nadador_seleccionado_categoria
-        )
-        
-        # Inicializamos las marcas en 0 por seguridad
-        m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a = 0.0, 0.0, 0.0, 0.0, 0.0
-        m_wr = 25.0 # Valor de respaldo base
-        
-        if ref_data_list:
-            # Recorremos todas las filas devueltas para capturar cada marca por separado
-            for ref_data in ref_data_list:
-                if ref_data.get("m_ano"): m_ano = float(ref_data["m_ano"])
-                if ref_data.get("m_panam_b"): m_panam_b = float(ref_data["m_panam_b"])
-                if ref_data.get("m_panam_a"): m_panam_a = float(ref_data["m_panam_a"])
-                if ref_data.get("m_wa_b"): m_wa_b = float(ref_data["m_wa_b"])
-                if ref_data.get("m_wa_a"): m_wa_a = float(ref_data["m_wa_a"])
-                if ref_data.get("m_wr"): m_wr = float(ref_data["m_wr"])
-                
+        ref_resp = supabase.table("marcas_referencia").select("*")\
+            .eq("prueba", titulo_grafico)\
+            .eq("genero", st.session_state.nadador_seleccionado_genero)\
+            .eq("categoria", st.session_state.nadador_seleccionado_categoria).execute()
+        if ref_resp.data:
+            ref_data = ref_resp.data[0]
+            m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] else 0.0
+            m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] else 0.0
+            m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] else 0.0
+            m_wa_b = float(ref_data["m_wa_b"]) if ref_data["m_wa_b"] else 0.0
+            m_wa_a = float(ref_data["m_wa_a"]) if ref_data["m_wa_a"] else 0.0
+            m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] else 25.0
     except Exception as e:
         st.error(f"Error extrayendo marcas de la categoría: {e}")
 
@@ -711,6 +703,7 @@ try:
     if response.data:
         df_procesado = pd.DataFrame(response.data)
         df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
+        
         df_procesado["Edad"] = pd.to_numeric(df_procesado["Edad"])
         df_procesado["Tiempo"] = pd.to_numeric(df_procesado["Tiempo"])
         df_procesado = df_procesado.sort_values("Edad").reset_index(drop=True)
@@ -806,7 +799,6 @@ else:
 
 st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
 
-@st.cache_data(ttl=300, show_spinner=False)
 def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
     if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
         tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
@@ -815,7 +807,7 @@ def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target
             return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
         k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
         return k_opt_eq[0]
-    return 0.3
+    return 0.4
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
     tiempos = []
