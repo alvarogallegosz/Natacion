@@ -158,7 +158,66 @@ def obtener_datos_hitos_atleta(nadador_id):
     except Exception as e:
         print(f"Error interno en consulta cacheada de Supabase: {e}")
     return None
+def sincronizar_hitos_competencias_atleta(nadador_id, fecha_nacimiento, genero_atleta):
+    """
+    Revisa el catálogo de competencias y asegura que el atleta tenga creados sus hitos
+    para las competencias Nacionales e Internacionales de la temporada actual.
+    """
+    try:
+        supabase_client = st.session_state.get("supabase_client")
+        if not supabase_client:
+            return
 
+        # 1. Obtener el catálogo global de competencias
+        competencias = obtener_catalogo_competencias_cache()
+        if not competencias:
+            return
+
+        # 2. Obtener los hitos que ya tiene registrados el nadador actualmente
+        hitos_actuales = supabase_client.table("historial_hitos") \
+            .select("competencia_id") \
+            .eq("usuario_id", nadador_id) \
+            .execute()
+        
+        ids_competencias_registradas = [h["competencia_id"] for h in hitos_actuales.data] if hitos_actuales.data else []
+
+        # 3. Evaluar qué competencias le corresponden y faltan por registrar
+        for comp in competencias:
+            comp_id = comp.get("id")
+            # Evitamos duplicados si ya existe el hito para esta competencia
+            if comp_id in ids_competencias_registradas:
+                continue
+
+            tipo_evento = str(comp.get("categoria_evento", "")).upper()
+            
+            # Filtramos estrictamente por Nacional o Internacional (con restricción)
+            if "NACIONAL" in tipo_evento or "INTERNACIONAL" in tipo_evento:
+                fecha_inicio_str = comp.get("fecha_inicio")
+                
+                if fecha_inicio_str:
+                    fecha_comp = pd.to_datetime(fecha_inicio_str).date()
+                    
+                    # Calcular la edad exacta que tendrá el atleta en esa competencia
+                    edad_en_evento = calcular_edad_decimal(fecha_nacimiento, fecha_comp)
+                    
+                    # Estructurar el nuevo registro de hito alineado con tu backend
+                    nuevo_hito = {
+                        "usuario_id": nadador_id,
+                        "competencia_id": comp_id,
+                        "nombre_hito": comp.get("nombre_evento", "Campeonato Obligatorio"),
+                        "fecha_evento": fecha_inicio_str,
+                        "edad_hito": float(round(edad_en_evento, 2)),
+                        "descripcion": f"Sincronizado automáticamente para la temporada {comp.get('temporada', '')}"
+                    }
+                    
+                    # Insertar en la tabla historial_hitos de Supabase
+                    supabase_client.table("historial_hitos").insert(nuevo_hito).execute()
+                    
+        # Forzar la limpieza del caché local de hitos para que cargue los nuevos de inmediato
+        st.cache_data.clear()
+
+    except Exception as e:
+        print(f"Error silencioso en la sincronización automática de hitos: {e}")
 # -------------------------------------------------------------
 # FUNCIÓN DE ENVÍO DE CORREOS (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
