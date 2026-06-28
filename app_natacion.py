@@ -127,20 +127,25 @@ def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
 # -------------------------------------------------------------
 # FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
-@st.cache_data(show_spinner=False, ttl=600)
+@st.cache_data(show_spinner=False, ttl=1) # Bajado a 1s o el tiempo mínimo que gustes
 def obtener_datos_hitos_atleta(nadador_id):
     """
-    Consulta de forma segura y aislada la información del atleta.
-    Al estar decorada con @st.cache_data, Streamlit garantiza que NO 
-    se generen loops infinitos ni sobrecargas a Supabase.
+    Consulta de forma segura y aislada la información del atleta usando el cliente de sesión.
     """
     try:
-        res_atleta = supabase.table("usuarios") \
+        # CORRECCIÓN: Obtener el cliente correcto del session_state para evitar colisiones de contexto
+        supabase_client = st.session_state.get("supabase_client")
+        if not supabase_client:
+            # Si no se encuentra en el estado, usamos el global por respaldo
+            from __main__ import supabase as supabase_global
+            supabase_client = supabase_global
+
+        res_atleta = supabase_client.table("usuarios") \
             .select("fecha_nacimiento") \
             .eq("id", nadador_id) \
             .execute()
             
-        res_hitos = supabase.table("historial_hitos") \
+        res_hitos = supabase_client.table("historial_hitos") \
             .select("*, catalogo_competencias(*)") \
             .eq("usuario_id", nadador_id) \
             .execute()
