@@ -38,7 +38,7 @@ def obtener_marcas_referencia_cache(prueba, genero, categoria):
     except Exception:
         return []
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=1, show_spinner=False)
 def obtener_usuario_por_id_cache(usuario_id):
     """Datos de usuario (fecha_nacimiento, nombre, etc.): No cambian. Caché 1h."""
     try:
