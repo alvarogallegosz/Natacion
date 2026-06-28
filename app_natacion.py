@@ -23,7 +23,7 @@ def hash_password(password):
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=1, show_spinner=False)
 def obtener_marcas_referencia_cache(prueba, genero, categoria):
     """Marca de referencia: Cambia ~1 vez al año. Caché por 24h."""
     try:
@@ -53,7 +53,7 @@ def obtener_usuario_por_id_cache(usuario_id):
     except Exception:
         return None
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=1, show_spinner=False)
 def obtener_catalogo_competencias_cache():
     """Catálogo de competencias: Rara vez cambia. Caché 1h."""
     try:
@@ -65,7 +65,7 @@ def obtener_catalogo_competencias_cache():
     except Exception:
         return []
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=1, show_spinner=False)
 def obtener_historial_hitos_cache(nadador_id):
     """Historial de hitos: Vinculado a competiciones. Caché 5 min para fluidez."""
     try:
@@ -80,7 +80,7 @@ def obtener_historial_hitos_cache(nadador_id):
     except Exception:
         return []
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=1, show_spinner=False)
 def obtener_marcas_historicas_cache(prueba, usuario_id):
     """Marcas históricas: Se actualizan cada 2-3 meses tras cada hito. Caché 5 min."""
     try:
