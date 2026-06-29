@@ -119,24 +119,28 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
             resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
             atletas_lista = resp_todos.data if resp_todos.data else []
             
+            # Filtrado por género directo y lineal
             if filtro_genero == "Femenino (F)":
-                atletas_lista = [a for a in atletas_lista if a["genero"] == "F"]
+                atletas_lista = [a for a in atletas_lista if a.get("genero") == "F"]
             elif filtro_genero == "Masculino (M)":
-                atletas_lista = [a for a in atletas_lista if a["genero"] == "M"]
+                atletas_lista = [a for a in atletas_lista if a.get("genero") == "M"]
 
+            # Segmentación limpia por tipo de filtro de equipo
             atletas_filtrados = []
             if tipo_filtro_equipo == "Todos los Atletas":
                 atletas_filtrados = atletas_lista
             elif tipo_filtro_equipo == "Categoría Etaria" and cat_sel:
-                atletas_filtrados = [a for a in atletas_lista if determinar_categoria_fina(a["fecha_nacimiento"])[0] == cat_sel]
+                atletas_filtrados = [a for a in atletas_lista if determinar_categoria_fina(a.get("fecha_nacimiento"))[0] == cat_sel]
             elif tipo_filtro_equipo == "Atletas Específicos" and ids_sel:
-                atletas_filtrados = [a for a in atletas_lista if a["id"] in ids_sel]
+                atletas_filtrados = [a for a in atletas_lista if a.get("id") in ids_sel]
 
             if not atletas_filtrados:
                 st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
             else:
-                lista_ids = [atl["id"] for atl in atletas_filtrados]
+                # Sintaxis blindada en una sola línea para evitar desbordes de SyntaxError
+                lista_ids = [str(atl["id"]) for atl in atletas_filtrados]
                 
+                # Consulta limpia a marcas_historicas
                 res_marcas_colectivo = supabase.table("marcas_historicas").select("usuario_id, edad, tiempo, nota").eq("prueba", prueba_sel).in_("usuario_id", lista_ids).order("edad", desc=False).execute()
                 df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
 
