@@ -16,48 +16,34 @@ def calcular_edad_decimal(fecha_nacimiento, fecha_evento) -> float:
     dias = (fecha_evento - fecha_nacimiento).days
     return round(dias / 365.25, 4)
 
-
-def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target) -> float:
+def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, h_val=0.005) -> float:
     """
-    Resuelve numéricamente el factor de ajuste fisiológico k (desaceleración)
-    usando optimización por fsolve sobre la ecuación trascendental original.
+    Resuelve numéricamente el valor de k usando fsolve para que la curva asintótica
+    pase exactamente por el récord personal (PB) del atleta dado un declive 'h'.
     """
-    if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
-        tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
-        
-        def ecuacion_k_eq(k_val):
-            if abs(1 - np.exp(-k_val)) < 1e-6:
-                return 1e6
-            ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-            return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
-            
-        try:
-            k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
-            return float(k_opt_eq[0])
-        except Exception:
-            return 0.4
-    return 0.4
+    # Si los tiempos son incoherentes, evitar error numérico
+    if eq_t_pb <= eq_t0 or eq_T0 <= eq_T_target:
+        return 0.25
 
+    def ecuacion_objetivo(k_guess):
+        # Ecuación asintótica estándar aplicada al punto del PB
+        T_estimado = eq_T_target + (eq_T0 - eq_T_target) * np.exp(-k_guess * (eq_t_pb - eq_t0)) + h_val * (eq_t_pb - eq_t0)
+        return T_estimado - eq_T_pb
+
+    try:
+        # Estimación inicial de k = 0.1
+        k_solucion = fsolve(ecuacion_objetivo, x0=0.1)[0]
+        # Forzar límites biológicos lógicos para k
+        return float(np.clip(k_solucion, 0.01, 1.5))
+    except:
+        return 0.25
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
     """
-    Modelo matemático original dividido por tramos antes y después del hito t_pb.
+    Genera el vector de tiempos proyectados para el eje Y usando los parámetros resueltos.
     """
-    tiempos = []
-    D_eq = eq_T_pb - eq_T_target
-    
-    denominador_tau = eq_t_peak - eq_t0 if (eq_t_peak - eq_t0) != 0 else 1.0
-    denominador_k = (1 - np.exp(-k_eq)) if (1 - np.exp(-k_eq)) != 0 else 1.0
-    
-    for t in edades_arr:
-        if t < eq_t_pb:
-            tau_t = (t - eq_t0) / denominador_tau
-            ter_exp = (np.exp(-k_eq * tau_t) - np.exp(-k_eq)) / denominador_k
-            T_t = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
-        else:
-            T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
-        tiempos.append(T_t)
-        
+    # Ecuación de rendimiento con término asintótico exponencial + factor de deriva por envejecimiento (h)
+    tiempos = eq_T_target + (eq_T0 - eq_T_target) * np.exp(-k_eq * (edades_arr - eq_t0)) + h_eq * (edades_arr - eq_t0)
     return np.array(tiempos)
 
 
