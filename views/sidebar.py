@@ -1,23 +1,17 @@
 # =============================================================================
-# 📁 views/sidebar.py - PANEL LATERAL COMPLETO CON TRIPLE MODO DE OPERACIÓN
+# 📁 views/sidebar.py - PANEL LATERAL CON JERARQUÍA COMPLETA Y PARÁMETROS FIJOS
 # =============================================================================
 import streamlit as st
 import pandas as pd
-import datetime
 
 def renderizar_sidebar() -> str:
     """
-    Despliega la barra lateral con infraestructura de sesión, selección fija de
-    atletas, parámetros transversales fijos en la parte superior, selector de
-    Modo Global de operación y sub-controles dinámicos inferiores.
-    
-    Retorna:
-        str: El modo de operación seleccionado ('Individual', 'Visitante', 'Equipo')
+    Despliega la barra lateral respetando escrupulosamente el orden visual acordado.
     """
     supabase = st.session_state["supabase_client"]
     
-    # 1. 🛡️ BLOQUE DE IDENTIDAD E INFRAESTRUCTURA BASE (PERMANENTE - TOPE SUPERIOR)
-    st.sidebar.markdown(f"**Usuario:** {st.session_state.get('nombre_nadador', st.session_state.get('nombre', 'Usuario'))}  \n**Nivel:** `{st.session_state.get('rol', 'Invitado')}`")
+    # 1. BLOQUE DE IDENTIDAD E INFRAESTRUCTURA BASE (PERMANENTE)
+    st.sidebar.markdown(f"**Usuario:** {st.session_state.get('nombre', 'Usuario')}  \n**Nivel:** `{st.session_state.get('rol', 'Invitado')}`")
     
     col_cierre, col_cache = st.sidebar.columns(2)
     with col_cierre:
@@ -31,7 +25,7 @@ def renderizar_sidebar() -> str:
             
     st.sidebar.markdown("---")
 
-    # 2. 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (PERMANENTE - UBICACIÓN CORREGIDA)
+    # 2. PANEL DE NAVEGACIÓN DE ATLETAS (PERMANENTE - ABAJO DE LIMPIEZA DE CACHÉ)
     st.sidebar.subheader("🎯 Navegación de Atletas")
     rol_usuario = st.session_state.get("rol")
     usuario_id = st.session_state.get("usuario_id")
@@ -39,7 +33,7 @@ def renderizar_sidebar() -> str:
     atleta_id = usuario_id
     nombre_atleta = st.session_state.get("nombre", "Atleta")
     genero_atleta = "F"
-    categoria_atleta = "Infantil B"
+    categoria_atleta = "Juvenil A"
 
     if rol_usuario in ["Head Coach", "Entrenador", "Administrador"]:
         try:
@@ -64,20 +58,10 @@ def renderizar_sidebar() -> str:
                 nombre_atleta = atleta_sel
                 genero_atleta = dict_generos[atleta_id]
                 categoria_atleta = dict_cats.get(atleta_id, "Juvenil A")
-            else:
-                st.sidebar.info("No hay nadadores asignados.")
         except Exception as e:
             st.sidebar.error(f"Error cargando atletas: {e}")
-    else:
-        try:
-            r_g = supabase.table("usuarios").select("genero, categoria_competencia").eq("id", usuario_id).execute()
-            if r_g.data:
-                genero_atleta = r_g.data[0]["genero"]
-                categoria_atleta = r_g.data[0]["categoria_competencia"]
-        except Exception:
-            pass
 
-    # Inyección persistente en sesión del atleta activo
+    # Guardar en sesión de forma persistente
     st.session_state["nadador_seleccionado_id"] = atleta_id
     st.session_state["nadador_seleccionado_genero"] = genero_atleta
     st.session_state["nadador_seleccionado_nombre"] = nombre_atleta
@@ -85,30 +69,29 @@ def renderizar_sidebar() -> str:
 
     st.sidebar.markdown("---")
 
-    # 3. ⏱️ SECCIÓN TRANSVERSAL PERMANENTE DEL MODELO (PERMANENTE - PARÁMETROS FISIOLÓGICOS)
+    # 4. SECCIÓN TRANSVERSAL PERMANENTE DEL MODELO (PARÁMETROS FISIOLÓGICOS)
     st.sidebar.subheader("⏱️ Parámetros del Modelo")
     h_val = st.sidebar.slider("Rapidez de la deriva de seguridad (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.01)
     t_peak_val = st.sidebar.slider("Edad pico madurativo (t_peak):", min_value=14.0, max_value=22.0, value=18.0, step=0.5)
+    T_target_val = st.sidebar.number_input("Tiempo Objetivo (T_target):", min_value=10.0, max_value=1500.0, value=52.0, step=0.1)
     
-    # Conservar estados globales para el lienzo gráfico
     st.session_state["control_h"] = h_val
     st.session_state["control_t_peak"] = t_peak_val
+    st.session_state["control_T_target"] = T_target_val
 
     st.sidebar.markdown("---")
 
-    # 4. 🔀 SELECTOR DEL MODO DE OPERACIÓN (PERMANENTE)
+    # 5. SELECTOR DEL MODO DE OPERACIÓN (PERMANENTE)
     modo_operacion = st.sidebar.radio(
-        "🎛️ Modo de Operación del Gráfico",
-        ["Individual (Oficial)", "Visitante (Simulación)", "Equipo (Comparativo)"]
+        "🎛️ Modo de Operación",
+        ["Individual", "Visitante (Simulación Externa)", "Equipo"]
     )
+    st.session_state["modo_operacion"] = modo_operacion
 
     st.sidebar.markdown("---")
 
-    # 5. 📦 BLOQUES DINÁMICOS CONDICIONALES (FONDO DE LA SIDEBAR)
-    if modo_operacion == "Individual (Oficial)":
-        st.sidebar.caption("💡 Los hitos (t0, T0, t_pb, T_pb) se calculan automáticamente desde la base de datos del nadador activo.")
-
-    elif modo_operacion == "Visitante (Simulación)":
+    # 6. BLOQUES DINÁMICOS CONDICIONALES (AL FONDO DE LA SIDEBAR)
+    if modo_operacion == "Visitante (Simulación Externa)":
         st.sidebar.subheader("🧪 Inputs Manuales de Consulta")
         c_v1, c_v2 = st.sidebar.columns(2)
         with c_v1:
@@ -118,12 +101,10 @@ def renderizar_sidebar() -> str:
             T0_sim = st.number_input("Tiempo Inicial (T0):", min_value=20.0, max_value=200.0, value=120.0, step=1.0)
             T_pb_sim = st.number_input("Tiempo Récord (T_pb):", min_value=20.0, max_value=180.0, value=65.0, step=1.0)
             
-        st.session_state["visitante_hitos"] = {
-            "t0": t0_sim, "T0": T0_sim, "t_pb": t_pb_sim, "T_pb": T_pb_sim
-        }
+        st.session_state["visitante_hitos"] = {"t0": t0_sim, "T0": T0_sim, "t_pb": t_pb_sim, "T_pb": T_pb_sim}
 
-    elif modo_operacion == "Equipo (Comparativo)":
-        st.sidebar.subheader("👥 Filtros de Población")
+    elif modo_operacion == "Equipo":
+        st.sidebar.subheader("👥 Filtros de Población de Grupo")
         filtro_genero = st.sidebar.selectbox("Filtro de Género:", ["Todos", "Femenino (F)", "Masculino (M)"])
         tipo_filtro_equipo = st.sidebar.radio("Segmentación:", ["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
         
@@ -140,20 +121,9 @@ def renderizar_sidebar() -> str:
                     dict_all = dict(zip(df_all['nombre'], df_all['id']))
                     atletas_multi = st.sidebar.multiselect("Seleccionar Nadadores:", options=list(dict_all.keys()))
                     ids_sel = [dict_all[name] for name in atletas_multi]
-            except Exception as e:
-                st.sidebar.error(f"Error cargando muestra: {e}")
+            except Exception:
+                pass
                 
-        st.session_state["equipo_filtros"] = {
-            "genero": filtro_genero,
-            "tipo_filtro": tipo_filtro_equipo,
-            "categoria": cat_sel,
-            "ids_especificos": ids_sel
-        }
-
-    # Control de infraestructura oculta (Modo de simulación de backend)
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Configuraciones Avanzadas")
-    simulacion_activa = st.sidebar.toggle("Activar Modo Simulación Local", value=False)
-    st.session_state["simulacion_local_activa"] = simulacion_activa
+        st.session_state["equipo_filtros"] = {"genero": filtro_genero, "tipo_filtro": tipo_filtro_equipo, "categoria": cat_sel, "ids_especificos": ids_sel}
 
     return modo_operacion
