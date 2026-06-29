@@ -131,21 +131,31 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
                     pass
 
     # -------------------------------------------------------------------------
-    # 🎯 CONFIGURACIÓN DE PARÁMETROS DEL MODELO (VALORES DINÁMICOS DESDE SESSIONS)
+    # 🎯 CONFIGURACIÓN DE PARÁMETROS DINÁMICOS DESDE MARCAS_REFERENCIA (SUPABASE)
     # -------------------------------------------------------------------------
     h = st.session_state.get("control_h", 0.40)
     t_peak = st.session_state.get("control_t_peak", 18.00)
     
-    # Buscar récord mundial base para establecer metas de control por prueba
-    record_mundial = 50.0
+    # Inicialización de referencias oficiales reales
+    m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    
     try:
-        r_rm = supabase.table("marcas_referencia").select("record_mundial").eq("prueba", prueba_sel).eq("genero", genero_atleta).execute()
-        if r_rm.data and r_rm.data[0].get("record_mundial"):
-            record_mundial = float(r_rm.data[0]["record_mundial"])
+        r_ref = supabase.table("marcas_referencia").select("*").eq("prueba", prueba_sel).eq("genero", genero_atleta).execute()
+        if r_ref.data:
+            ref_data = r_ref.data[0]
+            m_ano = float(ref_data.get("minima_ano", 0.0))
+            m_panam_b = float(ref_data.get("panamericano_b", 0.0))
+            m_panam_a = float(ref_data.get("panamericano_a", 0.0))
+            m_wa_b = float(ref_data.get("world_aquatics_b", 0.0))
+            m_wa_a = float(ref_data.get("world_aquatics_a", 0.0))
+            m_wr = float(ref_data.get("record_mundial", 0.0))
     except Exception:
         pass
-    
-    T_target = st.session_state.get("control_T_target", round(record_mundial * 1.05, 2))
+        
+    if m_wr == 0.0: 
+        m_wr = 50.0 # Respaldo absoluto si la tabla está vacía
+
+    T_target = st.session_state.get("control_T_target", round(m_wr * 1.05, 2))
 
     # Determinar la edad de inicio y PB de control del atleta activo
     t_pb_real = 13.50
@@ -170,8 +180,6 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
     st.session_state["zoom_edades"] = (edad_min_zoom, edad_max_zoom)
     st.markdown('<div class="divisor-blanco"></div>', unsafe_allow_html=True)
 
-    # Variables de límites internacionales
-    m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 60.0, 58.0, 56.0, 54.0, 52.0, float(record_mundial)
     df_procesado = pd.DataFrame()
 
     # =============================================================================
@@ -182,13 +190,11 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
             resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
             atletas_lista = resp_todos.data if resp_todos.data else []
             
-            # Filtrado por género directo
             if filtro_genero == "Femenino (F)":
                 atletas_lista = [a for a in atletas_lista if a.get("genero") == "F"]
             elif filtro_genero == "Masculino (M)":
                 atletas_lista = [a for a in atletas_lista if a.get("genero") == "M"]
 
-            # Segmentación limpia por tipo de filtro de equipo
             atletas_filtrados = []
             if tipo_filtro_equipo == "Todos los Atletas":
                 atletas_filtrados = atletas_lista
@@ -200,7 +206,6 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
             if not atletas_filtrados:
                 st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
             else:
-                # Sintaxis completamente lineal en una sola línea para evitar desbordes
                 lista_ids = [str(atl["id"]) for atl in atletas_filtrados]
                 
                 res_marcas_colectivo = supabase.table("marcas_historicas").select("usuario_id, edad, tiempo, nota").eq("prueba", prueba_sel).in_("usuario_id", lista_ids).order("edad", desc=False).execute()
@@ -300,23 +305,19 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
             st.error(f"Error procesando los segmentos de equipo: {e}")
 
     # =============================================================================
-    # 📊 MOTOR GRÁFICO SECCIÓN B: MODO INDIVIDUAL O SIMULACIÓN
-    # =============================================================================
-# =============================================================================
     # 📊 MOTOR GRÁFICO SECCIÓN B: MODO INDIVIDUAL O SIMULACIÓN (DATOS REALES)
     # =============================================================================
     else:
         fig = plt.figure(figsize=(8.5, 11.0))
         ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
         
-        # 1. Inicialización de variables de respaldo (Fallback)
+        # 1. Inicialización de variables de respaldo (Fallback de Control)
         t0, T0 = 10.0, 95.0
         t_pb, T_pb = 13.5, 62.0
         
         # 2. Extracción e inyección de datos reales desde Supabase
         if atleta_id and not simulacion_externa:
             try:
-                # Recuperar todas las marcas del nadador ordenadas por edad cronológica
                 r_ind_m = supabase.table("marcas_historicas")\
                     .select("edad, tiempo, nota")\
                     .eq("usuario_id", atleta_id)\
@@ -327,11 +328,9 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
                     df_procesado = pd.DataFrame(r_ind_m.data)
                     df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
                     
-                    # T0 y t0 se extraen de la PRIMERA marca registrada en el historial
                     t0 = float(df_procesado.iloc[0]["Edad"])
                     T0 = float(df_procesado.iloc[0]["Tiempo"])
                     
-                    # T_pb y t_pb se extraen de la MEJOR marca (Marca Personal Histórica)
                     idx_pb = df_procesado["Tiempo"].idxmin()
                     t_pb = float(df_procesado.loc[idx_pb, "Edad"])
                     T_pb = float(df_procesado.loc[idx_pb, "Tiempo"])
@@ -345,7 +344,6 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
         edades_curva = np.linspace(t0, t_peak, 300)
         tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
         
-        # Colección de tiempos para ajustar encuadres del gráfico macro
         todos_los_tiempos_ind = [T0, T_pb, T_target]
         if not df_procesado.empty:
             todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
@@ -382,7 +380,7 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
 
         datos_tabla_micro = []
         
-        # 6. Pintar hitos y compromisos trimestrales (Cruces de fechas reales con edad decimal)
+        # 6. Pintar hitos y compromisos trimestrales
         if atleta_id and tipo_vista == "Micro (Ventana Anual)":
             try:
                 r_atleta = supabase.table("usuarios").select("fecha_nacimiento").eq("id", atleta_id).execute()
@@ -443,7 +441,7 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
             ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, zorder=4)
             ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
-        # Referencias de tiempos internacionales (World Aquatics, PANAM, etc.)
+        # Referencias de tiempos internacionales dinámicas
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
         referencias = [
             {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"},
