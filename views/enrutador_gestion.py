@@ -4,8 +4,13 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import sys
+import os
 
-# IMPORTACIÓN ABSOLUTA DIRECTA DESDE LA RAÍZ REGISTRADA POR STREAMLIT
+ruta_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ruta_raiz not in sys.path:
+    sys.path.insert(0, ruta_raiz)
+
 from core.formulas import computar_modelo_bannister, calcular_edad_decimal
 
 def renderizar_modulos_gestion(simulacion_externa: bool):
