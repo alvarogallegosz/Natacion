@@ -7,8 +7,14 @@ import numpy as np
 import datetime
 import io
 import matplotlib.pyplot as plt
+import sys
+import os
 
-# IMPORTACIÓN ABSOLUTA DIRECTA DESDE LA RAÍZ REGISTRADA POR STREAMLIT
+# Asegura que el hilo de la vista conozca la raíz antes de llamar a core
+ruta_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ruta_raiz not in sys.path:
+    sys.path.insert(0, ruta_raiz)
+
 from core.formulas import calcular_edad_decimal, calcular_curva_atleta
 
 def renderizar_pestana_rendimiento(simulacion_activa: bool):
