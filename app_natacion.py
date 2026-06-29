@@ -146,45 +146,42 @@ else:
 # UBICACIÓN: app.py (o archivo principal), sección de inicialización de variables de la prueba
 def cargar_marcas_referencia_cache(prueba_seleccionada):
     """
-    Verifica el st.session_state para marcas_referencia. 
-    Si no existe o cambió de prueba, consulta a Supabase y cachea los resultados.
-    """
-    # Forzar la recarga si cambió la prueba seleccionada
-    if "ultima_prueba" not in st.session_state or st.session_state["ultima_prueba"] != prueba_seleccionada:
-        st.session_state["ultima_prueba"] = prueba_seleccionada
-        st.session_state["marcas_referencia_cargadas"] = False
+# Inicializar variables globales en 0 para evitar fallos de renderizado
+if "m_ano" not in st.session_state:
+    st.session_state.m_ano = 0.0
+    st.session_state.m_panam_b = 0.0
+    st.session_state.m_panam_a = 0.0
+    st.session_state.m_wa_b = 0.0
+    st.session_state.m_wa_a = 0.0
+    st.session_state.m_wr = 0.0
 
-    if not st.session_state.get("marcas_referencia_cargadas", False):
-        try:
-            resp = supabase.table("marcas_referencia").select("*").eq("prueba", prueba_seleccionada).execute()
-            if resp.data and len(resp.data) > 0:
-                st.session_state["marcas_referencia"] = resp.data[0]
-            else:
-                st.session_state["marcas_referencia"] = {}
-            st.session_state["marcas_referencia_cargadas"] = True
-        except Exception as e:
-            st.error(f"Error de conexión con la tabla 'marcas_referencia': {e}")
-            st.session_state["marcas_referencia"] = {}
-            st.session_state["marcas_referencia_cargadas"] = False
+# Detectar cambio de prueba seleccionada en el catálogo para refrescar caché
+prueba_actual = titulo_grafico  # Asegúrate de usar la variable que guarda la prueba activa (ej. '100m Libre')
 
-    # Mapeo seguro de variables desde el session_state al entorno del gráfico
-    ref = st.session_state.get("marcas_referencia", {})
-    return {
-        "m_ano": float(ref.get("min_ano", 0)) if ref.get("min_ano") else 0.0,
-        "m_panam_b": float(ref.get("panam_b", 0)) if ref.get("panam_b") else 0.0,
-        "m_panam_a": float(ref.get("panam_a", 0)) if ref.get("panam_a") else 0.0,
-        "m_wa_b": float(ref.get("wa_b", 0)) if ref.get("wa_b") else 0.0,
-        "m_wa_a": float(ref.get("wa_a", 0)) if ref.get("wa_a") else 0.0,
-        "m_wr": float(ref.get("world_record", 0)) if ref.get("world_record") else 0.0
-    }
+if st.session_state.get("ultima_prueba_consultada") != prueba_actual:
+    try:
+        resp_ref = supabase.table("marcas_referencia").select("*").eq("prueba", prueba_actual).execute()
+        if resp_ref.data:
+            ref = resp_ref.data[0]
+            st.session_state.m_ano = float(ref.get("min_ano", 0) or 0)
+            st.session_state.m_panam_b = float(ref.get("panam_b", 0) or 0)
+            st.session_state.m_panam_a = float(ref.get("panam_a", 0) or 0)
+            st.session_state.m_wa_b = float(ref.get("wa_b", 0) or 0)
+            st.session_state.m_wa_a = float(ref.get("wa_a", 0) or 0)
+            st.session_state.m_wr = float(ref.get("world_record", 0) or 0)
+        else:
+            # Valores limpios si la prueba no tiene marcas cargadas
+            st.session_state.m_ano = st.session_state.m_panam_b = st.session_state.m_panam_a = 0.0
+            st.session_state.m_wa_b = st.session_state.m_wa_a = st.session_state.m_wr = 0.0
+        
+        st.session_state["ultima_prueba_consultada"] = prueba_actual
+    except Exception as e:
+        st.warning(f"No se pudieron sincronizar las marcas de referencia desde el servidor: {e}")
 
-# LLAMADA DEL BLOQUE: Ejecútalo justo antes de procesar los gráficos individuales/equipo
-marcas_limites = cargar_marcas_referencia_cache(prueba_actual)
-
-# Asignación de variables para que los archivos del gráfico (11 y 12) las lean correctamente:
-m_ano = marcas_limites["m_ano"]
-m_panam_b = marcas_limites["m_panam_b"]
-m_panam_a = marcas_limites["m_panam_a"]
-m_wa_b = marcas_limites["m_wa_b"]
-m_wa_a = marcas_limites["m_wa_a"]
-m_wr = marcas_limites["m_wr"]
+# Mapear las variables que consumen tus componentes de gráficos (Archivos 11 y 12)
+m_ano = st.session_state.m_ano
+m_panam_b = st.session_state.m_panam_b
+m_panam_a = st.session_state.m_panam_a
+m_wa_b = st.session_state.m_wa_b
+m_wa_a = st.session_state.m_wa_a
+m_wr = st.session_state.m_wr
