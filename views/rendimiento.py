@@ -34,8 +34,8 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
     with st.expander("⚙️ Calibración de Parámetros del Modelo (Coeficientes de Crecimiento)", expanded=False):
         c1, c2 = st.columns(2)
         with c1:
-            k_val = st.slider("Constante de desaceleración (k):", 0.05, 0.50, 0.15, 0.01)
-            h_val = st.slider("Tendencia de mejora lineal (h):", -2.0, 2.0, 0.0, 0.1)
+            # Quitamos el slider de k. Ahora h_val es el protagonista de la deriva.
+            h_val = st.slider("Rapidez de la deriva de seguridad (h):", 0.0, 2.0, 0.1, 0.01)
         with c2:
             t_peak_val = st.slider("Edad pico madurativo (t_peak):", 14.0, 22.0, 18.0, 0.5)
             t0_val = st.slider("Edad inicial de referencia (t0):", 8.0, 14.0, 11.0, 0.5)
@@ -107,9 +107,11 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
         t_pb = 13.0
         T_pb = 65.0
         T_target = 52.0
+        k_calculada = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak_val, T_target)
+        st.metric(label="Factor de Ajuste Fisiológico Calculado (k)", value=f"{k_calculada:.4f}")
         
-        curva_modelo = calcular_curva_atleta(edades_plot, t0, T0, t_pb, T_pb, t_peak_val, T_target, k_val, h_val)
-        
+        curva_modelo = calcular_curva_atleta(edades_plot, t0, T0, t_pb, T_pb, t_peak_val, T_target, k_calculada, h_val)
+    
         ax.plot(edades_plot, curva_modelo, color="#0F4C81", linestyle="--", linewidth=2.5, label="Proyección Matemática")
         
         colores_marcas = ["#E67E22", "#27AE60", "#8E44AD", "#C0392B", "#2980B9"]
