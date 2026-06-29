@@ -1,9 +1,16 @@
 # =============================================================================
-# 📄 app.py - ORQUESTADOR CENTRAL DEL SISTEMA (ACOPLE FINAL)
+# 📄 app_natacion.py - ORQUESTADOR CENTRAL DEL SISTEMA (CON BLINDAJE DE RUTAS)
 # =============================================================================
 import streamlit as st
+import os
+import sys
 
-# Configuración obligatoria de la página (Debe ser la primera instrucción)
+# Inyección defensiva de rutas para prevenir el ModuleNotFoundError en Streamlit Cloud
+ruta_raiz = os.path.dirname(os.path.abspath(__file__))
+if ruta_raiz not in sys.path:
+    sys.path.insert(0, ruta_raiz)
+
+# Configuración obligatoria de la página (Debe ser la primera instrucción visual)
 st.set_page_config(
     page_title="Plataforma de Analítica - Club de Natación",
     page_icon="🏊‍♂️",
@@ -11,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Imports de la infraestructura del Core
+# Imports de la infraestructura del Core (Ahora completamente garantizados)
 from core.conexion import obtener_cliente_supabase, inyectar_estilos_globales, autenticar_usuario
 
 # 1. Inicializar cimientos de datos e inyectar CSS global
