@@ -1,5 +1,5 @@
 # =============================================================================
-# 📁 views/rendimiento.py - LIENZO GRÁFICO ESTÁNDAR Y PROYECCIÓN DE ATLETAS
+# 📁 views/rendimiento.py - LIENZO GRÁFICO DINÁMICO CON DATOS REALES
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -7,14 +7,8 @@ import numpy as np
 import datetime
 import io
 import matplotlib.pyplot as plt
-import sys
-import os
 
-# Asegura que el hilo de la vista conozca la raíz antes de llamar a core
-ruta_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if ruta_raiz not in sys.path:
-    sys.path.insert(0, ruta_raiz)
-
+# IMPORTACIÓN ABSOLUTA DE LAS FÓRMULAS ORIGINALES RECONSTRUIDAS
 from core.formulas import calcular_edad_decimal, calcular_curva_atleta, resolver_k_individual
 
 def renderizar_pestana_rendimiento(simulacion_activa: bool):
@@ -31,15 +25,15 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
     st.markdown("### 📊 Evolución Histórica y Proyección Matemática")
     st.caption("Visualiza el comportamiento histórico de las marcas frente a los umbrales de referencia.")
 
+    # --- CONTROLES SUPERIORES DE DERIVA Y MADURACIÓN ---
     with st.expander("⚙️ Calibración de Parámetros del Modelo (Coeficientes de Crecimiento)", expanded=False):
         c1, c2 = st.columns(2)
         with c1:
-            # Quitamos el slider de k. Ahora h_val es el protagonista de la deriva.
-            h_val = st.slider("Rapidez de la deriva de seguridad (h):", 0.0, 2.0, 0.1, 0.01)
+            h_val = st.slider("Rapidez de la deriva de seguridad (h):", 0.0, 2.0, 0.34, 0.01)
         with c2:
             t_peak_val = st.slider("Edad pico madurativo (t_peak):", 14.0, 22.0, 18.0, 0.5)
-            t0_val = st.slider("Edad inicial de referencia (t0):", 8.0, 14.0, 11.0, 0.5)
 
+    # --- CATÁLOGO DE PRUEBAS ---
     lista_pruebas = []
     try:
         res_ref = supabase.table("marcas_referencia").select("prueba").execute()
@@ -54,6 +48,7 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
 
     prueba_sel = st.selectbox("Seleccionar Prueba para Análisis:", options=lista_pruebas)
 
+    # --- EXTRACCIÓN DE UMBRALES DE FEDERACIÓN ---
     umbral_ano, umbral_panamb, umbral_panama, umbral_wab, umbral_waa = None, None, None, None, None
     try:
         r_umb = supabase.table("marcas_referencia").select("*")\
@@ -70,17 +65,20 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
     except Exception as e:
         st.warning(f"No se pudieron extraer umbrales: {e}")
 
+    # --- MATRIZ HISTÓRICA DEL ATLETA ---
     df_procesado = pd.DataFrame()
     try:
         r_hist = supabase.table("marcas_historicas").select("*")\
             .eq("usuario_id", atleta_id)\
             .eq("prueba", prueba_sel)\
+            .order("edad", desc=False)\
             .execute()
         if r_hist.data:
             df_procesado = pd.DataFrame(r_hist.data)
     except Exception as e:
         st.error(f"Error leyendo matriz histórica: {e}")
 
+    # --- CALENDARIO DE COMPETENCIAS ---
     temporada_actual = datetime.date.today().year
     fechas_competencias = []
     nombres_competencias = []
@@ -98,22 +96,43 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
         st.warning(f"Problema al enlazar competencias: {e}")
 
     fig = None
-    if not df_procesado.empty or fechas_competencias:
+    if not df_procesado.empty:
+        # =====================================================================
+        # 🧠 DEDUCCIÓN DINÁMICA DE PARÁMETROS DEL MODELO (SISTEMA REAL)
+        # =====================================================================
+        # t0 y T0: Primer registro histórico oficial del atleta
+        t0 = float(df_procesado['edad'].min())
+        T0 = float(df_procesado.loc[df_procesado['edad'].idxmin(), 'tiempo'])
+        
+        # t_pb y T_pb: El récord absoluto actual (Mejor marca / tiempo mínimo)
+        t_pb = float(df_procesado.loc[df_procesado['tiempo'].idxmin(), 'edad'])
+        T_pb = float(df_procesado['tiempo'].min())
+        
+        # T_target: El umbral deportivo objetivo (M.AñO o el tope superior disponible)
+        T_target = float(umbral_ano) if umbral_ano is not None else (T_pb * 0.85)
+
+        # Resolver k mediante fsolve usando el motor matemático exacto
+        k_calculada = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak_val, T_target)
+        
+        # --- PANEL DE MÉTRICAS DINÁMICAS ---
+        c_m1, c_m2, c_m3 = st.columns(3)
+        with c_m1:
+            st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k_calculada:.4f}")
+        with c_m2:
+            st.metric(label="Margen de Deriva (D)", value=f"{(T_pb - T_target):.2f} s")
+        with c_m3:
+            st.metric(label="Récord Personal (PB)", value=f"{T_pb:.2f} s", delta=f"A los {t_pb:.1f} años")
+
+        # --- CONSTRUCCIÓN DEL GRÁFICO ---
         fig, ax = plt.subplots(figsize=(11.69, 8.27))
         edades_plot = np.linspace(8, 22, 150)
         
-        t0 = t0_val
-        T0 = 120.0
-        t_pb = 13.0
-        T_pb = 65.0
-        T_target = 52.0
-        k_calculada = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak_val, T_target)
-        st.metric(label="Factor de Ajuste Fisiológico Calculado (k)", value=f"{k_calculada:.4f}")
-        
+        # Generar curva por tramos cinéticos reales
         curva_modelo = calcular_curva_atleta(edades_plot, t0, T0, t_pb, T_pb, t_peak_val, T_target, k_calculada, h_val)
-    
+        
         ax.plot(edades_plot, curva_modelo, color="#0F4C81", linestyle="--", linewidth=2.5, label="Proyección Matemática")
         
+        # Umbrales Federativos
         colores_marcas = ["#E67E22", "#27AE60", "#8E44AD", "#C0392B", "#2980B9"]
         nombres_marcas = ["Marca Nacional (M.AñO)", "Panam B", "Panam A", "World Aquatics B", "World Aquatics A"]
         umbrales = [umbral_ano, umbral_panamb, umbral_panama, umbral_wab, umbral_waa]
@@ -122,26 +141,30 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
             if umb is not None:
                 ax.axhline(umb, color=col, linestyle=":", linewidth=2.0, label=f"{nom} ({umb:.2f}s)")
         
-        if not df_procesado.empty:
-            ax.scatter(df_procesado['edad'], df_procesado['tiempo'], color="#D32F2F", s=120, zorder=5, label="Marcas Oficiales")
-            for idx, row in df_procesado.iterrows():
-                ax.annotate(f"{row['tiempo']:.2f}s", (row['edad'], row['tiempo']), textcoords="offset points", xytext=(0,10), ha='center', fontsize=9, color="#333333")
+        # Marcas Reales del Atleta
+        ax.scatter(df_procesado['edad'], df_procesado['tiempo'], color="#D32F2F", s=120, zorder=5, label="Marcas Oficiales")
+        for idx, row in df_procesado.iterrows():
+            ax.annotate(f"{row['tiempo']:.2f}s", (row['edad'], row['tiempo']), textcoords="offset points", xytext=(0,10), ha='center', fontsize=9, color="#333333")
 
+        # Hitos de Competencias Proyectadas
         for ed_c, nom_c in zip(fechas_competencias, nombres_competencias):
             ax.axvline(ed_c, color="#7F8C8D", linestyle="-.", linewidth=1.5, alpha=0.7)
-            ax.text(ed_c, ax.get_ylim()[0] + 2, nom_c, rotation=90, va='bottom', ha='right', fontsize=8, color="#7F8C8D")
+            ax.text(ed_c, ax.get_ylim()[1] - 5, nom_c, rotation=90, va='top', ha='right', fontsize=8, color="#7F8C8D")
 
         ax.set_title(f"Análisis de Proyección de Rendimiento - Prueba: {prueba_sel}", fontsize=16, fontweight='bold', pad=15)
         ax.set_xlabel("Edad Decimal (Años)", fontsize=12)
         ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=12)
         ax.grid(True, linestyle=":", alpha=0.6)
         ax.legend(loc="upper right", frameon=True, facecolor="#FFFFFF", fontsize=10)
+        
+        # Ajustar límites de visualización con base a la realidad del nadador
         ax.set_xlim(8, 22)
+        ax.set_ylim(min(df_procesado['tiempo'].min(), T_target) - 5, max(T0, df_procesado['tiempo'].max()) + 10)
         
         plt.tight_layout()
         st.pyplot(fig)
     else:
-        st.info("No existen datos históricos o competencias para diagramar la curva.")
+        st.info("No existen datos históricos suficientes de este nadador para la prueba seleccionada.")
 
     st.markdown("---")
     st.markdown("### 🖨️ Centro de Exportación Vectorial")
