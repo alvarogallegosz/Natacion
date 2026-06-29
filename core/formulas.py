@@ -16,33 +16,35 @@ def calcular_edad_decimal(fecha_nacimiento, fecha_evento) -> float:
     dias = (fecha_evento - fecha_nacimiento).days
     return round(dias / 365.25, 4)
 
-def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, h_val=0.005) -> float:
+def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target) -> float:
     """
-    Resuelve numéricamente el valor de k usando fsolve para que la curva asintótica
-    pase exactamente por el récord personal (PB) del atleta dado un declive 'h'.
+    Resuelve numéricamente el valor de la constante k para que la curva asintótica
+    pase de manera exacta por el récord personal (PB) del nadador.
     """
-    # Si los tiempos son incoherentes, evitar error numérico
+    # Evitar divisiones por cero o incoherencias matemáticas elementales
     if eq_t_pb <= eq_t0 or eq_T0 <= eq_T_target:
-        return 0.25
+        return 0.35
+
+    # Tomamos h desde los parámetros o un valor sutil de envejecimiento (ej. 0.01)
+    # Si 'h' se maneja globalmente en session_state, puedes usar st.session_state.get('h_slider', 0.01)
+    h_val = 0.01 
 
     def ecuacion_objetivo(k_guess):
-        # Ecuación asintótica estándar aplicada al punto del PB
+        # Ecuación asintótica estándar aplicada en el punto de control (PB)
         T_estimado = eq_T_target + (eq_T0 - eq_T_target) * np.exp(-k_guess * (eq_t_pb - eq_t0)) + h_val * (eq_t_pb - eq_t0)
         return T_estimado - eq_T_pb
 
     try:
-        # Estimación inicial de k = 0.1
         k_solucion = fsolve(ecuacion_objetivo, x0=0.1)[0]
-        # Forzar límites biológicos lógicos para k
-        return float(np.clip(k_solucion, 0.01, 1.5))
+        return float(np.clip(k_solucion, 0.01, 2.0))
     except:
-        return 0.25
+        return 0.35
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
     """
-    Genera el vector de tiempos proyectados para el eje Y usando los parámetros resueltos.
+    Calcula los puntos del eje Y para la curva de proyección fisiológica.
     """
-    # Ecuación de rendimiento con término asintótico exponencial + factor de deriva por envejecimiento (h)
+    # Ecuación asintótica exponencial + factor de deriva por edad (h)
     tiempos = eq_T_target + (eq_T0 - eq_T_target) * np.exp(-k_eq * (edades_arr - eq_t0)) + h_eq * (edades_arr - eq_t0)
     return np.array(tiempos)
 
