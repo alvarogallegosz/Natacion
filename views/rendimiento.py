@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from core.formulas import calcular_edad_decimal, calcular_curva_atleta
 
 def renderizar_pestana_rendimiento(simulacion_activa: bool):
-    # ... (El resto del código de la función se mantiene exactamente igual) ...
     """Renderiza la pestaña de Rendimiento Histórico y Proyección."""
     supabase = st.session_state["supabase_client"]
     atleta_id = st.session_state.get("nadador_seleccionado_id")

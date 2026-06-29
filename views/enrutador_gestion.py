@@ -9,7 +9,6 @@ import datetime
 from core.formulas import computar_modelo_bannister, calcular_edad_decimal
 
 def renderizar_modulos_gestion(simulacion_externa: bool):
-    # ... (El resto del código de la función se mantiene exactamente igual) ...
     """Despliega el sistema modular inyectado según privilegios."""
     supabase = st.session_state["supabase_client"]
     rol_usuario = st.session_state.get("rol")
