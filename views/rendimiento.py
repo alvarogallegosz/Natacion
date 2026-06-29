@@ -6,7 +6,15 @@ import pandas as pd
 import numpy as np
 import datetime
 import io
+import os
+import sys
 import matplotlib.pyplot as plt
+
+# Inyección defensiva de rutas para prevenir el ModuleNotFoundError en subcarpetas
+ruta_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ruta_raiz not in sys.path:
+    sys.path.insert(0, ruta_raiz)
+
 from core.formulas import calcular_edad_decimal, calcular_curva_atleta
 
 def renderizar_pestana_rendimiento(simulacion_activa: bool):
@@ -111,20 +119,17 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
         
         edades_plot = np.linspace(8, 22, 150)
         
-        # Puntos iniciales para la curva
         t0 = t0_val
-        T0 = 120.0  # Tiempo base de referencia en segundos (2:00.00)
+        T0 = 120.0
         t_pb = 13.0
         T_pb = 65.0
-        T_target = 52.0 # Tiempo asintótico de llegada
+        T_target = 52.0
         
         curva_modelo = calcular_curva_atleta(edades_plot, t0, T0, t_pb, T_pb, t_peak_val, T_target, k_val, h_val)
         
-        # Diagramado de la curva teórica
         ax.plot(edades_plot, curva_modelo, color="#0F4C81", linestyle="--", linewidth=2.5, 
                 label="Proyección Matemática (Modelo del Club)")
         
-        # Trazado de Marcas Mínimas de Referencia (Líneas horizontales)
         colores_marcas = ["#E67E22", "#27AE60", "#8E44AD", "#C0392B", "#2980B9"]
         nombres_marcas = ["Marca Nacional (M.AñO)", "Panam B", "Panam A", "World Aquatics B", "World Aquatics A"]
         umbrales = [umbral_ano, umbral_panamb, umbral_panama, umbral_wab, umbral_waa]
@@ -133,11 +138,9 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
             if umb is not None:
                 ax.axhline(umb, color=col, linestyle=":", linewidth=2.0, label=f"{nom} ({umb:.2f}s)")
         
-        # Pintado de Marcas Históricas del Atleta (Puntos de dispersión)
         if not df_procesado.empty:
             ax.scatter(df_procesado['edad'], df_procesado['tiempo'], color="#D32F2F", s=120, zorder=5,
                        label=f"Marcas Oficiales Registradas ({st.session_state.get('nadador_seleccionado_nombre')})")
-            # Anotación sobre cada marca oficial
             for idx, row in df_procesado.iterrows():
                 ax.annotate(f"{row['tiempo']:.2f}s - {row['nota']}", 
                             (row['edad'], row['tiempo']), 
@@ -145,7 +148,6 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
                             xytext=(0,10), 
                             ha='center', fontsize=9, fontweight='bold', color="#333333")
 
-        # Inserción del Cronograma de Competencias (Líneas verticales)
         for ed_c, nom_c in zip(fechas_competencias, nombres_competencias):
             ax.axvline(ed_c, color="#7F8C8D", linestyle="-.", linewidth=1.5, alpha=0.7)
             ax.text(ed_c, ax.get_ylim()[0] + 2, nom_c, rotation=90, va='bottom', ha='right', 
@@ -157,7 +159,6 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
         ax.grid(True, linestyle=":", alpha=0.6)
         ax.legend(loc="upper right", frameon=True, facecolor="#FFFFFF", edgecolor="#DDDDDD", fontsize=10)
         
-        # Estandarización estética para garantizar que el eje no se distorsione
         ax.set_xlim(8, 22)
         
         plt.tight_layout()
@@ -165,7 +166,7 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
     else:
         st.info("No existen datos históricos o competencias para diagramar la curva en este momento.")
 
-    # 6. Centro de Descarga Vectorial (Checkpoints 8 & 12)
+    # 6. Centro de Descarga Vectorial
     st.markdown("---")
     st.markdown("### 🖨️ Centro de Exportación Vectorial y Backups")
 
@@ -174,7 +175,6 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
         csv_data = export_df.to_csv(index=False).encode('utf-8')
         txt_string = export_df.to_string(index=False)
         
-        # Resguardo / Escudo ante nulos de figura (Checkpoint 8)
         img_buffer = None
         if fig is not None:
             img_buffer = io.BytesIO()
@@ -199,7 +199,6 @@ def renderizar_pestana_rendimiento(simulacion_activa: bool):
                 use_container_width=True
             )
         with c_exp3:
-            # Blindaje técnico si no se instanció el buffer vectorial
             if img_buffer:
                 st.download_button(
                     label="🖼️ Exportar Gráfico (PDF Vectorial)",
