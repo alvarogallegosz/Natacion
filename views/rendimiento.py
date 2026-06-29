@@ -15,7 +15,7 @@ ruta_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ruta_raiz not in sys.path:
     sys.path.insert(0, ruta_raiz)
 
-from core.formulas import calcular_edad_decimal, calcular_curva_atleta
+from core.formulas import calcular_edad_decimal, calcular_curva_atleta, resolver_k_individual
 
 def renderizar_pestana_rendimiento(simulacion_activa: bool):
     """Renderiza la pestaña de Rendimiento Histórico y Proyección."""
