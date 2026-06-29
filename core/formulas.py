@@ -8,7 +8,7 @@ import pandas as pd
 # =============================================================================
 # 📍 CHECKPOINT 4: EL PATRÓN DEL TIEMPO (EDAD DECIMAL ÚNICA)
 # =============================================================================
-def calcular_edad_decimal(fecha_nacimiento, fecha_referencia=None) -> float:
+def calcular_edad_decimal(fecha_nacimiento, fecha_evento=None) -> float:
     """
     Calcula la edad exacta con precisión flotante (flotante de días exactos/365.25).
     Elimina cualquier discrepancia de redondeo decimal en la plataforma.
