@@ -302,30 +302,55 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
     # =============================================================================
     # 📊 MOTOR GRÁFICO SECCIÓN B: MODO INDIVIDUAL O SIMULACIÓN
     # =============================================================================
+# =============================================================================
+    # 📊 MOTOR GRÁFICO SECCIÓN B: MODO INDIVIDUAL O SIMULACIÓN (DATOS REALES)
+    # =============================================================================
     else:
         fig = plt.figure(figsize=(8.5, 11.0))
         ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
         
-        # Parámetros base del atleta para graficar curva asintótica individual
+        # 1. Inicialización de variables de respaldo (Fallback)
         t0, T0 = 10.0, 95.0
-        t_pb, T_pb = t_pb_real, 62.0
-        k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+        t_pb, T_pb = 13.5, 62.0
         
-        edades_curva = np.linspace(t0, t_peak, 300)
-        tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-        
-        todos_los_tiempos_ind = [T0, T_pb, T_target]
-        
-        if not simulacion_externa and atleta_id:
+        # 2. Extracción e inyección de datos reales desde Supabase
+        if atleta_id and not simulacion_externa:
             try:
-                r_ind_m = supabase.table("marcas_historicas").select("edad, tiempo, nota").eq("usuario_id", atleta_id).eq("prueba", prueba_sel).order("edad", desc=False).execute()
+                # Recuperar todas las marcas del nadador ordenadas por edad cronológica
+                r_ind_m = supabase.table("marcas_historicas")\
+                    .select("edad, tiempo, nota")\
+                    .eq("usuario_id", atleta_id)\
+                    .eq("prueba", prueba_sel)\
+                    .order("edad", desc=False).execute()
+                
                 if r_ind_m.data:
                     df_procesado = pd.DataFrame(r_ind_m.data)
                     df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-                    todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
-            except Exception:
-                pass
+                    
+                    # T0 y t0 se extraen de la PRIMERA marca registrada en el historial
+                    t0 = float(df_procesado.iloc[0]["Edad"])
+                    T0 = float(df_procesado.iloc[0]["Tiempo"])
+                    
+                    # T_pb y t_pb se extraen de la MEJOR marca (Marca Personal Histórica)
+                    idx_pb = df_procesado["Tiempo"].idxmin()
+                    t_pb = float(df_procesado.loc[idx_pb, "Edad"])
+                    T_pb = float(df_procesado.loc[idx_pb, "Tiempo"])
+            except Exception as e:
+                st.warning(f"Usando parámetros base. No se pudo conectar con el historial: {e}")
 
+        # 3. Resolver constante k matemática con los puntos extraídos de la BD
+        k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+        
+        # 4. Generación de vectores de la curva asintótica fisiológica
+        edades_curva = np.linspace(t0, t_peak, 300)
+        tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+        
+        # Colección de tiempos para ajustar encuadres del gráfico macro
+        todos_los_tiempos_ind = [T0, T_pb, T_target]
+        if not df_procesado.empty:
+            todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+
+        # 5. Ajustes de encuadre de ventanas ópticas (Macro / Micro)
         if tipo_vista == "Micro (Ventana Anual)":
             edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 300)
             tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
@@ -346,13 +371,9 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
             lim_x_min, lim_x_max = edad_min_zoom, edad_max_zoom
         else:
             peor_tiempo_ind = max(todos_los_tiempos_ind)
-            lim_y_inferior = m_wr * 0.92 if m_wr > 0 else min(todos_los_tiempos_ind) * 0.90
+            lim_y_inferior = m_wr * 0.95 if m_wr > 0 else min(todos_los_tiempos_ind) * 0.90
             lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.08)
-            
-            if not df_procesado.empty:
-                lim_x_min = min(float(t0), float(df_procesado["Edad"].min())) - 0.5
-            else:
-                lim_x_min = max(4.0, float(t0) - 0.5)
+            lim_x_min = max(4.0, float(t0) - 0.5)
             lim_x_max = t_peak + 1.0
 
         ax.set_xlim(lim_x_min, lim_x_max)
@@ -361,7 +382,7 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
 
         datos_tabla_micro = []
         
-        # Pintar hitos y compromisos trimestrales
+        # 6. Pintar hitos y compromisos trimestrales (Cruces de fechas reales con edad decimal)
         if atleta_id and tipo_vista == "Micro (Ventana Anual)":
             try:
                 r_atleta = supabase.table("usuarios").select("fecha_nacimiento").eq("id", atleta_id).execute()
@@ -401,27 +422,28 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
         if datos_tabla_micro:
             datos_tabla_micro.sort(key=lambda x: float(x["Edad"].replace(" a", "").strip()))
 
+        # 7. Trazado de elementos del lienzo gráfico
         ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
 
         if not simulacion_externa and not df_procesado.empty:
             ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
             ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, zorder=3)
 
-        # Elementos flotantes fijos en gráfico de dispersión
+        # Hitos de dispersión
         estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
         if lim_x_min <= t0 <= lim_x_max and lim_y_inferior <= T0 <= lim_y_superior:
             ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, zorder=4)
             ax.text(t0 + 0.1, T0, f"P. Start\n{T0:.2f}s", fontsize=8, va="bottom", bbox=estilo_bbox)
 
         if lim_x_min <= t_pb <= lim_x_max and lim_y_inferior <= T_pb <= lim_y_superior:
-            ax.scatter(t_pb, t_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, zorder=5)
+            ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, zorder=5)
             ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{T_pb:.2f}s", fontsize=8, va="center", bbox=estilo_bbox)
 
         if lim_x_min <= t_peak <= lim_x_max and lim_y_inferior <= T_target <= lim_y_superior:
             ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, zorder=4)
             ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
 
-        # Renderizado de líneas horizontales de referencia internacional
+        # Referencias de tiempos internacionales (World Aquatics, PANAM, etc.)
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
         referencias = [
             {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"},
@@ -445,7 +467,7 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
         ax.legend(loc="upper right", fontsize=tamano_leyenda, framealpha=0.8)
 
         # -------------------------------------------------------------------------
-        # 📋 CUADROS DE REPORTES Y DETALLES (TABLAS MATPLOTLIB)
+        # 📋 RENDIMIENTO DE TABLAS INFERIORES MATPLOTLIB
         # -------------------------------------------------------------------------
         df_table_render = None
         es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
@@ -460,8 +482,8 @@ def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
         else:
             if not df_procesado.empty:
                 df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
-                df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
-                df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
+                df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a" if isinstance(x, (int,float)) else x)
+                df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s" if isinstance(x, (int,float)) else x)
                 anchos_columnas = [0.15, 0.15, 0.70]
             else:
                 df_table_render = pd.DataFrame([{"Edad": "-", "Tiempo": "-", "Evento / Fecha": "Sin marcas registradas"}])
