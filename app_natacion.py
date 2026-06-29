@@ -142,3 +142,49 @@ else:
     
     renderizar_pestana_rendimiento(simulacion_activa)
     renderizar_modulos_gestion(simulacion_activa)
+
+# UBICACIÓN: app.py (o archivo principal), sección de inicialización de variables de la prueba
+def cargar_marcas_referencia_cache(prueba_seleccionada):
+    """
+    Verifica el st.session_state para marcas_referencia. 
+    Si no existe o cambió de prueba, consulta a Supabase y cachea los resultados.
+    """
+    # Forzar la recarga si cambió la prueba seleccionada
+    if "ultima_prueba" not in st.session_state or st.session_state["ultima_prueba"] != prueba_seleccionada:
+        st.session_state["ultima_prueba"] = prueba_seleccionada
+        st.session_state["marcas_referencia_cargadas"] = False
+
+    if not st.session_state.get("marcas_referencia_cargadas", False):
+        try:
+            resp = supabase.table("marcas_referencia").select("*").eq("prueba", prueba_seleccionada).execute()
+            if resp.data and len(resp.data) > 0:
+                st.session_state["marcas_referencia"] = resp.data[0]
+            else:
+                st.session_state["marcas_referencia"] = {}
+            st.session_state["marcas_referencia_cargadas"] = True
+        except Exception as e:
+            st.error(f"Error de conexión con la tabla 'marcas_referencia': {e}")
+            st.session_state["marcas_referencia"] = {}
+            st.session_state["marcas_referencia_cargadas"] = False
+
+    # Mapeo seguro de variables desde el session_state al entorno del gráfico
+    ref = st.session_state.get("marcas_referencia", {})
+    return {
+        "m_ano": float(ref.get("min_ano", 0)) if ref.get("min_ano") else 0.0,
+        "m_panam_b": float(ref.get("panam_b", 0)) if ref.get("panam_b") else 0.0,
+        "m_panam_a": float(ref.get("panam_a", 0)) if ref.get("panam_a") else 0.0,
+        "m_wa_b": float(ref.get("wa_b", 0)) if ref.get("wa_b") else 0.0,
+        "m_wa_a": float(ref.get("wa_a", 0)) if ref.get("wa_a") else 0.0,
+        "m_wr": float(ref.get("world_record", 0)) if ref.get("world_record") else 0.0
+    }
+
+# LLAMADA DEL BLOQUE: Ejecútalo justo antes de procesar los gráficos individuales/equipo
+marcas_limites = cargar_marcas_referencia_cache(prueba_actual)
+
+# Asignación de variables para que los archivos del gráfico (11 y 12) las lean correctamente:
+m_ano = marcas_limites["m_ano"]
+m_panam_b = marcas_limites["m_panam_b"]
+m_panam_a = marcas_limites["m_panam_a"]
+m_wa_b = marcas_limites["m_wa_b"]
+m_wa_a = marcas_limites["m_wa_a"]
+m_wr = marcas_limites["m_wr"]
