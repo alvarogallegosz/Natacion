@@ -28,6 +28,16 @@ except Exception as e:
     st.error("❌ ERROR CRÍTICO DENTRO DE FORMULAS.PY:")
     st.exception(e)
 # =============================================================================
+# BLOQUE TEMPORAL DE DIAGNÓSTICO
+# =============================================================================
+import streamlit as st
+try:
+    import views.rendimiento as f
+    st.write("✅ El archivo rendimiento.py se compiló correctamente.")
+except Exception as e:
+    st.error("❌ ERROR CRÍTICO DENTRO DE RENDIMIENTO.PY:")
+    st.exception(e)
+# =============================================================================
 # Ahora los imports del Core están 100% protegidos y garantizados
 from core.conexion import obtener_cliente_supabase, inyectar_estilos_globales, autenticar_usuario, generar_hash_sha256
 
