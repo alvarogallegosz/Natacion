@@ -7,8 +7,9 @@ import datetime
 import os
 import sys
 
-# Inyección defensiva de rutas para prevenir el ModuleNotFoundError en subcarpetas
-ruta_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Inyección defensiva exacta de la raíz del proyecto para entornos en la nube
+ruta_actual = os.path.dirname(os.path.abspath(__file__))
+ruta_raiz = os.path.abspath(os.path.join(ruta_actual, ".."))
 if ruta_raiz not in sys.path:
     sys.path.insert(0, ruta_raiz)
 
