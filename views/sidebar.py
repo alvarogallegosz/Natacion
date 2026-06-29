@@ -1,16 +1,12 @@
 # =============================================================================
-# 📁 views/sidebar.py - PANEL LATERAL ULTRA COMPACTO CON JERARQUÍA ESTRICTA
+# 📁 views/sidebar.py - PANEL LATERAL SIMPLIFICADO Y LIGERO
 # =============================================================================
 import streamlit as st
 import pandas as pd
 
 def renderizar_sidebar() -> str:
-    """
-    Despliega la barra lateral con espaciado mínimo y orden estructural fijo.
-    """
     supabase = st.session_state["supabase_client"]
     
-    # Estilo CSS para reducir el margen vertical general de la sidebar y definir el divisor mini
     st.sidebar.markdown(
         """
         <style>
@@ -21,7 +17,7 @@ def renderizar_sidebar() -> str:
         unsafe_allow_html=True
     )
 
-    # 1. BLOQUE DE IDENTIDAD E INFRAESTRUCTURA BASE (PERMANENTE - TOPE SUPERIOR)
+    # 1. IDENTIDAD E INFRAESTRUCTURA BASE
     st.sidebar.markdown(f"**Usuario:** {st.session_state.get('nombre', 'Usuario')} | `{st.session_state.get('rol', 'Invitado')}`")
     
     col_cierre, col_cache = st.sidebar.columns(2)
@@ -36,7 +32,7 @@ def renderizar_sidebar() -> str:
             
     st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
 
-    # 2. PANEL DE NAVEGACIÓN DE ATLETAS (PERMANENTE - INMEDIATAMENTE DEBAJO)
+    # 2. NAVEGACIÓN DE ATLETAS
     st.sidebar.markdown("**🎯 Navegación de Atletas**")
     rol_usuario = st.session_state.get("rol")
     usuario_id = st.session_state.get("usuario_id")
@@ -62,7 +58,7 @@ def renderizar_sidebar() -> str:
                 dict_atletas = dict(zip(df_usuarios['nombre'], df_usuarios['id']))
                 dict_generos = dict(zip(df_usuarios['id'], df_usuarios['genero']))
                 
-                atleta_sel = st.sidebar.selectbox("Seleccionar Nadador de Base:", options=list(dict_atletas.keys()), label_visibility="collapsed")
+                atleta_sel = st.sidebar.selectbox("Seleccionar Nadador:", options=list(dict_atletas.keys()), label_visibility="collapsed")
                 atleta_id = dict_atletas[atleta_sel]
                 nombre_atleta = atleta_sel
                 genero_atleta = dict_generos[atleta_id]
@@ -75,11 +71,13 @@ def renderizar_sidebar() -> str:
 
     st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
 
-    # 4. SECCIÓN TRANSVERSAL PERMANENTE DEL MODELO (PARÁMETROS FISIOLÓGICOS)
+    # 3. PARÁMETROS FISIOLÓGICOS DEL MODELO
     st.sidebar.markdown("**⏱️ Parámetros del Modelo**")
     h_val = st.sidebar.slider("Rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.01)
-    t_peak_val = st.sidebar.slider("Pico madurativo (t_peak):", min_value=14.0, max_value=22.0, value=18.0, step=0.5)
-    T_target_val = st.sidebar.number_input("Tiempo Objetivo (T_target):", min_value=10.0, max_value=1500.0, value=52.0, step=0.1)
+    t_peak_val = st.sidebar.slider("Pico madurativo (t_peak):", min_value=14.0, max_value=26.0, value=23.0, step=0.5)
+    
+    t_target_def = st.session_state.get("target_calculado_rm", 52.0)
+    T_target_val = st.sidebar.number_input("Tiempo Objetivo (T_target):", min_value=10.0, max_value=1500.0, value=t_target_def, step=0.1)
     
     st.session_state["control_h"] = h_val
     st.session_state["control_t_peak"] = t_peak_val
@@ -87,51 +85,24 @@ def renderizar_sidebar() -> str:
 
     st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
 
-    # 5. SELECTOR DEL MODO DE OPERACIÓN (PERMANENTE)
-    st.sidebar.markdown("**🎛️ Modo de Operación**")
-    modo_operacion = st.sidebar.radio(
-        "Modo de Operación Interno",
-        ["Individual", "Visitante (Simulación Externa)", "Equipo"],
-        label_visibility="collapsed"
-    )
-    st.session_state["modo_operacion"] = modo_operacion
-
-    st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
-
-    # 6. BLOQUES DINÁMICOS CONDICIONALES (AL FONDO DE LA SIDEBAR)
-    if modo_operacion == "Visitante (Simulación Externa)":
-        st.sidebar.markdown("**🧪 Parámetros de Simulación**")
+    # 4. GESTIÓN DE SIMULACIÓN EXTERNA (OCULTA EN LA BARRA LATERAL)
+    st.sidebar.markdown("**🧪 Simulación de Escenarios**")
+    activar_simulacion = st.sidebar.toggle("Activar modo simulación (Visitante)", value=False)
+    
+    if activar_simulacion:
+        st.sidebar.caption("Ingrese los datos del escenario externo:")
         c_v1, c_v2 = st.sidebar.columns(2)
         with c_v1:
             t0_sim = st.number_input("t0 (Edad Ini):", min_value=8.0, max_value=16.0, value=11.0, step=0.5)
-            t_pb_sim = st.number_input("t_pb (Edad Réc):", min_value=10.0, max_value=22.0, value=14.0, step=0.5)
+            t_pb_sim = st.number_input("t_pb (Edad Réc):", min_value=10.0, max_value=22.0, value=11.33, step=0.01)
         with c_v2:
             T0_sim = st.number_input("T0 (Tiempo Ini):", min_value=20.0, max_value=200.0, value=120.0, step=1.0)
             T_pb_sim = st.number_input("T_pb (Tiempo Réc):", min_value=20.0, max_value=180.0, value=65.0, step=1.0)
-            
         st.session_state["visitante_hitos"] = {"t0": t0_sim, "T0": T0_sim, "t_pb": t_pb_sim, "T_pb": T_pb_sim}
+        st.session_state["modo_operacion"] = "Visitante (Simulación Externa)"
+    else:
+        # Por defecto individual o equipo, se decidirá en la zona blanca central
+        if "modo_operacion" not in st.session_state or st.session_state["modo_operacion"] == "Visitante (Simulación Externa)":
+            st.session_state["modo_operacion"] = "Individual"
 
-    elif modo_operacion == "Equipo":
-        st.sidebar.markdown("**👥 Segmentación de Grupo**")
-        filtro_genero = st.sidebar.selectbox("Filtro Género:", ["Todos", "Femenino (F)", "Masculino (M)"])
-        tipo_filtro_equipo = st.sidebar.radio("Filtrado por:", ["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
-        
-        cat_sel = None
-        ids_sel = []
-        
-        if tipo_filtro_equipo == "Categoría Etaria":
-            cat_sel = st.sidebar.selectbox("Categoría:", ["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
-        elif tipo_filtro_equipo == "Atletas Específicos":
-            try:
-                r_all = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").execute()
-                if r_all.data:
-                    df_all = pd.DataFrame(r_all.data)
-                    dict_all = dict(zip(df_all['nombre'], df_all['id']))
-                    atletas_multi = st.sidebar.multiselect("Nadadores:", options=list(dict_all.keys()))
-                    ids_sel = [dict_all[name] for name in atletas_multi]
-            except Exception:
-                pass
-                
-        st.session_state["equipo_filtros"] = {"genero": filtro_genero, "tipo_filtro": tipo_filtro_equipo, "categoria": cat_sel, "ids_especificos": ids_sel}
-
-    return modo_operacion
+    return st.session_state["modo_operacion"]
