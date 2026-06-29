@@ -144,9 +144,6 @@ else:
     renderizar_modulos_gestion(simulacion_activa)
 
 # UBICACIÓN: app.py (o archivo principal), sección de inicialización de variables de la prueba
-# =====================================================================
-# SUSTITUIR DESDE LA LÍNEA 148 HASTA LA 187 CON ESTE BLOQUE EXACTO:
-# =====================================================================
 
 def cargar_marcas_referencia_cache(prueba_seleccionada):
     # Forzar la recarga si cambió la prueba seleccionada en el selector
