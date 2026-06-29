@@ -17,7 +17,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
+# =============================================================================
+# BLOQUE TEMPORAL DE DIAGNÓSTICO
+# =============================================================================
+import streamlit as st
+try:
+    import core.formulas as f
+    st.write("✅ El archivo formulas.py se compiló correctamente.")
+except Exception as e:
+    st.error("❌ ERROR CRÍTICO DENTRO DE FORMULAS.PY:")
+    st.exception(e)
+# =============================================================================
 # Ahora los imports del Core están 100% protegidos y garantizados
 from core.conexion import obtener_cliente_supabase, inyectar_estilos_globales, autenticar_usuario, generar_hash_sha256
 
