@@ -8,7 +8,7 @@ import datetime
 import matplotlib.pyplot as plt
 
 # Funciones importadas de tu infraestructura matemática
-from formulas import (
+from core.formulas import (
     calcular_categoria_competencia, resolver_k_individual, 
     calcular_curva_atleta, obtener_datos_hitos_atleta
 )
