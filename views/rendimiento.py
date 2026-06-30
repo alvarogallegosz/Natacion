@@ -243,14 +243,15 @@ def renderizar_grafico_individual(df_marcas: pd.DataFrame, t0: float, T0: float,
                 estilizar_tabla_nativo(mpl_table2)
                 
     st.pyplot(fig)
-    
+
     # Buffer de exportación unificado de alta resolución
+    sufijo_archivo = nombre_atleta.replace(" ", "_").lower()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
     st.download_button(
         label="📥 Descargar Reporte en Alta Resolución (PNG)",
         data=buf.getvalue(),
-        file_name=f"reporte_cinematico_{sufijo}.png",
+        file_name=f"reporte_cinematico_{sufijo_archivo}.png",
         mime="image/png",
         use_container_width=True
     )
@@ -273,7 +274,7 @@ def mostrar_modulo_rendimiento():
     simulacion_activa = st.session_state.get("simulacion_externa", False)
     
     atleta_id = st.session_state.get("nadador_seleccionado_id")
-    fecha_nac_atleta = st.session_state.get("fecha_nacimiento")
+    fecha_nac_atleta = st.session_state.get("fecha_nacimiento") or st.session_state.get("fecha_nacimiento_usuario")
     nombre_atleta = st.session_state.get("nadador_seleccionado_nombre", "Sin Atleta")
     
     if modo_equipo:

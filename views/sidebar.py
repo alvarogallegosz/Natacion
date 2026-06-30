@@ -54,10 +54,10 @@ def renderizar_sidebar() -> bool:
             # Se fija el atleta en foco como él mismo
             st.session_state.nadador_seleccionado_id = st.session_state.get("usuario_id")
             st.session_state.nadador_seleccionado_nombre = st.session_state.get("nombre")
-            st.session_state.nadador_seleccionado_genero = st.session_state.get("genero", "M")
-            
+            st.session_state.nadador_seleccionado_genero = st.session_state.get("genero_usuario", "M")
+
             # Cálculo de su categoría reglamentaria local e inalterable
-            fecha_nac = st.session_state.get("fecha_nacimiento")
+            fecha_nac = st.session_state.get("fecha_nacimiento_usuario")
             cat_local, _ = calcular_categoria_competencia(fecha_nac)
             st.session_state.nadador_seleccionado_categoria = cat_local
             

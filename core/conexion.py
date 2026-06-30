@@ -246,54 +246,7 @@ def obtener_marcas_atleta(atleta_id: str):
     except Exception as e:
         st.error(f"❌ Error en core.conexion al obtener marcas del atleta [{atleta_id}]: {e}")
         return []
-# =============================================================================
-# 📁 MODIFICACIÓN: EXTENSIONES DE CONSULTA MAESTRA (MODO EQUIPO E INDIVIDUAL)
-# =============================================================================
 
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_nomina_nadadores_activos():
-    """
-    Consulta la base de datos y extrae la nómina completa de nadadores 
-    en estado 'Activo'. Almacena en caché por 5 minutos para agilizar el modo equipo.
-    """
-    try:
-        supabase = obtener_cliente_supabase()
-        response = (
-            supabase.table("usuarios")
-            .select("id, nombre, fecha_nacimiento, genero")
-            .eq("rol", "Nadador")
-            .eq("estatus", "Activo")
-            .execute()
-        )
-        return response.data if response.data else []
-    except Exception as e:
-        st.error(f"❌ Error en core.conexion al obtener nómina activa: {e}")
-        return []
-
-
-@st.cache_data(ttl=120, show_spinner=False)
-def obtener_marcas_atleta(atleta_id: str):
-    """
-    Extrae el histórico completo de marcas, tiempos oficiales e hitos de un 
-    atleta específico en base a su ID único.
-    """
-    try:
-        if not atleta_id:
-            return []
-        supabase = obtener_cliente_supabase()
-        
-        # Ajusta el nombre de la tabla ('marcas' o 'historial_hitos') según tu esquema exacto
-        response = (
-            supabase.table("historial_hitos")
-            .select("id, atleta_id, fecha, distancia, estilo, tiempo, tipo_piscina_metros")
-            .eq("atleta_id", atleta_id)
-            .order("fecha", ascending=True)
-            .execute()
-        )
-        return response.data if response.data else []
-    except Exception as e:
-        st.error(f"❌ Error en core.conexion al obtener marcas del atleta [{atleta_id}]: {e}")
-        return []
 # -----------------------------------------------------------------------------
 # 🎨 5. INTERFAZ Y ESTILIZACIÓN DE TABLAS HTML REPORTE
 # -----------------------------------------------------------------------------
@@ -346,6 +299,8 @@ def inyectar_estilos_globales():
         }
         </style>
     """, unsafe_allowed_html=True)
+
+
 def verificar_permiso_accion(rol_usuario: str, accion: str) -> bool:
     """
     Cortafuegos de operaciones en Supabase basado en el rol del usuario activo.

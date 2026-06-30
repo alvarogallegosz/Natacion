@@ -189,6 +189,8 @@ def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak,
         tiempos.append(tiempo_estimado)
         
     return np.array(tiempos, dtype=float)
+
+
 # =============================================================================
 # 🧮 EXTENSIONES: SEGMENTACIÓN VECTORIAL Y GENERACIÓN DE MALLAS DE EDAD
 # =============================================================================

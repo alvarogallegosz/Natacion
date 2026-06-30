@@ -42,8 +42,8 @@ def mostrar_enrutador_gestion():
     rol_usuario = st.session_state.get("rol", "Nadador")
     nadador_id = st.session_state.get("nadador_seleccionado_id")
     nadador_nombre = st.session_state.get("nadador_seleccionado_nombre", "Sin Selección")
-    fecha_nac_atleta = st.session_state.get("fecha_nacimiento")
-    titulo_grafico = st.session_state.get("prueba_activa", "50m Libre") 
+    fecha_nac_atleta = st.session_state.get("fecha_nacimiento") or st.session_state.get("fecha_nacimiento_usuario")
+    titulo_grafico = st.session_state.get("prueba_activa", "50m Libre")
 
     st.markdown("### 𗂾 Panel de Gestión Operativa y Marcas")
     
@@ -730,8 +730,8 @@ def mostrar_enrutador_gestion():
                         ax1_ban.set_title(f"Dinámica de Carga y Transición de Forma: {dict_atletas_rep[atleta_rep_sel]}", fontsize=11, weight="bold", pad=10)
                         fig_ban.tight_layout()
                         st.pyplot(fig_ban)
-                        
-# =============================================================================
+
+                        # =============================================================================
                         # 5. TABLA RESUMEN DE CONTROL CRÍTICO E HIGIENE IMPRESA (CORREGIDA Y SEGURA)
                         # =============================================================================
                         st.markdown("#### 📋 Matriz Numérica de Transición y Estado Actual")
