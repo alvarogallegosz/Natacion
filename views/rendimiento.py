@@ -300,7 +300,7 @@ def mostrar_modulo_rendimiento():
             st.error(f"Error al conectar con la tabla de marcas: {e}")
             return
             
-lista_procesada = []
+        lista_procesada = []
         for m in marcas_data:
             # 🌟 LEEMOS ESTRICTAMENTE LAS COLUMNAS REALES DE TU BD
             edad_dec = float(m["edad"])
