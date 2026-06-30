@@ -226,7 +226,7 @@ def obtener_nomina_nadadores_activos():
 @st.cache_data(ttl=120, show_spinner=False)
 def obtener_marcas_atleta(atleta_id: str):
     """
-    Extrae el histórico completo de marcas, tiempos oficiales e hitos de un 
+    Extrae el histórico completo de marcas, tiempos oficiales de un 
     atleta específico en base a su ID único.
     """
     try:
@@ -236,10 +236,10 @@ def obtener_marcas_atleta(atleta_id: str):
         
         # NOTA: Asegúrate de que tus vistas apunten de forma consistente a 'historial_hitos' o 'marcas_historicas'
         response = (
-            supabase.table("historial_hitos")
-            .select("id, atleta_id, fecha, distancia, estilo, tiempo, tipo_piscina_metros")
-            .eq("atleta_id", atleta_id)
-            .order("fecha", ascending=True)
+            supabase.table("marcas_historicas")
+            .select("id, usuario_id, prueba, edad, tiempo, nota")
+            .eq("usuario_id", atleta_id)
+            .order("fecha", desc=False)
             .execute()
         )
         return response.data if response.data else []
