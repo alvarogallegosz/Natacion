@@ -736,7 +736,7 @@ def mostrar_enrutador_gestion():
                         # =============================================================================
                         st.markdown("#### 📋 Matriz Numérica de Transición y Estado Actual")
                         
-                        df_tabla_ban = df_filtrado_rep.sort_values(by="fecha", ascending=False).copy()
+                        df_tabla_ban = df_filtrado_rep.sort_values(by="fecha", desc=True).copy()
                         df_tabla_ban["tsb_relativo"] = (df_tabla_ban["TSB"] / df_tabla_ban["CTL"].replace(0.0, np.nan)) * 100.0
                         df_tabla_ban["tsb_relativo"] = df_tabla_ban["tsb_relativo"].fillna(0.0)
                         
