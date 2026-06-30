@@ -315,7 +315,7 @@ def mostrar_enrutador_gestion():
             else:
                 st.info("💡 No se registran asignaciones de carriles estructuradas en el sistema.")
         else:
-            st.error("🔒 Acceso Denegado. Esta sección contiene funciones críticas de administración de base de datos y asignación de nómina. Requiere credenciales de Head Coach o Administrador[...]
+            st.error("🔒 Acceso Denegado. Esta sección contiene funciones críticas de administración de base de datos y asignación de nómina. Requiere credenciales de Head Coach o Administrador.")
 
     # -------------------------------------------------------------------------
     # 📅 PESTAÑA 6: CALENDARIO ANUAL DE COMPETENCIAS
@@ -346,9 +346,9 @@ def mostrar_enrutador_gestion():
                         id_mod = st.selectbox("ID Usuario:", options=df_usr["id"].tolist())
                         user_actual = df_usr[df_usr["id"] == id_mod].iloc[0]
                     with c_rol:
-                        nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], index=["Nadador", "Head Coach", "Entrenador", "Administrador"].index(use[...]
+                        nuevo_rol_user = st.selectbox("Rol:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], index=["Nadador", "Head Coach", "Entrenador", "Administrador"].index(user_actual["rol"]))
                     with c_est:
-                        nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Pendiente", "Suspendido", "Bloqueado"], index=["Activo", "Pendiente", "Suspendido", "Bloqueado"].index(user_actual[...]
+                        nuevo_est_user = st.selectbox("Estatus:", options=["Activo", "Pendiente", "Suspendido", "Bloqueado"], index=["Activo", "Pendiente", "Suspendido", "Bloqueado"].index(user_actual["estatus"]))
                     
                     campos_deshabilitados = nuevo_rol_user in ["Head Coach", "Entrenador", "Administrador"]
                     
