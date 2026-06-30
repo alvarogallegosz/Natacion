@@ -101,7 +101,7 @@ def renderizar_grafico_equipo(atletas_filtrados: list, tipo_vista: str, edad_min
     
     for atleta in atletas_filtrados:
         try:
-            res_m = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta["id"]).order("edad", desc=False).execute()
+            res_m = supabase.table("marcas_historicas").select("*").eq("usuario_id", atleta["id"]).order("edad", desc=False).execute()
             df_m = pd.DataFrame(res_m.data) if res_m.data else pd.DataFrame()
             
             if df_m.empty:
