@@ -1,108 +1,200 @@
 # =============================================================================
-# 📁 views/sidebar.py - PANEL LATERAL SIMPLIFICADO Y LIGERO
+# 📁 views/sidebar.py - BARRA LATERAL CON MÁXIMO CORTAFUEGOS DE GOBERNANZA
 # =============================================================================
 import streamlit as st
-import pandas as pd
+import datetime
+from core.conexion import obtener_cliente_supabase, obtener_nomina_nadadores_activos
+from core.formulas import calcular_categoria_competencia
 
-def renderizar_sidebar() -> str:
-    supabase = st.session_state["supabase_client"]
+def renderizar_sidebar() -> bool:
+    """
+    Renderiza la barra lateral (Sidebar) aplicando estrictamente la matriz de
+    gobernanza por roles y exponiendo los controles exactos de los archivos 9, 11 y 12.
     
-    st.sidebar.markdown(
-        """
-        <style>
-            [data-testid="stSidebar"] .element-container { margin-bottom: 0.3rem !important; }
-            .mini-divisor { margin-top: 5px !important; margin-bottom: 8px !important; border-bottom: 1px solid #ddd; }
-        </style>
-        """, 
-        unsafe_allow_html=True
-    )
+    Retorna:
+        bool: Estado de 'simulacion_externa' para que las vistas congelen escrituras en BD.
+    """
+    supabase = obtener_cliente_supabase()
+    rol = str(st.session_state.get("rol", "Nadador")).lower().strip()
+    
+    # Inicialización por seguridad de variables clave de control de equipo en el estado de sesión
+    if "modo_equipo" not in st.session_state:
+        st.session_state.modo_equipo = False
+    if "atletas_filtrados_equipo" not in st.session_state:
+        st.session_state.atletas_filtrados_equipo = []
 
-    # 1. IDENTIDAD E INFRAESTRUCTURA BASE
-    st.sidebar.markdown(f"**Usuario:** {st.session_state.get('nombre', 'Usuario')} | `{st.session_state.get('rol', 'Invitado')}`")
-    
-    col_cierre, col_cache = st.sidebar.columns(2)
-    with col_cierre:
-        if st.button("🚪 Salir", use_container_width=True):
+    with st.sidebar:
+        st.markdown(f"### 👤 Sesión Activa")
+        st.markdown(f"**Usuario:** {st.session_state.get('nombre', 'Usuario')}")
+        st.markdown(f"**Rol / Nivel:** `{rol.upper()}`")
+        st.markdown("---")
+        
+        st.markdown("### ⚙️ Panel de Control y Filtros")
+        
+        # 1. ESCUDO DE SIMULACIÓN EXTERNA (Archivos 10 y 12)
+        # Protege la BD aislando los cálculos locales en los sliders.
+        st.markdown("##### 🛡️ Entorno de Trabajo")
+        simulacion_externa = st.toggle(
+            "Activar Modo Simulación", 
+            value=False,
+            help="Habilita la alteración local de variables asintóticas (h, k) sin afectar los datos reales en Supabase."
+        )
+        st.session_state.simulacion_externa = simulacion_externa
+        
+        st.markdown("---")
+        st.markdown("##### 🎯 Segmentación y Foco")
+
+        # =====================================================================
+        # CASO A: RESTRICCIÓN ABSOLUTA PARA EL ROL "NADADOR"
+        # =====================================================================
+        if rol == "nadador":
+            # Forzado absoluto: No hay conmutador de equipo ni selectores alternos
+            st.session_state.modo_equipo = False
+            
+            # Se fija el atleta en foco como él mismo
+            st.session_state.nadador_seleccionado_id = st.session_state.get("usuario_id")
+            st.session_state.nadador_seleccionado_nombre = st.session_state.get("nombre")
+            st.session_state.nadador_seleccionado_genero = st.session_state.get("genero", "M")
+            
+            # Cálculo de su categoría reglamentaria local e inalterable
+            fecha_nac = st.session_state.get("fecha_nacimiento")
+            cat_local, _ = calcular_categoria_competencia(fecha_nac)
+            st.session_state.nadador_seleccionado_categoria = cat_local
+            
+            st.info("📌 Acceso exclusivo a tu perfil, marcas históricas y simulador local.")
+            
+        # =====================================================================
+        # CASO B / C: ACCESO MEDIO Y TOTAL (ENTRENADOR, HEAD COACH, ADMIN)
+        # =====================================================================
+        else:
+            # Controles maestros exclusivos para Head Coach y Administrador
+            if rol in ["head coach", "administrador"]:
+                opcion_modo = st.radio(
+                    "Selección de Enfoque Visual",
+                    ["Modo Individual (Atleta único)", "Modo Equipo (Comparativa / Grupo)"],
+                    index=0 if not st.session_state.modo_equipo else 1
+                )
+                st.session_state.modo_equipo = "Modo Equipo" in opcion_modo
+            else:
+                # El entrenador asistente está forzado al modo individual de sus atletas asignados
+                st.session_state.modo_equipo = False
+
+            # --- SUB-FLUJO: MODO INDIVIDUAL (Para Entrenador, Head Coach y Admin) ---
+            if not st.session_state.modo_equipo:
+                nomina_disponible = []
+                
+                if rol == "entrenador":
+                    # Filtro cruzado estricto por la tabla intermedia 'asignaciones'
+                    try:
+                        resp_asig = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.get("usuario_id")).execute()
+                        ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
+                        
+                        if ids_asignados:
+                            # Cruzamos con la nómina activa global
+                            nomina_completa = obtener_nomina_nadadores_activos()
+                            nomina_disponible = [a for a in nomina_completa if a["id"] in ids_asignados]
+                    except Exception as e:
+                        st.error(f"Error al verificar asignaciones de carril: {e}")
+                else:
+                    # Head Coach y Administrador ven al 100% de la nómina activa
+                    nomina_disponible = obtener_nomina_nadadores_activos()
+
+                if nomina_disponible:
+                    lista_nombres = [a["nombre"] for a in nomina_disponible]
+                    nombre_sel = st.selectbox("Seleccionar Atleta en Foco", lista_nombres)
+                    
+                    # Extraer el diccionario del nadador seleccionado para mapear el st.session_state
+                    atleta_sel = next(a for a in nomina_disponible if a["nombre"] == nombre_sel)
+                    
+                    st.session_state.nadador_seleccionado_id = atleta_sel["id"]
+                    st.session_state.nadador_seleccionado_nombre = atleta_sel["nombre"]
+                    st.session_state.nadador_seleccionado_genero = atleta_sel["genero"]
+                    st.session_state.fecha_nacimiento = atleta_sel["fecha_nacimiento"]
+                    
+                    cat_calculada, _ = calcular_categoria_competencia(atleta_sel["fecha_nacimiento"])
+                    st.session_state.nadador_seleccionado_categoria = cat_calculada
+                    
+                    # Ficha estética del Atleta en Foco
+                    st.markdown("##### 📌 Ficha del Atleta en Foco")
+                    st.caption(f"**Nombre:** {st.session_state.nadador_seleccionado_nombre}")
+                    st.caption(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'}")
+                    st.caption(f"**Categoría Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
+                else:
+                    st.warning("⚠️ No posees atletas asignados bajo tu supervisión activa.")
+                    st.session_state.nadador_seleccionado_id = None
+
+            # --- SUB-FLUJO: MODO EQUIPO (Exclusivo Head Coach / Admin) ---
+            else:
+                st.markdown("##### 📊 Parámetros del Análisis de Equipo")
+                nomina_global = obtener_nomina_nadadores_activos()
+                
+                # Selector de Género (Archivo 11)
+                filtro_genero = st.selectbox("Filtrar por Género", ["Todos", "Femenino (F)", "Masculino (M)"])
+                if filtro_genero == "Femenino (F)":
+                    nomina_global = [a for a in nomina_global if a["genero"] == "F"]
+                elif filtro_genero == "Masculino (M)":
+                    nomina_global = [a for a in nomina_global if a["genero"] == "M"]
+                    
+                # Selectores en cascada por Tipo de Filtro (Archivo 11)
+                tipo_filtro = st.selectbox("Segmentación de Grupo", ["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
+                
+                atletas_resultado = []
+                
+                if tipo_filtro == "Todos los Atletas":
+                    atletas_resultado = nomina_global
+                    
+                elif tipo_filtro == "Categoría Etaria":
+                    # Lista de categorías estandarizadas de FEVEDA para el desplegable
+                    categorias_pool = ["Preinfantil A", "Preinfantil B", "Preinfantil C", "Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima", "Máster"]
+                    cat_sel = st.selectbox("Seleccionar Categoría FEVEDA", categorias_pool)
+                    
+                    # Inyección en cascada de tu fórmula exacta del core para discriminar las fechas de nacimiento
+                    atletas_resultado = [a for a in nomina_global if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
+                    
+                elif tipo_filtro == "Atletas Específicos":
+                    mapa_nombres = {a["nombre"]: a for a in nomina_global}
+                    nombres_sel = st.multiselect("Selección de Atletas (Uno a uno)", list(mapa_nombres.keys()))
+                    atletas_resultado = [mapa_nombres[n] for n in nombres_sel if n in mapa_nombres]
+                
+                # Guardamos los registros resultantes en el estado de sesión para el renderizador del gráfico de equipo
+                st.session_state.atletas_filtrados_equipo = atletas_resultado
+                st.metric("Atletas en Muestra", len(atletas_resultado))
+
+        st.markdown("---")
+        
+        # 2. CONTROLES GENERALES DE VENTANA Y VISTA (Archivo 9)
+        st.markdown("##### 🔎 Parámetros de Visualización")
+        tipo_vista = st.selectbox("Rango del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
+        st.session_state.tipo_vista = tipo_vista
+        
+        # Inyección de límites dinámicos para el Slider de Zoom si aplica Micro
+        if tipo_vista == "Micro (Ventana Anual)":
+            # Límites por defecto de protección del lienzo
+            edad_min_zoom, edad_max_zoom = st.slider(
+                "🔎 Rango de la Ventana (Edad)", 
+                min_value=5.0, max_value=25.0, 
+                value=(10.0, 15.0), step=0.1, format="%.2f años"
+            )
+            st.session_state.edad_min_zoom = edad_min_zoom
+            st.session_state.edad_max_zoom = edad_max_zoom
+        else:
+            st.session_state.edad_min_zoom = 0.0
+            st.session_state.edad_max_zoom = 100.0
+
+        # Slider dinámico de Rapidez de Deriva h (Archivos 9 y 12)
+        st.markdown("**⏱️ Factor Fisiológico Ajustable**")
+        factor_h = st.slider(
+            "Rapidez de deriva (h):", 
+            min_value=0.1, max_value=1.0, 
+            value=0.4, step=0.05,
+            help="Afecta directamente la caída o mantenimiento post-pico en la fórmula asintótica."
+        )
+        st.session_state.factor_h = factor_h
+
+        st.markdown("---")
+        if st.button("🚪 Cerrar Sesión del Sistema", use_container_width=True):
             st.session_state.autenticado = False
-            st.rerun()
-    with col_cache:
-        if st.button("🔄 Limpiar", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
             
-    st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
-
-    # 2. NAVEGACIÓN DE ATLETAS
-    st.sidebar.markdown("**🎯 Navegación de Atletas**")
-    rol_usuario = st.session_state.get("rol")
-    usuario_id = st.session_state.get("usuario_id")
-    
-    atleta_id = usuario_id
-    nombre_atleta = st.session_state.get("nombre", "Atleta")
-    genero_atleta = "F"
-
-    if rol_usuario in ["Head Coach", "Entrenador", "Administrador"]:
-        try:
-            if rol_usuario == "Entrenador":
-                resp_asig = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", usuario_id).execute()
-                ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
-                if ids_asignados:
-                    resp_usr = supabase.table("usuarios").select("id, nombre, genero").in_("id", ids_asignados).eq("rol", "Nadador").execute()
-                else:
-                    resp_usr = None
-            else:
-                resp_usr = supabase.table("usuarios").select("id, nombre, genero").eq("rol", "Nadador").execute()
-
-            if resp_usr and resp_usr.data:
-                df_usuarios = pd.DataFrame(resp_usr.data)
-                dict_atletas = dict(zip(df_usuarios['nombre'], df_usuarios['id']))
-                dict_generos = dict(zip(df_usuarios['id'], df_usuarios['genero']))
-                
-                atleta_sel = st.sidebar.selectbox("Seleccionar Nadador:", options=list(dict_atletas.keys()), label_visibility="collapsed")
-                atleta_id = dict_atletas[atleta_sel]
-                nombre_atleta = atleta_sel
-                genero_atleta = dict_generos[atleta_id]
-        except Exception as e:
-            st.sidebar.error(f"Error cargando atletas: {e}")
-
-    st.session_state["nadador_seleccionado_id"] = atleta_id
-    st.session_state["nadador_seleccionado_genero"] = genero_atleta
-    st.session_state["nadador_seleccionado_nombre"] = nombre_atleta
-
-    st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
-
-    # 3. PARÁMETROS FISIOLÓGICOS DEL MODELO
-    st.sidebar.markdown("**⏱️ Parámetros del Modelo**")
-    h_val = st.sidebar.slider("Rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.4, step=0.01)
-    t_peak_val = st.sidebar.slider("Pico madurativo (t_peak):", min_value=14.0, max_value=26.0, value=23.0, step=0.5)
-    
-    t_target_def = st.session_state.get("target_calculado_rm", 52.0)
-    T_target_val = st.sidebar.number_input("Tiempo Objetivo (T_target):", min_value=10.0, max_value=1500.0, value=t_target_def, step=0.1)
-    
-    st.session_state["control_h"] = h_val
-    st.session_state["control_t_peak"] = t_peak_val
-    st.session_state["control_T_target"] = T_target_val
-
-    st.sidebar.markdown('<div class="mini-divisor"></div>', unsafe_allow_html=True)
-
-    # 4. GESTIÓN DE SIMULACIÓN EXTERNA (OCULTA EN LA BARRA LATERAL)
-    st.sidebar.markdown("**🧪 Simulación de Escenarios**")
-    activar_simulacion = st.sidebar.toggle("Activar modo simulación (Visitante)", value=False)
-    
-    if activar_simulacion:
-        st.sidebar.caption("Ingrese los datos del escenario externo:")
-        c_v1, c_v2 = st.sidebar.columns(2)
-        with c_v1:
-            t0_sim = st.number_input("t0 (Edad Ini):", min_value=8.0, max_value=16.0, value=11.0, step=0.5)
-            t_pb_sim = st.number_input("t_pb (Edad Réc):", min_value=10.0, max_value=22.0, value=11.33, step=0.01)
-        with c_v2:
-            T0_sim = st.number_input("T0 (Tiempo Ini):", min_value=20.0, max_value=200.0, value=120.0, step=1.0)
-            T_pb_sim = st.number_input("T_pb (Tiempo Réc):", min_value=20.0, max_value=180.0, value=65.0, step=1.0)
-        st.session_state["visitante_hitos"] = {"t0": t0_sim, "T0": T0_sim, "t_pb": t_pb_sim, "T_pb": T_pb_sim}
-        st.session_state["modo_operacion"] = "Visitante (Simulación Externa)"
-    else:
-        # Por defecto individual o equipo, se decidirá en la zona blanca central
-        if "modo_operacion" not in st.session_state or st.session_state["modo_operacion"] == "Visitante (Simulación Externa)":
-            st.session_state["modo_operacion"] = "Individual"
-
-    return st.session_state["modo_operacion"]
+    return simulacion_externa

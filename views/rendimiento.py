@@ -1,528 +1,352 @@
 # =============================================================================
-# 📁 views/rendimiento.py - CONTROLADOR DE RENDIMIENTO BLINDADO (PROD & SIM)
+# 📁 views/rendimiento.py - CONTROLADOR DE RENDIMIENTO VISUAL Y EXPORTACIÓN
 # =============================================================================
 import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
+import io
 import matplotlib.pyplot as plt
-
-# 1. Importaciones estrictas y validadas contra core/formulas.py
+import matplotlib.table as mpl_table
+from core.conexion import obtener_cliente_supabase
 from core.formulas import (
     calcular_edad_decimal,
     resolver_k_individual, 
-    calcular_curva_atleta
+    calcular_curva_atleta,
+    generar_malla_edades
 )
 
-# 2. Lógica interna de asignación de categorías competitivas FINA/World Aquatics
-def determinar_categoria_fina(fecha_nacimiento_str) -> tuple:
-    """Calcula la categoría basada en el año de nacimiento (Criterio oficial World Aquatics)."""
-    try:
-        if not fecha_nacimiento_str:
-            return "Única", "#7F8C8D"
-        fecha_nac = pd.to_datetime(fecha_nacimiento_str)
-        edad_fina = datetime.date.today().year - fecha_nac.year
-        
-        if edad_fina <= 10:
-            return "Infantil A", "#2ECC71"
-        elif edad_fina <= 12:
-            return "Infantil B", "#3498DB"
-        elif edad_fina <= 14:
-            return "Juvenil A", "#9B59B6"
-        elif edad_fina <= 17:
-            return "Juvenil B", "#E67E22"
+def estilizar_tabla_nativo(tabla_mpl):
+    """
+    [Lógica Original Estricta]
+    Aplica el esquema estético institucional a las tablas de marcas incrustadas en el reporte.
+    """
+    for (fila, col), celda in tabla_mpl.get_celld().items():
+        celda.set_text_props(fontsize=8, fontname="Arial")
+        if fila == 0:
+            celda.set_text_props(weight='bold', color='white', fontsize=8.5)
+            celda.set_facecolor('#1F4E79')  # Azul Institucional
         else:
-            return "Máxima", "#E74C3C"
-    except Exception:
-        return "Única", "#7F8C8D"
+            if fila % 2 == 0:
+                celda.set_facecolor('#F2F4F7')  # Filas alternas
+            else:
+                celda.set_facecolor('white')
+        celda.set_linewidth(0.4)
+        celda.set_edgecolor('#D0D5DD')
 
 
-def renderizar_pestana_rendimiento(simulacion_activa_global: bool):
-    supabase = st.session_state.get("supabase_client")
-    rol_usuario = st.session_state.get("rol", "Invitado")
-    atleta_id = st.session_state.get("nadador_seleccionado_id")
-    genero_atleta = st.session_state.get("nadador_seleccionado_genero", "F")
-    nombre_atleta = st.session_state.get("nadador_seleccionado_nombre", "Atleta")
-    simulacion_externa = st.session_state.get("modo_operacion", "Individual") == "Visitante (Simulación Externa)"
+def renderizar_centro_exportacion(fig, df_datos: pd.DataFrame, sufijo_archivo: str, modo_equipo: bool, atletas_filtrados: list):
+    """
+    [Módulo de Exportación e Impresión - Archivo 13]
+    Genera la sección de descarga de reportes en formatos estructurados y la captura PNG del lienzo.
+    """
+    st.markdown("---")
+    st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
     
-    # Inyección de estilos CSS limpios para la estructura superior
-    st.markdown(
-        """
-        <style>
-            .divisor-blanco { margin-top: 4px !important; margin-bottom: 12px !important; border-bottom: 1px solid #eaeaea; }
-            [data-testid="stHorizontalBlock"] { gap: 1rem !important; }
-        </style>
-        """, 
-        unsafe_allow_html=True
-    )
-    
-    # -------------------------------------------------------------------------
-    # 🔭 ZONA BLANCA SUPERIOR: SELECTORES COMPACTOS HORIZONTALES
-    # -------------------------------------------------------------------------
-    c_col_pruebas, c_col_escala, c_col_modo = st.columns([1.2, 1.2, 1.6])
-    
-    with c_col_pruebas:
-        CATALOGO_OFICIAL_WA = (
-            "50m Libre", "100m Libre", "200m Libre", "400m Libre", "800m Libre", "1500m Libre",
-            "50m Espalda", "100m Espalda", "200m Espalda",
-            "50m Mariposa", "100m Mariposa", "200m Mariposa",
-            "50m Pecho", "100m Pecho", "200m Pecho",
-            "200m CI", "400m CI"
-        )
-        prueba_sel = st.selectbox(
-            "🏊 Pruebas:",
-            options=CATALOGO_OFICIAL_WA,
-            index=1,
-            key="selector_wa_zona_blanca"
-        )
-        st.session_state["prueba_seleccionada"] = prueba_sel
-
-    with c_col_escala:
-        tipo_vista = st.radio(
-            "🔭 Escala del Gráfico:", 
-            ["Macro (Historial Completo)", "Micro (Ventana Anual)"],
-            horizontal=False,
-            key="escala_grafico_radio"
-        )
-        st.session_state["tipo_vista"] = tipo_vista
-
-    with c_col_modo:
-        modo_actual_render = "Individual"
-        if rol_usuario in ["Head Coach", "Entrenador", "Administrador"]:
-            eleccion_analisis = st.radio(
-                "📋 Tipo de Análisis:", 
-                ["Individual", "Equipo"],
-                horizontal=False,
-                key="eleccion_analisis_radio"
+    if not df_datos.empty or modo_equipo:
+        export_df = df_datos.drop(columns=["id", "usuario_id"], errors="ignore")
+        csv_data = export_df.to_csv(index=False).encode('utf-8')
+        txt_string = export_df.to_string(index=False)
+        
+        img_buffer = None
+        
+        if modo_equipo and not atletas_filtrados:
+            st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
+        else:
+            if fig is not None:
+                img_buffer = io.BytesIO()
+                fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
+                img_buffer.seek(0)
+         
+        c_exp1, c_exp2, c_exp3 = st.columns(3)
+        with c_exp1:
+            st.download_button(
+                label="📥 Descargar Historial (CSV)", 
+                data=csv_data, 
+                file_name=f"marcas_rendimiento_{sufijo_archivo}.csv", 
+                mime="text/csv",
+                use_container_width=True
             )
-            st.session_state["modo_operacion"] = eleccion_analisis
-            modo_actual_render = eleccion_analisis
-        else:
-            st.session_state["modo_operacion"] = "Individual"
-            st.markdown("**Tipo de Análisis:**")
-            st.info("👤 Análisis Individual (Nadador)")
+        with c_exp2:
+            st.download_button(
+                label="📄 Descargar Datos (TXT)", 
+                data=txt_string, 
+                file_name=f"reporte_analisis_{sufijo_archivo}.txt", 
+                mime="text/plain",
+                use_container_width=True
+            )
+        with c_exp3:
+            if img_buffer is not None:
+                st.download_button(
+                    label="🖼️ Descargar Gráfico (PNG 300dpi)", 
+                    data=img_buffer, 
+                    file_name=f"lienzo_grafico_{sufijo_archivo}.png", 
+                    mime="image/png",
+                    use_container_width=True
+                )
+            else:
+                st.button("🖼️ Descargar Gráfico (PNG)", disabled=True, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # 👥 SEGMENTACIÓN DE FILTROS DE EQUIPO (MÓDULO COLECTIVO)
-    # -------------------------------------------------------------------------
-    filtro_genero = "Todos"
-    tipo_filtro_equipo = "Todos los Atletas"
-    cat_sel = None
-    ids_sel = []
 
-    if modo_actual_render == "Equipo":
-        st.markdown("**👥 Segmentación y Filtros de Equipo**")
-        ce_1, ce_2 = st.columns(2)
-        with ce_1:
-            filtro_genero = st.selectbox("Filtro Género:", ["Todos", "Femenino (F)", "Masculino (M)"])
-            tipo_filtro_equipo = st.radio("Filtrado por:", ["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
-        with ce_2:
-            if tipo_filtro_equipo == "Categoría Etaria":
-                cat_sel = st.selectbox("Categoría:", ["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
-            elif tipo_filtro_equipo == "Atletas Específicos":
-                try:
-                    r_all = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                    if r_all.data:
-                        df_all = pd.DataFrame(r_all.data)
-                        dict_all = dict(zip(df_all['nombre'], df_all['id']))
-                        atletas_multi = st.multiselect("Nadadores específicos:", options=list(dict_all.keys()))
-                        ids_sel = [dict_all[name] for name in atletas_multi]
-                except Exception:
-                    pass
-
-    # -------------------------------------------------------------------------
-    # 🎯 CONFIGURACIÓN DE PARÁMETROS DINÁMICOS DESDE MARCAS_REFERENCIA (SUPABASE)
-    # -------------------------------------------------------------------------
-    h = st.session_state.get("control_h", 0.40)
-    t_peak = st.session_state.get("control_t_peak", 18.00)
+def renderizar_grafico_equipo(atletas_filtrados: list, tipo_vista: str, edad_min_zoom: float, edad_max_zoom: float, h_global: float):
+    """
+    [Sub-módulo Gráfico de Equipo - Corregido bajo criterio de Asíntota Abajo]
+    """
+    supabase = obtener_cliente_supabase()
+    fig = plt.figure(figsize=(8.5, 11.0))
+    ax = fig.add_axes([0.14, 0.52, 0.72, 0.38])
     
-    # Inicialización de referencias oficiales reales
-    m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    todos_los_tiempos = []
+    x_lim_min, x_lim_max = (edad_min_zoom, edad_max_zoom) if tipo_vista == "Micro (Ventana Anual)" else (10.0, 18.0)
     
-    try:
-        r_ref = supabase.table("marcas_referencia").select("*").eq("prueba", prueba_sel).eq("genero", genero_atleta).execute()
-        if r_ref.data:
-            ref_data = r_ref.data[0]
-            m_ano = float(ref_data.get("minima_ano", 0.0))
-            m_panam_b = float(ref_data.get("panamericano_b", 0.0))
-            m_panam_a = float(ref_data.get("panamericano_a", 0.0))
-            m_wa_b = float(ref_data.get("world_aquatics_b", 0.0))
-            m_wa_a = float(ref_data.get("world_aquatics_a", 0.0))
-            m_wr = float(ref_data.get("record_mundial", 0.0))
-    except Exception:
-        pass
-        
-    if m_wr == 0.0: 
-        m_wr = 50.0 # Respaldo absoluto si la tabla está vacía
-
-    T_target = st.session_state.get("control_T_target", round(m_wr * 1.05, 2))
-
-    # Determinar la edad de inicio y PB de control del atleta activo
-    t_pb_real = 13.50
-    if atleta_id:
+    for atleta in atletas_filtrados:
         try:
-            r_pb = supabase.table("marcas_historicas").select("edad").eq("usuario_id", atleta_id).eq("prueba", prueba_sel).order("tiempo", ascending=True).limit(1).execute()
-            if r_pb.data:
-                t_pb_real = float(r_pb.data[0]["edad"])
+            res_m = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta["id"]).order("fecha", ascending=True).execute()
+            df_m = pd.DataFrame(res_m.data) if res_m.data else pd.DataFrame()
+            
+            if df_m.empty:
+                continue
+            
+            t0 = 8.0
+            T0 = float(df_m["tiempo"].max())
+            
+            idx_mej = df_m["tiempo"].idxmin()
+            fecha_nac = atleta.get("fecha_nacimiento")
+            t_pb = calcular_edad_decimal(fecha_nac, df_m.loc[idx_mej, "fecha"])
+            T_pb = float(df_m["tiempo"].min())
+            
+            t_peak = 18.0
+            T_target = T_pb * 0.95
+            
+            k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+            edades_malla = generar_malla_edades(t0, t_peak, 300)
+            tiempos_proyeccion = calcular_curva_atleta(edades_malla, t0, T0, t_pb, T_pb, t_peak, T_target, k, h_global)
+            
+            puntos_visibles = [tiempos_proyeccion[i] for i in range(len(edades_malla)) if x_lim_min <= edades_malla[i] <= x_lim_max]
+            if puntos_visibles:
+                todos_los_tiempos.extend(puntos_visibles)
+                
+            ax.plot(edades_malla, tiempos_proyeccion, label=atleta["nombre"], linewidth=1.1, alpha=0.75)
         except Exception:
-            pass
-
-    edad_min_zoom, edad_max_zoom = 8.0, 22.0
-    if "Micro" in tipo_vista:
-        val_inicial_slider = float(round(t_pb_real, 2))
-        val_final_slider = float(round(t_pb_real + 1.0, 2))
-        st.markdown("")
-        edad_min_zoom, edad_max_zoom = st.slider(
-            "🔎 Ventana Enfocada (Predeterminada: +1 Año desde Marca Personal):",
-            min_value=8.0, max_value=26.0, value=(val_inicial_slider, val_final_slider), step=0.01, format="%.2f años"
-        )
-    
-    st.session_state["zoom_edades"] = (edad_min_zoom, edad_max_zoom)
-    st.markdown('<div class="divisor-blanco"></div>', unsafe_allow_html=True)
-
-    df_procesado = pd.DataFrame()
-
-    # =============================================================================
-    # 📊 MOTOR GRÁFICO SECCIÓN A: MODO EQUIPO
-    # =============================================================================
-    if modo_actual_render == "Equipo":
-        try:
-            resp_todos = supabase.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-            atletas_lista = resp_todos.data if resp_todos.data else []
+            continue
             
-            if filtro_genero == "Femenino (F)":
-                atletas_lista = [a for a in atletas_lista if a.get("genero") == "F"]
-            elif filtro_genero == "Masculino (M)":
-                atletas_lista = [a for a in atletas_lista if a.get("genero") == "M"]
-
-            atletas_filtrados = []
-            if tipo_filtro_equipo == "Todos los Atletas":
-                atletas_filtrados = atletas_lista
-            elif tipo_filtro_equipo == "Categoría Etaria" and cat_sel:
-                atletas_filtrados = [a for a in atletas_lista if determinar_categoria_fina(a.get("fecha_nacimiento"))[0] == cat_sel]
-            elif tipo_filtro_equipo == "Atletas Específicos" and ids_sel:
-                atletas_filtrados = [a for a in atletas_lista if a.get("id") in ids_sel]
-
-            if not atletas_filtrados:
-                st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
-            else:
-                lista_ids = [str(atl["id"]) for atl in atletas_filtrados]
-                
-                res_marcas_colectivo = supabase.table("marcas_historicas").select("usuario_id, edad, tiempo, nota").eq("prueba", prueba_sel).in_("usuario_id", lista_ids).order("edad", desc=False).execute()
-                df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
-
-                fig = plt.figure(figsize=(8.5, 11.0))
-                ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
-                
-                colores = plt.get_cmap("tab10", len(atletas_filtrados))
-                hay_datos_visibles = False
-                linea_fisiologica_anotada = False
-                
-                todas_las_edades_0 = []
-                todos_los_tiempos_colectivo = []
-                datos_atletas_cargados = []
-                
-                for idx, atl in enumerate(atletas_filtrados):
-                    a_id = atl["id"]
-                    a_nom = atl["nombre"]
-                    
-                    if not df_global_marcas.empty and a_id in df_global_marcas["usuario_id"].values:
-                        df_atl_m = df_global_marcas[df_global_marcas["usuario_id"] == a_id].copy()
-                        df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-                        hay_datos_visibles = True
-                        
-                        todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
-                        todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
-                        
-                        datos_atletas_cargados.append({
-                            "nom": a_nom,
-                            "df": df_atl_m,
-                            "color": colores(idx)
-                        })
-
-                if hay_datos_visibles:
-                    edad_0_min_colectivo = min(todas_las_edades_0)
-                    lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-                    lim_x_max = t_peak + 1.0
-                    ax.set_xlim(lim_x_min, lim_x_max)
-                    
-                    peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-                    lim_y_inferior = m_wr * 0.95
-                    lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
-                    ax.set_ylim(lim_y_inferior, lim_y_superior)
-                    
-                    for item in datos_atletas_cargados:
-                        df_atl_m = item["df"]
-                        color_curr = item["color"]
-                        a_nom = item["nom"]
-                        
-                        t0_i = float(df_atl_m.iloc[0]["Edad"])
-                        T0_i = float(df_atl_m.iloc[0]["Tiempo"])
-                        idx_pb_i = df_atl_m["Tiempo"].idxmin()
-                        t_pb_i = float(df_atl_m.loc[idx_pb_i, "Edad"])
-                        T_pb_i = float(df_atl_m.loc[idx_pb_i, "Tiempo"])
-                        
-                        k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
-                        edades_curva_i = np.linspace(t0_i, t_peak, 300)
-                        tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
-                        
-                        if not linea_fisiologica_anotada:
-                            ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica estimada")
-                            linea_fisiologica_anotada = True
-                        else:
-                            ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
-                        
-                        ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"Evolución real - {a_nom}")
-                        ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
-                        ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
-
-                    x_texto = lim_x_min + 0.1
-                    referencias = [
-                        {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"},
-                        {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},
-                        {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},
-                        {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},
-                        {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},
-                        {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}
-                    ]
-                    for r in referencias:
-                        if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"], ha="left")
-                    
-                    ax.set_title(f"Análisis Comparativo de Equipo - {prueba_sel}", fontsize=12, pad=10)
-                    ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
-                    ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
-                    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D1", linewidth=0.5)
-                    ax.set_axisbelow(True)
-                    ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
-                    
-                    st.pyplot(fig)
-                else:
-                    st.info("No se hallaron marcas en la base de datos para los nadadores seleccionados en esta prueba.")
-        except Exception as e:
-            st.error(f"Error procesando los segmentos de equipo: {e}")
-
-    # =============================================================================
-    # 📊 MOTOR GRÁFICO SECCIÓN B: MODO INDIVIDUAL O SIMULACIÓN (DATOS REALES)
-    # =============================================================================
+    if todos_los_tiempos:
+        lim_y_inferior = min(todos_los_tiempos) - 1.5
+        lim_y_superior = max(todos_los_tiempos) + 2.0
     else:
-        fig = plt.figure(figsize=(8.5, 11.0))
-        ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+        lim_y_inferior, lim_y_superior = 22.0, 45.0
         
-        # 1. Inicialización de variables de respaldo (Fallback de Control)
-        t0, T0 = 10.0, 95.0
-        t_pb, T_pb = 13.5, 62.0
-        
-        # 2. Extracción e inyección de datos reales desde Supabase
-        if atleta_id and not simulacion_externa:
-            try:
-                r_ind_m = supabase.table("marcas_historicas")\
-                    .select("edad, tiempo, nota")\
-                    .eq("usuario_id", atleta_id)\
-                    .eq("prueba", prueba_sel)\
-                    .order("edad", desc=False).execute()
-                
-                if r_ind_m.data:
-                    df_procesado = pd.DataFrame(r_ind_m.data)
-                    df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-                    
-                    t0 = float(df_procesado.iloc[0]["Edad"])
-                    T0 = float(df_procesado.iloc[0]["Tiempo"])
-                    
-                    idx_pb = df_procesado["Tiempo"].idxmin()
-                    t_pb = float(df_procesado.loc[idx_pb, "Edad"])
-                    T_pb = float(df_procesado.loc[idx_pb, "Tiempo"])
-            except Exception as e:
-                st.warning(f"Usando parámetros base. No se pudo conectar con el historial: {e}")
+    ax.set_xlim(x_lim_min, x_lim_max)
+    
+    # CRITERIO PUNTO 1: Tiempos rápidos abajo (asíntota en la base). Menor tiempo abajo, mayor tiempo arriba.
+    ax.set_ylim(lim_y_superior, lim_y_inferior)
+    ax.grid(True, which="both", axis="both", linestyle=":", color="#CCD1D9", linewidth=0.5)
+    
+    marcas_reglamento = [
+        {"lbl": "Mínima Nacional", "val": 25.80, "col": "#C00000", "va": "bottom"},
+        {"lbl": "Mínima Transición", "val": 27.20, "col": "#E26B0A", "va": "top"}
+    ]
+    
+    # PUNTO 2: El margen interno dinámico evita desbordes en modo Micro
+    x_texto = x_lim_max - (x_lim_max - x_lim_min) * 0.01
+    for r in marcas_reglamento:
+        if min(lim_y_inferior, lim_y_superior) <= r["val"] <= max(lim_y_inferior, lim_y_superior):
+            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.8)
+            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7.5, va=r["va"], ha="right")
 
-        # 3. Resolver constante k matemática con los puntos extraídos de la BD
-        k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-        
-        # 4. Generación de vectores de la curva asintótica fisiológica
-        edades_curva = np.linspace(t0, t_peak, 300)
-        tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-        
-        todos_los_tiempos_ind = [T0, T_pb, T_target]
-        if not df_procesado.empty:
-            todos_los_tiempos_ind.extend(df_procesado["Tiempo"].tolist())
+    ax.set_title("Análisis Comparativo del Rendimiento de Equipo", fontsize=12, pad=12, weight="bold")
+    ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
+    ax.set_ylabel("Tiempo Proyectado (Segundos)", fontsize=9.5)
+    
+    st.pyplot(fig, clear_figure=True)
+    renderizar_centro_exportacion(fig, pd.DataFrame(), "equipo", True, atletas_filtrados)
 
-        # 5. Ajustes de encuadre de ventanas ópticas (Macro / Micro)
-        if tipo_vista == "Micro (Ventana Anual)":
-            edades_ventana = np.linspace(edad_min_zoom, edad_max_zoom, 300)
-            tiempos_curva_ventana = calcular_curva_atleta(edades_ventana, t0, T0, t_pb, T_pb, t_peak, T_target, k, h).tolist()
+
+# =============================================================================
+# 🏊‍♂️ SUB-MÓDULO GRÁFICO INDIVIDUAL (REFACTORIZADO Y CONSOLIDADO)
+# =============================================================================
+def renderizar_grafico_individual(df_marcas: pd.DataFrame, t0: float, T0: float, t_pb: float, T_pb: float, t_peak: float, T_target: float, k: float, h: float, tipo_vista: str, edad_min_zoom: float, edad_max_zoom: float, simulacion_activa: bool, nombre_atleta: str):
+    """
+    [Sub-módulo Gráfico Individual Puro - Canvas 8.5x11 Estricto]
+    PUNTO 3: Se rescata esta función pura para centralizar el renderizado eliminando la duplicidad.
+    """
+    fig = plt.figure(figsize=(8.5, 11.0))
+    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+    
+    edades_curva = generar_malla_edades(t0, t_peak, 300)
+    tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
+    
+    todos_los_tiempos_ind = [T0, T_pb, T_target]
+    if not simulacion_activa and len(df_marcas) > 0:
+        todos_los_tiempos_ind.extend(df_marcas["Tiempo"].tolist())
+        
+    if tipo_vista == "Micro (Ventana Anual)":
+        ax.set_xlim(edad_min_zoom, edad_max_zoom)
+        visibles = tiempos_curva[(edades_curva >= edad_min_zoom) & (edades_curva <= edad_max_zoom)]
+        if len(visibles) > 0:
+            ax.set_ylim(max(visibles) + 1.5, min(visibles) - 1.0)
+        if not df_marcas.empty:
+            df_vis = df_marcas[(df_marcas["Edad"] >= edad_min_zoom) & (df_marcas["Edad"] <= edad_max_zoom)]
+            ax.scatter(df_vis["Edad"], df_vis["Tiempo"], color="#E26B0A", edgecolors='black', s=25, zorder=5, label="Marcas Reales")
+    else:
+        ax.set_xlim(t0 - 0.5, t_peak + 1.0)
+        # PUNTO 1: Modificado para que la asíntota (T_target) quede abajo y T0 arriba de forma consistente
+        ax.set_ylim(T0 + 2.0, T_target - 2.0)
+        if not df_marcas.empty and not simulacion_activa:
+            ax.scatter(df_marcas["Edad"], df_marcas["Tiempo"], color="#E26B0A", edgecolors='black', s=25, zorder=5, label="Marcas Reales")
             
-            tiempos_reales_ventana = []
-            if not df_procesado.empty:
-                for _, row in df_procesado.iterrows():
-                    if edad_min_zoom <= row["Edad"] <= edad_max_zoom:
-                        tiempos_reales_ventana.append(row["Tiempo"])
-                        
-            todos_tiempos_v = tiempos_curva_ventana + tiempos_reales_ventana
-            t_min_v = min(todos_tiempos_v) if todos_tiempos_v else min(tiempos_curva)
-            t_max_v = max(todos_tiempos_v) if todos_tiempos_v else max(tiempos_curva)
-
-            margen_y = max(0.5, (t_max_v - t_min_v) * 0.15)
-            lim_y_inferior = t_min_v - margen_y
-            lim_y_superior = t_max_v + margen_y
-            lim_x_min, lim_x_max = edad_min_zoom, edad_max_zoom
-        else:
-            peor_tiempo_ind = max(todos_los_tiempos_ind)
-            lim_y_inferior = m_wr * 0.95 if m_wr > 0 else min(todos_los_tiempos_ind) * 0.90
-            lim_y_superior = peor_tiempo_ind + (peor_tiempo_ind * 0.08)
-            lim_x_min = max(4.0, float(t0) - 0.5)
-            lim_x_max = t_peak + 1.0
-
-        ax.set_xlim(lim_x_min, lim_x_max)
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-        ax.set_autoscale_on(False)
-
-        datos_tabla_micro = []
+    ax.plot(edades_curva, tiempos_curva, color="#1F4E79", linewidth=1.5, label="Modelo de Proyección Asintótica")
+    ax.grid(True, which="both", linestyle=":", color="#CCD1D9", linewidth=0.5)
+    ax.set_title(f"Lienzo Cinemático de Rendimiento - {nombre_atleta}", fontsize=11, weight="bold", pad=12)
+    ax.set_xlabel("Edad Decimal (Años)", fontsize=9, fontname="Arial")
+    ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9, fontname="Arial")
+    ax.legend(loc="upper right", fontsize=8)
+    
+    # Hito objetivo vertical rígido a los 18 años
+    ax.axvline(x=18.0, color="#D32F2F", linestyle="--", alpha=0.7, lw=1.5)
+    
+    # --- INCRASTACIÓN DE TABLAS OPERATIVAS EN EL CANVAS ---
+    if not df_marcas.empty and not simulacion_activa:
+        df_table_render = df_marcas[["Fecha_Txt", "Edad_Txt", "Tiempo_Txt"]].copy()
+        df_table_render.columns = ["Fecha Competición", "Edad Decimal", "Tiempo Registrado"]
         
-        # 6. Pintar hitos y compromisos trimestrales
-        if atleta_id and tipo_vista == "Micro (Ventana Anual)":
-            try:
-                r_atleta = supabase.table("usuarios").select("fecha_nacimiento").eq("id", atleta_id).execute()
-                if r_atleta.data and r_atleta.data[0].get("fecha_nacimiento"):
-                    fn_raw = r_atleta.data[0]["fecha_nacimiento"]
-                    
-                    r_hitos = supabase.table("hitos_temporada").select("fecha_evento, nombre_evento, elegible").eq("atleta_id", atleta_id).execute()
-                    hitos_lista = r_hitos.data if r_hitos.data else []
-                    
-                    for hito in hitos_lista:
-                        fecha_ev = hito.get("fecha_evento")
-                        if not fecha_ev: continue
-                        
-                        edad_hito_calculada = calcular_edad_decimal(fn_raw, fecha_ev)
-                        
-                        if lim_x_min <= edad_hito_calculada <= lim_x_max:
-                            es_elegible = hito.get("elegible", True)
-                            color_linea = "#2ECC71" if es_elegible else "#E74C3C"
-                            ax.axvline(x=edad_hito_calculada, color=color_linea, linestyle="--", linewidth=0.7, alpha=0.6)
-                            
-                            y_pos = lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.03)
-                            nombre_evento = hito.get("nombre_evento", "Control")
-                            nombre_corto = nombre_evento[:18] + "..." if len(nombre_evento) > 18 else nombre_evento
-                            
-                            ax.text(edad_hito_calculada + 0.015, y_pos, f"{nombre_corto}", color=color_linea, fontsize=7.5, rotation=90, va="bottom")
-                            tiempo_proyectado_val = calcular_curva_atleta([edad_hito_calculada], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0]
-                            
-                            datos_tabla_micro.append({
-                                "Competencia / Evento": nombre_evento,
-                                "Fecha": str(fecha_ev),
-                                "Edad": f"{edad_hito_calculada:.2f} a",
-                                "Tiempo Prog.": f"{tiempo_proyectado_val:.2f} s"
-                            })
-            except Exception:
-                pass
-
-        if datos_tabla_micro:
-            datos_tabla_micro.sort(key=lambda x: float(x["Edad"].replace(" a", "").strip()))
-
-        # 7. Trazado de elementos del lienzo gráfico
-        ax.plot(edades_curva, tiempos_curva, color="#007A87", linewidth=1.8, label="Proyección Fisiológica")
-
-        if not simulacion_externa and not df_procesado.empty:
-            ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
-            ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, zorder=3)
-
-        # Hitos de dispersión
-        estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
-        if lim_x_min <= t0 <= lim_x_max and lim_y_inferior <= T0 <= lim_y_superior:
-            ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, zorder=4)
-            ax.text(t0 + 0.1, T0, f"P. Start\n{T0:.2f}s", fontsize=8, va="bottom", bbox=estilo_bbox)
-
-        if lim_x_min <= t_pb <= lim_x_max and lim_y_inferior <= T_pb <= lim_y_superior:
-            ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, zorder=5)
-            ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{T_pb:.2f}s", fontsize=8, va="center", bbox=estilo_bbox)
-
-        if lim_x_min <= t_peak <= lim_x_max and lim_y_inferior <= T_target <= lim_y_superior:
-            ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, zorder=4)
-            ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{T_target:.2f}s", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
-
-        # Referencias de tiempos internacionales dinámicas
-        x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
-        referencias = [
-            {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"},
-            {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},
-            {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},
-            {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},
-            {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},
-            {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}
-        ]
-        for r in referencias:
-            if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                ax.text(x_texto, r["val"], f"{r['lbl']}: {r['val']:.2f}s", color=r["col"], fontsize=7, va=r["va"])
-
-        ax.set_title(f"Curva de Rendimiento Asintótica - {prueba_sel}\nAtleta: {nombre_atleta}", fontsize=12, pad=10)
-        ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
-        ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
-        ax.grid(True, linestyle=":", color="#CCD1D1", linewidth=0.5)
+        total_filas = len(df_table_render)
+        limite_filas_por_bloque = 16
         
-        tamano_leyenda = 6.5 if tipo_vista == "Micro (Ventana Anual)" else 8
-        ax.legend(loc="upper right", fontsize=tamano_leyenda, framealpha=0.8)
-
-        # -------------------------------------------------------------------------
-        # 📋 RENDIMIENTO DE TABLAS INFERIORES MATPLOTLIB
-        # -------------------------------------------------------------------------
-        df_table_render = None
+        # PUNTO 4: Columnas estandarizadas proporcionales consistentes en todo escenario
+        anchos_columnas = [0.22, 0.22, 0.56]
         es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
-
-        if es_modo_micro_tabla:
-            if datos_tabla_micro:
-                df_table_render = pd.DataFrame(datos_tabla_micro)
-                anchos_columnas = [0.46, 0.18, 0.16, 0.20]
-            else:
-                df_table_render = pd.DataFrame([{"Competencia / Evento": "Sin hitos en este rango de edad", "Fecha": "-", "Edad": "-", "Tiempo Prog.": "-"}])
-                anchos_columnas = [0.52, 0.16, 0.16, 0.16]
+        anchos_doble = [0.25, 0.35, 0.40] if es_modo_micro_tabla else [0.25, 0.25, 0.50]
+        
+        if total_filas <= limite_filas_por_bloque:
+            ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
+            ax_table.axis('off')
+            mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
+            estilizar_tabla_nativo(mpl_table)
         else:
-            if not df_procesado.empty:
-                df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
-                df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a" if isinstance(x, (int,float)) else x)
-                df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s" if isinstance(x, (int,float)) else x)
-                anchos_columnas = [0.15, 0.15, 0.70]
-            else:
-                df_table_render = pd.DataFrame([{"Edad": "-", "Tiempo": "-", "Evento / Fecha": "Sin marcas registradas"}])
-                anchos_columnas = [0.15, 0.15, 0.70]
-
-        if df_table_render is not None and not df_table_render.empty:
-            total_filas = len(df_table_render)
-            limite_filas_por_bloque = 16
+            if total_filas > 32: 
+                df_table_render = df_table_render.iloc[:32]
+                
+            df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
+            df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
             
-            def estilizar_tabla_nativo(instancia_tabla):
-                instancia_tabla.auto_set_font_size(False)
-                instancia_tabla.set_fontsize(8.5)
-                instancia_tabla.scale(1.0, 1.3)
-                for (row, col), cell in instancia_tabla.get_celld().items():
-                    cell.set_linewidth(0.5)            
-                    cell.set_edgecolor('#E5E7EB')       
-                    if row == 0:
-                        cell.set_text_props(color='black', weight='light')
-                        cell.set_facecolor('#C0C0C0')
-                    else:
-                        cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
-
-            if total_filas <= limite_filas_por_bloque:
-                ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
-                ax_table.axis('off')
-                mpl_table = ax_table.table(cellText=df_table_render.values, colLabels=df_table_render.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
-                estilizar_tabla_nativo(mpl_table)
-            else:
-                if total_filas > 32: df_table_render = df_table_render.iloc[:32]
-                df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
-                df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
-                anchos_doble = anchos_columnas if es_modo_micro_tabla else [0.18, 0.18, 0.64]
-                
-                ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
-                ax_table1.axis('off')
-                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
-                estilizar_tabla_nativo(mpl_table1)
-                
-                ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.40])
+            ax_table1 = fig.add_axes([0.10, 0.054, 0.38, 0.40])
+            ax_table1.axis('off')
+            mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
+            estilizar_tabla_nativo(mpl_table1)
+            
+            if not df_bloque_der.empty:
+                ax_table2 = fig.add_axes([0.52, 0.054, 0.38, 0.40])
                 ax_table2.axis('off')
                 mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
                 estilizar_tabla_nativo(mpl_table2)
+                
+    st.pyplot(fig)
+    
+    # Buffer de exportación unificado de alta resolución
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
+    st.download_button(
+        label="📥 Descargar Reporte en Alta Resolución (PNG)",
+        data=buf.getvalue(),
+        file_name=f"reporte_cinematico_{sufijo}.png",
+        mime="image/png",
+        use_container_width=True
+    )
 
-        st.pyplot(fig, use_container_width=True)
+
+# =============================================================================
+# 📁 ORQUESTADOR MAESTRO DEL MÓDULO DE RENDIMIENTO (DRY COMPLETO)
+# =============================================================================
+def mostrar_modulo_rendimiento():
+    """
+    Orquestador de vista conectado a Supabase y Gestor de Parámetros Biológicos.
+    """
+    supabase = obtener_cliente_supabase()
+    
+    modo_equipo = st.session_state.get("modo_equipo", False)
+    tipo_vista = st.session_state.get("tipo_vista", "Macro (Historial Completo)")
+    edad_min = st.session_state.get("edad_min_zoom", 0.0)
+    edad_max = st.session_state.get("edad_max_zoom", 100.0)
+    h_factor = st.session_state.get("factor_h", 0.4)
+    simulacion_activa = st.session_state.get("simulacion_externa", False)
+    
+    atleta_id = st.session_state.get("nadador_seleccionado_id")
+    fecha_nac_atleta = st.session_state.get("fecha_nacimiento")
+    nombre_atleta = st.session_state.get("nadador_seleccionado_nombre", "Sin Atleta")
+    
+    if modo_equipo:
+        st.subheader("🏊‍♂️ Panel de Control Comparativo: Rendimiento del Equipo")
+        atletas = st.session_state.get("atletas_filtrados_equipo", [])
+        if atletas:
+            renderizar_grafico_equipo(atletas, tipo_vista, edad_min, edad_max, h_factor)
+        else:
+            st.warning("⚠️ Selecciona un grupo o atletas en la barra lateral para proyectar las curvas de equipo.")
+            
+    else:
+        st.subheader(f"🏊‍♂️ Planificación y Control de Resultados: {nombre_atleta}")
+        
+        if not atleta_id:
+            st.warning("⚠️ No se ha seleccionado ningún atleta en el foco actual de la Sidebar.")
+            return
+
+        try:
+            res_marcas = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta_id).order("fecha", ascending=True).execute()
+            marcas_data = res_marcas.data if res_marcas.data else []
+        except Exception as e:
+            st.error(f"Error al conectar con la tabla de marcas: {e}")
+            return
+            
+        lista_procesada = []
+        for m in marcas_data:
+            fecha_raw = str(m["fecha"])
+            fecha_limpia_str = fecha_raw.split("T")[0] if "T" in fecha_raw else fecha_raw
+            
+            try:
+                fecha_obj = datetime.date.fromisoformat(fecha_limpia_str)
+            except ValueError:
+                fecha_obj = pd.to_datetime(fecha_limpia_str).date()
+            
+            edad_dec = calcular_edad_decimal(fecha_nac_atleta, fecha_obj)
+            
+            lista_procesada.append({
+                "Fecha": fecha_obj,
+                "Fecha_Txt": fecha_obj.strftime("%d/%m/%Y"),
+                "Edad": edad_dec,
+                "Edad_Txt": f"{edad_dec:.2f} años",
+                "Tiempo": float(m["tiempo"]),
+                "Tiempo_Txt": f"{float(m['tiempo']):.2f}s"
+            })
+            
+        df_marcas = pd.DataFrame(lista_procesada)
+        
+        # --- ASIGNACIÓN DE HUNDIMIENTO BIOLÓGICO Y PARÁMETROS CINEMÁTICOS ---
+        if not df_marcas.empty:
+            t0 = 8.0
+            T0 = float(df_marcas["Tiempo"].max())
+            idx_mej = df_marcas["Tiempo"].idxmin()
+            t_pb = float(df_marcas.loc[idx_mej, "Edad"])
+            T_pb = float(df_marcas["Tiempo"].min())
+            t_peak = 18.0
+            T_target = T_pb * 0.95
+        else:
+            t0, T0 = 9.0, 42.0
+            t_pb, T_pb = 14.5, 26.0
+            t_peak, T_target = 18.0, 24.0
+
+        # Captura de parámetros desde st.session_state
+        k = st.session_state.get("factor_k", 0.28)
+        
+        # DELEGACIÓN TOTAL A LA FUNCIÓN REFACTORIZADA (Se eliminó el bloque duplicado)
+        renderizar_grafico_individual(
+            df_marcas=df_marcas,
+            t0=t0, T0=T0,
+            t_pb=t_pb, T_pb=T_pb,
+            t_peak=t_peak, T_target=T_target,
+            k=k, h=h_factor,
+            tipo_vista=tipo_vista,
+            edad_min_zoom=edad_min, edad_max_zoom=edad_max,
+            simulacion_activa=simulacion_activa,
+            nombre_atleta=nombre_atleta
+        )

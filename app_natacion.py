@@ -4,188 +4,80 @@
 import streamlit as st
 import os
 import sys
-import datetime
 
-# Blindaje Absoluto de Rutas: Asegura la raíz del proyecto antes de CUALQUIER importación externa
+# 1. BLINDAJE ABSOLUTO DE RUTAS (Asegura la raíz antes de cualquier importación)
 ruta_raiz = os.path.dirname(os.path.abspath(__file__))
 if ruta_raiz not in sys.path:
     sys.path.insert(0, ruta_raiz)
 
+# 2. CONFIGURACIÓN ESTRUCTURAL DE LA PÁGINA
 st.set_page_config(
-    page_title="Plataforma de Analítica - Club de Natación",
+    page_title="Swimming Club Proyections, Schedules and Reports",
     page_icon="🏊‍♂️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-# =============================================================================
-# Ahora los imports del Core están 100% protegidos y garantizados
-from core.conexion import obtener_cliente_supabase, inyectar_estilos_globales, autenticar_usuario, generar_hash_sha256
 
-obtener_cliente_supabase()
+# 3. IMPORTACIONES PROTEGIDAS DEL CORE DE INFRAESTRUCTURA
+from core.conexion import (
+    obtener_cliente_supabase, 
+    autenticar_usuario, 
+    inyectar_estilos_globales,
+    limpiar_todo_el_cache
+)
+from views.sidebar import renderizar_sidebar
+from views.rendimiento import mostrar_modulo_rendimiento
+from views.enrutador_gestion import mostrar_enrutador_gestion
+
+# Inicialización obligatoria del cliente de base de datos y estilos CSS estandarizados
+supabase = obtener_cliente_supabase()
 inyectar_estilos_globales()
 
+# 4. INICIALIZACIÓN DE VARIABLES DE CONTROL GLOBAL DE SESIÓN
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
+if "usuario_id" not in st.session_state:
+    st.session_state.usuario_id = None
+if "nombre" not in st.session_state:
+    st.session_state.nombre = ""
+if "rol" not in st.session_state:
+    st.session_state.rol = ""
+if "menu_actual" not in st.session_state:
+    st.session_state.menu_actual = "📊 Rendimiento y Proyecciones"
 
-# =============================================================================
-# PORTAL DE ACCESO INTEGRADOR
-# =============================================================================
+# 5. PORTAL DE ACCESO SEGURO (FORMULARIO DE LOGIN)
+from views.autenticacion import mostrar_interfaz_autenticacion
+
 if not st.session_state.autenticado:
-    _, col_login, _ = st.columns([1, 1.8, 1])
-    
-    with col_login:
-        st.markdown("## 🏊‍♂️ Sistema Técnico-Deportiva")
-        st.caption("Ecosistema digital de rendimiento, bitácoras de entrenamiento y analítica.")
-        
-        opcion_portal = st.radio(
-            "Selecciona una acción:",
-            ["Ingresar", "Solicitar Registro", "Recuperar Contraseña"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-        
-        st.markdown("---")
-        supabase = st.session_state["supabase_client"]
-        
-        if opcion_portal == "Ingresar":
-            with st.form("formulario_login"):
-                usuario_input = st.text_input("Usuario:", placeholder="Ej: Alvaro_Gallegos")
-                contrasena_input = st.text_input("Contraseña:", type="password")
-                boton_ingresar = st.form_submit_button("🚀 Iniciar Sesión", use_container_width=True)
-                
-                if boton_ingresar:
-                    if not usuario_input.strip() or not contrasena_input.strip():
-                        st.warning("⚠️ Por favor, complete ambos campos.")
-                    else:
-                        if autenticar_usuario(usuario_input, contrasena_input):
-                            st.rerun()
-                            
-        elif opcion_portal == "Solicitar Registro":
-            st.markdown("##### 📝 Formulario de Inscripción de Nuevos Perfiles")
-            st.caption("Las cuentas nuevas entran en estado 'Pendiente' hasta ser validadas por el Administrador.")
-            
-            with st.form("formulario_registro"):
-                reg_nombre = st.text_input("Nombre Completo:", placeholder="Ej: Carlos Mendoza")
-                reg_usuario = st.text_input("Nombre de Usuario (Único):", placeholder="Ej: Carlos_Mendoza")
-                reg_email = st.text_input("Correo Electrónico:")
-                reg_contrasena = st.text_input("Establecer Contraseña:", type="password")
-                reg_genero = st.selectbox("Género Fisiológico:", ["F", "M"])
-                reg_f_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1940, 1, 1), max_value=datetime.date.today())
-                
-                boton_registrar = st.form_submit_button("💾 Enviar Solicitud de Alta", use_container_width=True)
-                
-                if boton_registrar:
-                    if not reg_nombre or not reg_usuario or not reg_email or not reg_contrasena:
-                        st.error("❌ Todos los campos son obligatorios para tramitar el registro.")
-                    else:
-                        try:
-                            hash_seguro = generar_hash_sha256(reg_contrasena)
-                            nuevo_perfil = {
-                                "nombre": reg_nombre.strip(),
-                                "usuario": reg_usuario.strip(),
-                                "email": reg_email.strip(),
-                                "contrasena": hash_seguro,
-                                "genero": reg_genero,
-                                "rol": "Nadador",
-                                "estatus": "Pendiente",
-                                "fecha_nacimiento": reg_f_nac.isoformat()
-                            }
-                            supabase.table("usuarios").insert(nuevo_perfil).execute()
-                            st.success("🎉 ¡Solicitud recibida! Tu cuenta está bajo revisión del administrador en estado 'Pendiente'.")
-                        except Exception as e:
-                            st.error(f"Error al registrar la cuenta: {e}")
+    mostrar_interfaz_autenticacion()
+    st.stop()  # Frena el renderizado del resto de las pestañas si no está logueado
 
-        elif opcion_portal == "Recuperar Contraseña":
-            st.markdown("##### 🔑 Autogestión de Reestablecimiento de Clave")
-            st.caption("Por seguridad federativa, ingresa tu usuario y correo oficial para forzar un cambio de clave.")
-            
-            with st.form("formulario_recuperacion"):
-                rec_usuario = st.text_input("Tu Nombre de Usuario:")
-                rec_email = st.text_input("Tu Correo Electrónico Registrado:")
-                nueva_contrasena = st.text_input("Escribe tu Nueva Contraseña:", type="password")
-                
-                boton_recuperar = st.form_submit_button("🔄 Reestablecer Credenciales", use_container_width=True)
-                
-                if boton_recuperar:
-                    if not rec_usuario or not rec_email or not nueva_contrasena:
-                        st.error("❌ Debes rellenar todos los campos para verificar tu identidad.")
-                    else:
-                        try:
-                            res_verif = supabase.table("usuarios").select("id")\
-                                .eq("usuario", rec_usuario.strip())\
-                                .eq("email", rec_email.strip())\
-                                .execute()
-                                
-                            if res_verif.data:
-                                user_id_encontrado = res_verif.data[0]["id"]
-                                nuevo_hash = generar_hash_sha256(nueva_contrasena)
-                                supabase.table("usuarios")\
-                                    .update({"contrasena": nuevo_hash})\
-                                    .eq("id", user_id_encontrado)\
-                                    .execute()
-                                st.success("💥 ¡Contraseña reestablecida con éxito! Ya puedes ingresar con tu nueva clave.")
-                            else:
-                                st.error("❌ Datos de validación incorrectos.")
-                        except Exception as e:
-                            st.error(f"Error en la recuperación: {e}")
+# 6. ENTORNO DE TRABAJO SEGURO (USUARIO AUTENTICADO)
 else:
-    # AREA DE LA PLATAFORMA (USUARIO AUTENTICADO)
-    from views.sidebar import renderizar_sidebar
-    from views.rendimiento import renderizar_pestana_rendimiento
-    from views.enrutador_gestion import renderizar_modulos_gestion
-    
+    # Carga y renderizado de la Barra Lateral. Retorna si el escudo de simulación está activo.
     simulacion_activa = renderizar_sidebar()
     
-    st.markdown(f"#### ¡Bienvenido, {st.session_state.nombre}! 👋")
-    st.caption(f"Perfil de acceso: `{st.session_state.rol}` | Entorno: " + 
-               ("`🔒 SIMULACIÓN ACTIVA (Lectura)`" if simulacion_activa else "`⚡ PRODUCCIÓN (BD Real)`"))
+    # Selector de pestañas principales inyectado en el área superior central
+    pestana_seleccionada = st.radio(
+        label="Navegación del Ecosistema",
+        options=["📊 Rendimiento y Proyecciones", "🗂️ Panel de Gestión Operativa"],
+        index=0 if st.session_state.menu_actual == "📊 Rendimiento y Proyecciones" else 1,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    st.session_state.menu_actual = pestana_seleccionada
+    st.markdown("---")
     
-    renderizar_pestana_rendimiento(simulacion_activa)
-    renderizar_modulos_gestion(simulacion_activa)
+    # Botón de control manual: Comodín de limpieza absoluta de Caché en sesión
+    col_vacia, col_limpiar = st.columns([6, 1.2])
+    with col_limpiar:
+        if st.button("🧹 Limpiar Caché General", use_container_width=True, help="Forzar la recarga inmediata de todas las tablas desde Supabase"):
+            limpiar_todo_el_cache()
+            st.toast("⚡ Caché del sistema restablecido por completo.")
+            st.rerun()
 
-# UBICACIÓN: app.py (o archivo principal), sección de inicialización de variables de la prueba
-
-def cargar_marcas_referencia_cache(prueba_seleccionada):
-    # Forzar la recarga si cambió la prueba seleccionada en el selector
-    if "ultima_prueba" not in st.session_state or st.session_state["ultima_prueba"] != prueba_seleccionada:
-        st.session_state["ultima_prueba"] = prueba_seleccionada
-        st.session_state["marcas_referencia_cargadas"] = False
-
-    if not st.session_state.get("marcas_referencia_cargadas", False):
-        try:
-            resp = supabase.table("marcas_referencia").select("*").eq("prueba", prueba_seleccionada).execute()
-            if resp.data and len(resp.data) > 0:
-                st.session_state["marcas_referencia"] = resp.data[0]
-            else:
-                st.session_state["marcas_referencia"] = {}
-            st.session_state["marcas_referencia_cargadas"] = True
-        except Exception as e:
-            st.warning(f"Error al conectar con la tabla marcas_referencia: {e}")
-            st.session_state["marcas_referencia"] = {}
-            st.session_state["marcas_referencia_cargadas"] = False
-
-    # Retorno seguro mapeando el diccionario de la base de datos a variables de control
-    ref = st.session_state.get("marcas_referencia", {})
-    return {
-        "m_ano": float(ref.get("min_ano", 0)) if ref.get("min_ano") else 0.0,
-        "m_panam_b": float(ref.get("panam_b", 0)) if ref.get("panam_b") else 0.0,
-        "m_panam_a": float(ref.get("panam_a", 0)) if ref.get("panam_a") else 0.0,
-        "m_wa_b": float(ref.get("wa_b", 0)) if ref.get("wa_b") else 0.0,
-        "m_wa_a": float(ref.get("wa_a", 0)) if ref.get("wa_a") else 0.0,
-        "m_wr": float(ref.get("world_record", 0)) if ref.get("world_record") else 0.0
-    }
-
-# Ejecución y mapeo inmediato para los archivos de diseño del gráfico (11 y 12)
-if 'titulo_grafico' in locals() or 'titulo_grafico' in globals():
-    prueba_actual = titulo_grafico
-else:
-    prueba_actual = "50m Libre"  # Respaldo por defecto si no ha cargado la UI
-
-marcas_limites = cargar_marcas_referencia_cache(prueba_actual)
-
-m_ano = marcas_limites["m_ano"]
-m_panam_b = marcas_limites["m_panam_b"]
-m_panam_a = marcas_limites["m_panam_a"]
-m_wa_b = marcas_limites["m_wa_b"]
-m_wa_a = marcas_limites["m_wa_a"]
-m_wr = marcas_limites["m_wr"]
+    # Enrutamiento modular hacia las vistas especializadas según la pestaña activa
+    if st.session_state.menu_actual == "📊 Rendimiento y Proyecciones":
+        mostrar_modulo_rendimiento(simulacion_externa=simulacion_activa)
+    elif st.session_state.menu_actual == "🗂️ Panel de Gestión Operativa":
+        mostrar_enrutador_gestion()
