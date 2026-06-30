@@ -298,7 +298,7 @@ def inyectar_estilos_globales():
             color: #111111 !important;
         }
         </style>
-    """, unsafe_allowed_html=True)
+    """, unsafe_allow_html=True)
 
 
 def verificar_permiso_accion(rol_usuario: str, accion: str) -> bool:
