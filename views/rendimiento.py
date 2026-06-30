@@ -101,7 +101,7 @@ def renderizar_grafico_equipo(atletas_filtrados: list, tipo_vista: str, edad_min
     
     for atleta in atletas_filtrados:
         try:
-            res_m = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta["id"]).order("fecha", ascending=True).execute()
+            res_m = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta["id"]).order("edad", desc=False).execute()
             df_m = pd.DataFrame(res_m.data) if res_m.data else pd.DataFrame()
             
             if df_m.empty:
@@ -293,7 +293,7 @@ def mostrar_modulo_rendimiento():
             return
 
         try:
-            res_marcas = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta_id).order("fecha", ascending=True).execute()
+            res_marcas = supabase.table("marcas_historicas").select("*").eq("atleta_id", atleta_id).order("edad", desc=False).execute()
             marcas_data = res_marcas.data if res_marcas.data else []
         except Exception as e:
             st.error(f"Error al conectar con la tabla de marcas: {e}")
