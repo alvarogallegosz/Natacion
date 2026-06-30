@@ -19,11 +19,7 @@ st.set_page_config(
 )
 
 # 3. IMPORTACIONES PROTEGIDAS DEL CORE DE INFRAESTRUCTURA
-from core.conexion import (
-    obtener_cliente_supabase, 
-    autenticar_usuario, 
-    inyectar_estilos_globales,
-    limpiar_todo_el_cache
+from core.conexion import (obtener_cliente_supabase, autenticar_usuario, inyectar_estilos_globales,limpiar_todo_el_cache
 )
 from views.sidebar import renderizar_sidebar
 from views.rendimiento import mostrar_modulo_rendimiento
