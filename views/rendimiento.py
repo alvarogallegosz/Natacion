@@ -274,8 +274,8 @@ def mostrar_modulo_rendimiento():
     simulacion_activa = st.session_state.get("simulacion_externa", False)
     
     atleta_id = st.session_state.get("nadador_seleccionado_id")
-    fecha_nac_atleta = st.session_state.get("fecha_nacimiento") or st.session_state.get("fecha_nacimiento_usuario")
     nombre_atleta = st.session_state.get("nadador_seleccionado_nombre", "Sin Atleta")
+    titulo_grafico = st.session_state.get("prueba_activa", "50m Libre") # Asegurar que exista la prueba en state
     
     if modo_equipo:
         st.subheader("🏊‍♂️ Panel de Control Comparativo: Rendimiento del Equipo")
@@ -293,7 +293,8 @@ def mostrar_modulo_rendimiento():
             return
 
         try:
-            res_marcas = supabase.table("marcas_historicas").select("*").eq("usuario_id", atleta_id).order("edad", desc=False).execute()
+            # 🌟 CONSULTA REAL: Filtro exacto por usuario_id y orden ascendente por edad para la gráfica
+            res_marcas = supabase.table("marcas_historicas").select("*").eq("usuario_id", atleta_id).eq("prueba", titulo_grafico).order("edad", desc=False).execute()
             marcas_data = res_marcas.data if res_marcas.data else []
         except Exception as e:
             st.error(f"Error al conectar con la tabla de marcas: {e}")
@@ -301,23 +302,19 @@ def mostrar_modulo_rendimiento():
             
         lista_procesada = []
         for m in marcas_data:
-            fecha_raw = str(m["fecha"])
-            fecha_limpia_str = fecha_raw.split("T")[0] if "T" in fecha_raw else fecha_raw
+            edad_dec = float(m["edad"])
+            tiempo_val = float(m["tiempo"])
+            nota_str = m["nota"] if m["nota"] else ""
             
-            try:
-                fecha_obj = datetime.date.fromisoformat(fecha_limpia_str)
-            except ValueError:
-                fecha_obj = pd.to_datetime(fecha_limpia_str).date()
-            
-            edad_dec = calcular_edad_decimal(fecha_nac_atleta, fecha_obj)
-            
+            # 🌟 Armamos el DataFrame simulando campos de texto basados puramente en la EDAD numéricas de la BD
             lista_procesada.append({
-                "Fecha": fecha_obj,
-                "Fecha_Txt": fecha_obj.strftime("%d/%m/%Y"),
+                "Fecha": None, 
+                "Fecha_Txt": "N/A",
                 "Edad": edad_dec,
                 "Edad_Txt": f"{edad_dec:.2f} años",
-                "Tiempo": float(m["tiempo"]),
-                "Tiempo_Txt": f"{float(m['tiempo']):.2f}s"
+                "Tiempo": tiempo_val,
+                "Tiempo_Txt": f"{tiempo_val:.2f}s",
+                "Nota": nota_str
             })
             
         df_marcas = pd.DataFrame(lista_procesada)
@@ -339,7 +336,7 @@ def mostrar_modulo_rendimiento():
         # Captura de parámetros desde st.session_state
         k = st.session_state.get("factor_k", 0.28)
         
-        # DELEGACIÓN TOTAL A LA FUNCIÓN REFACTORIZADA (Se eliminó el bloque duplicado)
+        # DELEGACIÓN TOTAL A LA FUNCIÓN REFACTORIZADA
         renderizar_grafico_individual(
             df_marcas=df_marcas,
             t0=t0, T0=T0,
