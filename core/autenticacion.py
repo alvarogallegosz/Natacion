@@ -29,8 +29,8 @@ def mostrar_interfaz_autenticacion():
     """
     supabase = obtener_cliente_supabase()
     
-    st.markdown("<h2 style='text-align: center; color: #2C3E50;'>🏊‍♂️ Sistema Integrado de Analítica - Club de Natación</h2>", unsafe_allowed_html=True)
-    st.markdown("<p style='text-align: center; color: #7F8C8D;'>Gestión de marcas mínimas, entrenamientos y modelado fisiológico</p>", unsafe_allowed_html=True)
+    st.markdown("<h2 style='text-align: center; color: #2C3E50;'>🏊‍♂️ Sistema Integrado de Analítica - Club de Natación</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #7F8C8D;'>Gestión de marcas mínimas, entrenamientos y modelado fisiológico</p>", unsafe_allow_html=True)
     st.write("")
 
     # Pestañas del portal de acceso
