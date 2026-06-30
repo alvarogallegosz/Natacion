@@ -300,19 +300,22 @@ def mostrar_modulo_rendimiento():
             st.error(f"Error al conectar con la tabla de marcas: {e}")
             return
             
-        lista_procesada = []
+lista_procesada = []
         for m in marcas_data:
+            # 🌟 LEEMOS ESTRICTAMENTE LAS COLUMNAS REALES DE TU BD
             edad_dec = float(m["edad"])
             tiempo_val = float(m["tiempo"])
-            nota_str = m["nota"] if m["nota"] else ""
             
-            # 🌟 Armamos el DataFrame simulando campos de texto basados puramente en la EDAD numéricas de la BD
+            # Controlamos si la nota viene vacía o nula desde Supabase
+            nota_str = m["nota"] if m["nota"] else "Sin detalle"
+            
+            # Armamos el diccionario para el DataFrame manteniendo la estructura del ecosistema de analítica
             lista_procesada.append({
-                "Fecha": None, 
+                "Fecha": None,        # N/A ya que la analítica se rige 100% por edad decimal
                 "Fecha_Txt": "N/A",
-                "Edad": edad_dec,
+                "Edad": edad_dec,     # Eje X absoluto para el gráfico de rendimiento
                 "Edad_Txt": f"{edad_dec:.2f} años",
-                "Tiempo": tiempo_val,
+                "Tiempo": tiempo_val, # Eje Y absoluto
                 "Tiempo_Txt": f"{tiempo_val:.2f}s",
                 "Nota": nota_str
             })
