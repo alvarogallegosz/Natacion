@@ -126,7 +126,7 @@ def mostrar_enrutador_gestion():
             st.markdown("**Historial de Registros**")
             if nadador_id:
                 try:
-                    res_m = supabase.table("marcas_historicas").select("*").eq("atleta_id", nadador_id).eq("prueba", titulo_grafico).order("fecha", desc=True).execute()
+                    res_m = supabase.table("marcas_historicas").select("*").eq("usuario_id", nadador_id).eq("prueba", titulo_grafico).order("fecha", desc=True).execute()
                     if res_m.data:
                         df_m = pd.DataFrame(res_m.data)
                         df_m["fecha_f"] = pd.to_datetime(df_m["fecha"]).dt.strftime('%d/%m/%Y')
