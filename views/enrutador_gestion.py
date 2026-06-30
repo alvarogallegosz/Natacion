@@ -177,8 +177,8 @@ with tab_marcas:
         st.markdown("##### ⏱️ Configuración del Tabulador de Marcas Mínimas")
         if rol_usuario in ["Head Coach", "Entrenador", "Administrador"]:
             try:
-                from core.formulas import determinar_categoria_fina
-                u_cat, _ = determinar_categoria_fina(fecha_nac_atleta)
+                from core.formulas import calcular_categoria_competencia
+                u_cat, _ = calcular_categoria_competencia(fecha_nac_atleta)
             except Exception:
                 u_cat = "Juvenil A"
                 
@@ -273,10 +273,10 @@ with tab_marcas:
                         st.markdown("##### 👥 Asignación Masiva por Categoría")
                         entrenador_cat_sel = st.selectbox("Asistente Destino:", options=list(dict_entrenadores.keys()), format_func=lambda x: dict_entrenadores[x], key="asig_cat_ent")
                         
-                        from core.formulas import determinar_categoria_fina
+                        from core.formulas import calcular_categoria_competencia
                         categorias_set = set()
                         for nad in lista_todos_nadadores:
-                            cat_n, _ = determinar_categoria_fina(nad["fecha_nacimiento"])
+                            cat_n, _ = calcular_categoria_competencia(nad["fecha_nacimiento"])
                             categorias_set.add(cat_n)
                             
                         categoria_sel = st.selectbox("Categoría Etaria de Origen:", options=sorted(list(categorias_set)), key="asig_cat_sel")
@@ -284,8 +284,8 @@ with tab_marcas:
                         if st.button("⚡ Procesar Asignación por Bloque"):
                             ids_categoria = []
                             for nad in lista_todos_nadadores:
-                                c_fina, _ = determinar_categoria_fina(nad["fecha_nacimiento"])
-                                if c_fina == categoria_sel:
+                                c_comp, _ = calcular_categoria_competencia(nad["fecha_nacimiento"])
+                                if c_comp == categoria_sel:
                                     ids_categoria.append(nad["id"])
                             
                             if ids_categoria:

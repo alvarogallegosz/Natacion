@@ -48,7 +48,7 @@ def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa: int = No
     return temporada_activa - fecha_nacimiento.year
 
 
-def calcular_categoria_feveda(fecha_nac_str) -> tuple:
+def calcular_categoria_competencia(fecha_nac_str) -> tuple:
     """
     Determina la categoría competitiva oficial FEVEDA basada estrictamente en la 
     edad técnica cumplida al 31 de diciembre del año en curso.
@@ -258,5 +258,5 @@ def generar_malla_edades(t0: float, t_limite: float, num_puntos: int = 300) -> n
         
     return np.linspace(inicio, fin, num=num_puntos)
 
-calcular_categoria_feveda = calcular_categoria_competencia
+
 determinar_categoria_fina = calcular_categoria_competencia
