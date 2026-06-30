@@ -101,7 +101,7 @@ def mostrar_enrutador_gestion():
                                 edad_en_evento = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento.isoformat())
                                 
                                 nueva_marca = {
-                                    "atleta_id": id_atleta,
+                                    "usuario_id": nadador_id,
                                     "prueba": titulo_grafico,
                                     "fecha": ins_fecha_evento.isoformat(),
                                     "edad": float(f"{edad_en_evento:.4f}"),
