@@ -1467,7 +1467,7 @@ else:
         "🎯 Asignaciones de Nadadores",
         "📅 Calendario Anual de Competencias", 
         "🛡️ Consola Global (Admin)"
-    ]),
+    ])
     with tab_marcas:
         col_ins, col_vistas = st.columns([1, 2])
         with col_ins:
@@ -1530,7 +1530,7 @@ else:
                         st.rerun()
                         
                 st.dataframe(df_procesado.drop(columns=["id"], errors="ignore"), use_container_width=True)
-    
+
     with tab_entrenador:
         if st.session_state.rol in ["Head Coach", "Administrador"]:
             st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
@@ -1556,7 +1556,7 @@ else:
                         db_m_wr = float(r_det["m_wr"]) if r_det["m_wr"] is not None else None
                 except Exception:
                     pass
-    
+
                 with st.form("form_update_referencias"):
                     u_ano = st.number_input("Marca Mínima Año (seg):", value=db_m_ano if db_m_ano is not None else 0.0, disabled=(db_m_ano is None))
                     u_panamb = st.number_input("PANAM Jr - Marca B (seg):", value=db_m_panam_b if db_m_panam_b is not None else 0.0, disabled=(db_m_panam_b is None))
@@ -1679,7 +1679,7 @@ else:
                 st.info(f"No hay competencias registradas en el catálogo para la temporada {temporada_actual}.")
         except Exception as e:
             st.error(f"Error cargando calendario: {e}")
-    
+
         # 2. Controles de Edición (Restringido a Head Coach y Adminstrador)
         if st.session_state.rol in ["Head Coach", "Administrador"]:
             st.markdown("---")
@@ -1747,7 +1747,7 @@ else:
                                 st.rerun()
                 else:
                     st.info("No hay competencias para auditar.")
-    
+
     # -------------------------------------------------------------
         # 3. GENERADOR AUTOMÁTICO DE HITOS (ASIGNACIÓN DE ATLETAS)
         # -------------------------------------------------------------
@@ -1857,7 +1857,7 @@ else:
                                 f"Hola {user_actual['nombre']}, tu cuenta ya está activa y puedes acceder al sistema.", 
                                 user_actual["email"]
                             )
-    
+
                         datos_update = {"rol": nuevo_rol_user, "estatus": nuevo_est_user}
                         if campos_deshabilitados:
                             datos_update["genero"] = None
@@ -1873,8 +1873,8 @@ else:
                 st.error(f"Error en panel de control: {e}")
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
-    
-    # -------------------------------------------------------------
+
+# -------------------------------------------------------------
     # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (WIDGETS GARANTIZADOS)
     # -------------------------------------------------------------
     with tab_pizarra:
@@ -1885,7 +1885,7 @@ else:
             # 1. Inicializar la pizarra en la memoria de sesión si no existe
             if "pizarra_entrenamiento" not in st.session_state:
                 st.session_state.pizarra_entrenamiento = []
-    
+
             # 2. Formulario de ingreso rápido de series
             with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
                 c_rep, c_dist, c_est = st.columns(3)
@@ -1903,7 +1903,7 @@ else:
                     implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"], key="piz_imp")
                 with c_not:
                     notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3, Descanso 20s", key="piz_not")
-    
+
                 if st.button("Añadir a la sesión", use_container_width=True, key="btn_add_piz"):
                     bloque = {
                         "reps": repeticiones,
@@ -1915,7 +1915,7 @@ else:
                     }
                     st.session_state.pizarra_entrenamiento.append(bloque)
                     st.rerun()
-    
+
             # Visualización del entrenamiento acumulado
             if st.session_state.pizarra_entrenamiento:
                 st.markdown("---")
@@ -1928,7 +1928,7 @@ else:
                     txt_impl = f" [{', '.join(blk['implementos'])}]" if blk['implementos'] else ""
                     txt_not = f" - _{blk['notas']}_" if blk['notas'] else ""
                     texto_exportacion += f"• {blk['reps']} x {blk['dist']}m {blk['estilo']} | {blk['intensidad']}{txt_impl}{txt_not}\n"
-    
+
                 st.info(texto_exportacion)
                 st.metric("Volumen Total de la Sesión", f"{volumen_total} metros")
                 
@@ -1941,7 +1941,7 @@ else:
                     if st.button("🗑️ Limpiar pizarra completa", use_container_width=True, key="piz_btn_clear"):
                         st.session_state.pizarra_entrenamiento = []
                         st.rerun()
-    
+
                 # =============================================================================
                 # 3. SECCIÓN DE SEGMENTACIÓN (WIDGETS FORZADOS A APARECER EN PANTALLA)
                 # =============================================================================
@@ -1964,14 +1964,14 @@ else:
                         horizontal=True,
                         key="piz_radio_tipo_idx"
                     )
-    
+
                 # RESOLUCIÓN DEL CLIENTE DE SUPABASE (Busca la variable global directa de tu app)
                 ctx_supabase = None
                 try:
                     ctx_supabase = supabase
                 except NameError:
                     ctx_supabase = st.session_state.get("supabase_client")
-    
+
                 atletas_pool = []
                 if ctx_supabase:
                     try:
@@ -1980,22 +1980,22 @@ else:
                             atletas_pool = resp_sb.data
                     except Exception as e:
                         st.error(f"Error al cargar nómina desde Supabase: {e}")
-    
+
                 # Filtrar la lista local por el género seleccionado
                 if filtro_genero == "Femenino (F)":
                     atletas_pool = [a for a in atletas_pool if a.get("genero") == "F"]
                 elif filtro_genero == "Masculino (M)":
                     atletas_pool = [a for a in atletas_pool if a.get("genero") == "M"]
-    
+
                 # Mapear colecciones de datos seguras para los selectores
                 categorias_disponibles = sorted(list(set([
                     calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
                     for a in atletas_pool if a.get("fecha_nacimiento")
                 ]))) if atletas_pool else []
-    
+
                 dict_nom = {a["id"]: a["nombre"] for a in atletas_pool} if atletas_pool else {}
                 atletas_finales = []
-    
+
                 # --- DESPLEGABLES CON RENDERIZADO INCONDICIONAL ---
                 if tipo_filtro == "Categoría Etaria":
                     cat_sel = st.selectbox(
@@ -2021,20 +2021,20 @@ else:
                 else:
                     # Todos los Atletas del género seleccionado
                     atletas_finales = pool_actual = atletas_pool
-    
+
                 # Alertas visuales dinámicas de control
                 if tipo_filtro == "Atletas Específicos" and not atletas_finales:
                     st.info("💡 Despliega el selector de arriba y marca al menos un nadador para habilitar el botón de consolidación.")
                 else:
                     st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
-    
-    # =# =============================================================================
+
+# =# =============================================================================
                 # 5. CENTRO DE DIFUSIÓN Y EXPORTACIÓN DE LA JORNADA (PIZARRA)
                 # =============================================================================
                 st.markdown("---")
                 st.markdown("### 📢 Centro de Difusión y Publicación de la Pizarra")
                 st.caption("Genera el formato de comunicación para enviar a los atletas por canales digitales o preparar la hoja impresa para la piscina.")
-    
+
                 # 🛠️ EXTRACCIÓN BLINDADA DESDE EL STATE PARA EVITAR NAMEERROR
                 import datetime
                 fecha_difusion = st.session_state.get("piz_date_input_save", datetime.date.today())
@@ -2044,7 +2044,7 @@ else:
                 volumen_total_difusion = 0
                 if "pizarra_entrenamiento" in st.session_state and st.session_state.pizarra_entrenamiento:
                     volumen_total_difusion = sum(blk['reps'] * blk['dist'] for blk in st.session_state.pizarra_entrenamiento)
-    
+
                 # 1. Construir el string de texto limpio del entrenamiento
                 texto_entrenamiento = f"🏊‍♂️ *PLAN DE ENTRENAMIENTO DEL DÍA* - Fecha: {fecha_difusion}\n"
                 if carril_difusion:
@@ -2058,14 +2058,14 @@ else:
                         texto_entrenamiento += f"• {blk['reps']}x{blk['dist']}m {blk['estilo']} | {blk['intensidad']}{impls}\n"
                 else:
                     texto_entrenamiento += f"• No hay bloques cargados en la pizarra actualmente.\n"
-    
+
                 # 2. Codificar para URLs de comunicación
                 import urllib.parse
                 texto_url = urllib.parse.quote(texto_entrenamiento)
                 
                 link_whatsapp = f"https://api.whatsapp.com/send?text={texto_url}"
                 link_correo = f"mailto:?subject=Plan%20de%20Entrenamiento%20{fecha_difusion}&body={texto_url}"
-    
+
                 # 3. Renderizar botones de acción en filas limpias
                 c_com1, c_com2, c_com3 = st.columns(3)
                 with c_com1:
@@ -2081,12 +2081,12 @@ else:
                         mime="text/plain",
                         use_container_width=True
                     )
-    
+
                 # Vista previa colapsable
                 with st.expander("👀 Ver vista previa del mensaje a enviar"):
                     st.code(texto_entrenamiento, language="markdown")
                 
-    # =============================================================================
+# =============================================================================
                 # 4. BLOQUE DE CONSOLIDACIÓN FINAL (REGISTRO HISTÓRICO)
                 # =============================================================================
                 st.markdown("#### 💾 Consolidar y Registrar Jornada")
@@ -2095,7 +2095,7 @@ else:
                     fecha_jornada = st.date_input("Fecha de la sesión:", datetime.date.today(), key="piz_date_input_save")
                 with c_carril:
                     identificador_carril = st.text_input("Identificador / Carril (Opcional):", placeholder="Ej: Carril 3, Grupo Avanzado", key="piz_carril_input_save")
-    
+
                 if st.button("💾 Consolidar Metros e Intensidades por Atleta", type="primary", use_container_width=True, key="btn_consolidar_piz"):
                         # Procesamiento de desgloses
                         desglose_estilos = {}
@@ -2109,7 +2109,7 @@ else:
                             inte = blk['intensidad']
                             mts = blk['reps'] * blk['dist']
                             desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
-    
+
                         # Lista de diccionarios para inserción masiva
                         registros_supabase = []
                         for at_obj in atletas_finales:
@@ -2123,7 +2123,7 @@ else:
                                 "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
                             }
                             registros_supabase.append(fila)
-    
+
                         # Inserción utilizando el cliente unificado de la Sección 3
                         if registros_supabase:
                             try:
@@ -2142,15 +2142,15 @@ else:
               
         else:
             st.warning("🔒 Sección restringida al equipo técnico.")
-    
-    # -------------------------------------------------------------
-    # PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
-    # -------------------------------------------------------------
-    with tab_reportes:
+
+# -------------------------------------------------------------
+# PESTAÑA: REPORTES Y RENDIMIENTO HISTÓRICO (RECONFIGURADA)
+# -------------------------------------------------------------
+with tab_reportes:
     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:        
         st.markdown("### 📊 Panel de Control y Análisis de Carga")
         st.caption("Filtra la nómina de la misma forma que en la pizarra y define la ventana temporal para evaluar el volumen acumulado y el modelo matemático de Bannister.")
-    
+
         # =============================================================================
         # 1. TEMPORALIDAD DE LOS REPORTES (MANEJO DE VENTANAS CRÍTICAS EXTENDIDAS)
         # =============================================================================
@@ -2181,9 +2181,9 @@ else:
         else:
             fecha_limite = None
             rango_fechas_completo = None
-    
+
         st.markdown("---")
-    
+
         # =============================================================================
         # 2. SECCIÓN DE SEGMENTACIÓN (PRESERVADA DE LA VERSIÓN ESTABLE)
         # =============================================================================
@@ -2204,14 +2204,14 @@ else:
                 horizontal=True,
                 key="rep_radio_tipo_idx"
             )
-    
+
         # Resolución del Cliente de Supabase
         ctx_supabase_rep = None
         try:
             ctx_supabase_rep = supabase
         except NameError:
             ctx_supabase_rep = st.session_state.get("supabase_client")
-    
+
         atletas_pool_rep = []
         if ctx_supabase_rep:
             try:
@@ -2220,21 +2220,21 @@ else:
                     atletas_pool_rep = resp_sb.data
             except Exception as e:
                 st.error(f"Error al cargar nómina para reportes: {e}")
-    
+
         # Aplicar filtros estables de género y categoría
         if filtro_genero_rep == "Femenino (F)":
             atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "F"]
         elif filtro_genero_rep == "Masculino (M)":
             atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "M"]
-    
+
         categorias_disponibles_rep = sorted(list(set([
             calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
             for a in atletas_pool_rep if a.get("fecha_nacimiento")
         ]))) if atletas_pool_rep else []
-    
+
         dict_nom_rep = {a["id"]: a["nombre"] for a in atletas_pool_rep} if atletas_pool_rep else {}
         atletas_finales_rep = []
-    
+
         if tipo_filtro_rep == "Categoría Etaria":
             cat_sel_rep = st.selectbox(
                 "Seleccione la Categoría Etaria:", 
@@ -2257,18 +2257,18 @@ else:
                 atletas_finales_rep = [a for a in atletas_pool_rep if a["id"] in ids_sel_rep]
         else:
             atletas_finales_rep = atletas_pool_rep
-    
+
         if not atletas_finales_rep:
             st.info("💡 Selecciona atletas o categorías válidas para procesar el reporte.")
         else:
             st.success(f"🎯 Analizando métricas de {len(atletas_finales_rep)} atleta(s) en la ventana seleccionada.")
             st.markdown("---")
-    
+
             # =============================================================================
             # 3. CONSOLIDACIÓN COLECTIVA (ESTILOS E INTENSIDADES DESDE JSONB)
             # =============================================================================
             ids_interes = [at["id"] for at in atletas_finales_rep]
-    
+   
             with st.spinner("Compilando históricos e intensidades..."):
                 try:
                     query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").in_("atleta_id", ids_interes)
@@ -2288,7 +2288,7 @@ else:
                                 f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
                                 if f_rec <= fecha_fin_rep:
                                     records_hasta_hoy.append(r)
-    
+
                         # El volumen acumulado macro refleja exactamente lo que se está graficando
                         volumen_acumulado_grupo = sum([r.get("metros_totales", 0) for r in records_hasta_hoy])
                         st.metric(label="🏊‍♂️ Volumen Total Imputado (Grupo Filtrado)", value=f"{volumen_acumulado_grupo:,} metros")
@@ -2311,7 +2311,7 @@ else:
                         st.markdown("---")
                         st.markdown("#### 🏊‍♂️ Evolución y Desglose de Volúmenes Diarios del Grupo")
                         st.caption("Serie de tiempo continua del colectivo hasta el día de hoy. Áreas: volumen total acumulado y distribución por Estilos (Eje Izquierdo). Líneas: tendencias por Intensidad con marcadores y estilos diferenciados (Eje Derecho).")
-    
+
                         estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
                         intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
                         
@@ -2329,7 +2329,7 @@ else:
                                 rango_analisis = [datetime.date.today()]
                         else:
                             rango_analisis = rango_fechas_completo
-    
+
                         # Construcción de la matriz estructurada día por día
                         for f in rango_analisis:
                             dia_recs = [r for r in records_hasta_hoy if (datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]) == f]
@@ -2355,7 +2355,7 @@ else:
                             
                         df_vol_diario = pd.DataFrame(matriz_volumen)
                         df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
-    
+
                         # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
                         fig_vol, ax1 = plt.subplots(figsize=(11, 5.2))
                         fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
@@ -2434,7 +2434,7 @@ else:
                         df_tabla_vol = pd.concat([df_tabla_vol, pd.DataFrame([fila_totales_vol])], ignore_index=True)
                         
                         st.write(df_tabla_vol.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
-    
+
                         # =============================================================================
                         # 4. EXPORTACIONES LIMPIAS EN 2 BOTONES (CSV Y TXT CON REPORTE INTEGRADO)
                         # =============================================================================
@@ -2464,7 +2464,7 @@ else:
                             resumen_lineas.append(f"- {inten}: {mts:,} m ({pct:.1f}%)")
                         
                         resumen_txt_bloque = "\n".join(resumen_lineas)
-    
+
                         # 1. Preparar CSV Unificado (Matriz diaria + Filas de Resumen Porcentual al final)
                         df_csv_base = df_tabla_vol.copy()
                         # Filas en blanco decorativas para separar la matriz del resumen dentro del CSV
@@ -2491,11 +2491,11 @@ else:
                             df_csv_base = pd.concat([df_csv_base, pd.DataFrame([row_pct])], ignore_index=True)
                         
                         csv_unificado_data = df_csv_base.to_csv(index=False).encode('utf-8')
-    
+
                         # 2. Preparar TXT Unificado (Matriz estructurada + Bloque analítico)
                         matriz_txt_string = df_tabla_vol.to_string(index=False)
                         txt_unificado_final = f"{matriz_txt_string}\n\n{resumen_txt_bloque}"
-    
+
                         c_exp1, c_exp2 = st.columns(2)
                         with c_exp1:
                             st.download_button(
@@ -2513,14 +2513,14 @@ else:
                                 mime="text/plain", 
                                 use_container_width=True
                             )
-    
+
                         # =============================================================================
                         # 5. ANÁLISIS CIENTÍFICO AVANZADO INDIVIDUALIZADO (BANNISTER)
                         # =============================================================================
                         st.markdown("---")
                         st.markdown("### 📈 Análisis Científico de Carga (Modelo CTL / ATL / TSB)")
                         st.caption("Filtro dinámico por atleta individualizado para proyectar el Fitness (CTL), la Fatiga (ATL) y la Forma (TSB) usando la serie continua diaria.")
-    
+
                         atletas_opciones_carga = {at["id"]: at["nombre"] for at in atletas_finales_rep}
                         atleta_sel_id = st.selectbox(
                             "🔍 Seleccione un nadador para visualizar su curva de carga acumulada:",
@@ -2547,7 +2547,7 @@ else:
                                 * 🔴 Zona de Fatiga Crítica: %TSB < -25    ⚠️ Fatiga Acumulada Alta: -25.0 < %TSB < -10.0    🟡 Zona de Estímulo Óptimo: -10.0 <= %TSB <= 5.0    🟢 Puesta a Punto / Tapering Óptimo: 10.0 <= %TSB <= 25.0
                                 * Lógica Matemática del Tiempo Continuo **(Días de Descanso = Esfuerzo 0)**
                                 """)
-    
+
                             if rango_fechas_completo is not None:
                                 vol_diario_map = {f: 0.0 for f in rango_fechas_completo}
                                 mapeo_factores = {"Aeróbico Ligero": 1.0, "Aeróbico Medio": 1.2, "Umbral": 1.4, "Anaeróbico": 1.7, "Sprint": 1.7}
@@ -2609,7 +2609,7 @@ else:
                                 with c_m2: st.metric("🔥 Fatiga (ATL - Aguda)", value=f"{val_atl:,} m")
                                 with c_m3: st.metric("🎯 Balance de Forma (TSB)", value=f"{val_tsb:,} m", delta=estado_forma)
                                 
-    # =============================================================================
+# =============================================================================
                                 # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
                                 # =============================================================================
                                 fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
@@ -2680,7 +2680,7 @@ else:
                                     file_name=f"perfil_hibrido_{atletas_opciones_carga[atleta_sel_id].lower().replace(' ', '_')}.png", 
                                     mime="image/png"
                                 )
-    
+
                                 # =============================================================================
                                 # VISTA DE LA TABLA DIARIA COMPLEMENTARIA
                                 # =============================================================================
