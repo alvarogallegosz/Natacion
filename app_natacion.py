@@ -1875,7 +1875,7 @@ else:
             st.info("Descarga copias de seguridad directas desde Supabase en formato CSV para resguardo local o auditorías.")
             
             # Lista oficial de las tablas del Core
-            tablas_sistema = ["usuarios", "marcas_historicas", "marcas_referencia", "asignaciones", "catalogo_competencias"]
+            tablas_sistema = ["usuarios", "marcas_historicas", "marcas_referencia", "asignaciones", "catalogo_competencias"; "bitacora_entrenamientos"; "historial_hitos"]
             
             opcion_backup = st.selectbox("Seleccione el alcance del respaldo:", ["Tabla Individual", "Base de Datos Completa (ZIP)"])
             
