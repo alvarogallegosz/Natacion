@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import streamlit as tf
 import random
+import zipfile
 # -------------------------------------------------------------
 # FUNCIÓN DE ENCRIPTACIÓN DE CONTRASEÑAS
 # -------------------------------------------------------------
@@ -1874,15 +1875,16 @@ else:
             st.markdown("### 💾 Centro de Respaldos y Salvaguarda Local")
             st.info("Descarga copias de seguridad directas desde Supabase en formato CSV para resguardo local o auditorías.")
             
+            supabase = st.session_state["supabase_client"]
+            
             # Lista oficial de las tablas del Core
-            tablas_sistema = ["usuarios", "marcas_historicas", "marcas_referencia", "asignaciones", "catalogo_competencias", "bitacora_entrenamientos", "historial_hitos"];
+            tablas_sistema = ["usuarios", "marcas_historicas", "marcas_referencia", "asignaciones", "catalogo_competencias", "bitacora_entrenamientos", "historial_hitos"]
             
             opcion_backup = st.selectbox("Seleccione el alcance del respaldo:", ["Tabla Individual", "Base de Datos Completa (ZIP)"])
             
             if opcion_backup == "Tabla Individual":
                 tabla_sel = st.selectbox("Seleccione la tabla a respaldar:", tablas_sistema)
                 
-                # Flujo en memoria: Consulta Supabase -> Convierte a Pandas -> Botón de Descarga Nativo
                 try:
                     res_backup = supabase.table(tabla_sel).select("*").execute()
                     if res_backup.data:
@@ -1901,9 +1903,51 @@ else:
                     st.error(f"Error al conectar con el servidor de réplica: {e}")
             
             else:
-                # Lógica Master: Recorre el bucle en memoria, empaqueta en un io.BytesIO() con zipfile
-                st.markdown("*Generando compresión de todas las estructuras del club...*")
-                # El botón de descarga del ZIP maestro aparecerá aquí listo e instantáneo.
+                # =============================================================================
+                # LÓGICA MASTER COMPLETADA: COMPRESIÓN EN MEMORIA (ZIP)
+                # =============================================================================
+                
+                with st.spinner("Generando compresión de todas las estructuras del club..."):
+                    try:
+                        # 1. Crear un búfer de bytes en memoria para el archivo ZIP
+                        buffer_zip = io.BytesIO()
+                        
+                        # 2. Abrir el contenedor ZIP en modo escritura
+                        with zipfile.ZipFile(buffer_zip, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                            tablas_vacias = []
+                            
+                            # Recorrer cada tabla del sistema para extraerla individualmente
+                            for tabla in tablas_sistema:
+                                res_table = supabase.table(tabla).select("*").execute()
+                                
+                                if res_table.data:
+                                    df_table = pd.DataFrame(res_table.data)
+                                    # Convertir la tabla a CSV crudo en formato string
+                                    csv_string = df_table.to_csv(index=False, encoding='utf-8-sig')
+                                    # Escribir el string directamente como un archivo independiente dentro del ZIP
+                                    zip_file.writestr(f"backup_{tabla}.csv", csv_string)
+                                else:
+                                    tablas_vacias.append(tabla)
+                        
+                        # 3. Mover el puntero del búfer al principio para que Streamlit pueda leerlo completo
+                        buffer_zip.seek(0)
+                        
+                        # Mostrar advertencias si hubo tablas que no aportaron datos
+                        if tablas_vacias:
+                            st.caption(f"⚠️ Nota: Las tablas {tablas_vacias} no se incluyeron por estar vacías en Supabase.")
+                        
+                        # 4. Renderizar el botón de descarga del ZIP maestro listo e instantáneo
+                        st.success("✅ Respaldo total empaquetado de forma exitosa.")
+                        st.download_button(
+                            label="📥 Descargar Base de Datos Completa (ZIP)",
+                            data=buffer_zip.getvalue(),
+                            file_name=f"MASTER_BACKUP_CLUB_{datetime.date.today().isoformat()}.zip",
+                            mime="application/zip",
+                            use_container_width=True
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"Error crítico durante el empaquetado del Master Backup: {e}")
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
         
