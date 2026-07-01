@@ -409,7 +409,33 @@ def obtener_atletas_filtrados_supabase():
     except Exception as e:
         st.error(f"Error al consultar base de datos de atletas: {e}")
         return []
-
+# -------------------------------------------------------------
+# FUNCIÓN CALCULAR PUNTOS WA
+# -------------------------------------------------------------
+@st.cache_data(ttl=300, show_spinner=False)
+def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
+    """
+    Calcula dinámicamente los puntos World Aquatics (WA) aplicando la fórmula cúbica oficial.
+    Maneja excepciones de conversión y valores nulos para evitar caídas en el renderizado.
+    """
+    try:
+        # Forzar conversión a flotante por si llegan valores en formato string o None
+        t = float(tiempo_atleta)
+        wr = float(record_mundial)
+        
+        # Validación preventiva: si los tiempos son inconsistentes, retorna 0 puntos
+        if t <= 0 or wr <= 0:
+            return 0
+            
+        # Fórmula oficial World Aquatics: 1000 * (WR / T)^3 truncado a entero
+        puntos = int(1000 * ((wr / t) ** 3))
+        
+        # Evita cualquier distorsión de valores negativos o incoherentes
+        return max(0, puntos)
+        
+    except (ValueError, TypeError):
+        # Si entra un guion "-", un None o un dato no numérico durante la simulación, retorna 0
+        return 0
 # -------------------------------------------------------------
 # CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
 # -------------------------------------------------------------
@@ -1356,17 +1382,37 @@ else:
             anchos_columnas = [0.52, 0.16, 0.16, 0.16]
     else:
         if not simulacion_externa and len(df_procesado) > 0:
+            # 1. Creamos la base del render incluyendo el Tiempo original numérico para el cálculo
             df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
+            
+            # 2. Inyección dinámica de Puntos WA (usando el WR disponible en el contexto/gráfico o df_procesado)
+            # Nota: Asegúrate de que 'wr_prueba_segundos' o la variable del WR del gráfico esté accesible aquí.
+            # Si el WR viene mapeado en cada fila de df_procesado, usas: row["wr_prueba_segundos"]
+            # Si tienes el WR en una variable global del gráfico (ej. wr_actual), la usamos directamente:
+            wr_referencia = wr_actual if 'wr_actual' in locals() else 20.91  # Fallback de seguridad al WR de tu gráfica
+            
+            df_table_render["WA"] = df_table_render["Tiempo"].apply(
+                lambda x: calcular_puntos_wa(x, wr_referencia)
+            )
+            
+            # 3. Reordenamos columnas para un look de reporte profesional
+            df_table_render = df_table_render[["Edad", "Tiempo", "WA", "Evento / Fecha"]]
+            
+            # 4. Ahora sí, aplicamos el formateo visual de strings
             df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
             df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
-            anchos_columnas = [0.15, 0.15, 0.70]
+            df_table_render["WA"] = df_table_render["WA"].map(lambda x: f"{x} pts" if x > 0 else "-")
+            
+            # Ajuste de distribución de anchos para incorporar la columna WA (Suman 1.0)
+            anchos_columnas = [0.13, 0.13, 0.14, 0.60]
         else:
             df_table_render = pd.DataFrame([{
                 "Edad": "-", 
                 "Tiempo": "-", 
+                "WA": "-",
                 "Evento / Fecha": "Sin marcas históricas registradas"
             }])
-            anchos_columnas = [0.15, 0.15, 0.70]
+            anchos_columnas = [0.13, 0.13, 0.14, 0.60]
 
     if df_table_render is not None and not df_table_render.empty:
         total_filas = len(df_table_render)
@@ -1378,7 +1424,7 @@ else:
             instancia_tabla.scale(1.0, 1.3)
             for (row, col), cell in instancia_tabla.get_celld().items():
                 cell.set_linewidth(0.5)            # Línea sutil muy delgada
-                cell.set_edgecolor('#E5E7EB')       # Gris claro moderno (estilo Tailwind/HTML)
+                cell.set_edgecolor('#E5E7EB')       # Gris claro moderno
                 if row == 0:
                     cell.set_text_props(color='black', weight='light')
                     cell.set_facecolor('#C0C0C0')
@@ -1402,7 +1448,8 @@ else:
             df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
             df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
             
-            anchos_doble = anchos_columnas if es_modo_micro_tabla else [0.18, 0.18, 0.64]
+            # Distribución proporcional adaptada para el bloque doble en paralelo
+            anchos_doble = anchos_columnas if es_modo_micro_tabla else [0.15, 0.15, 0.16, 0.54]
             
             ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.40])
             ax_table1.axis('off')
