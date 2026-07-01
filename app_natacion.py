@@ -122,6 +122,7 @@ def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
             return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 14 años."
     return True, None
 
+@st.cache_data(show_spinner=False, ttl=600)
 def obtener_datos_hitos_atleta(nadador_id):
     except Exception as e:
         print(f"Error interno en consulta cacheada de Supabase: {e}")
