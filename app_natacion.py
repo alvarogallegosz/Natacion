@@ -1875,8 +1875,6 @@ else:
             st.markdown("### 💾 Centro de Respaldos y Salvaguarda Local")
             st.info("Descarga copias de seguridad directas desde Supabase en formato CSV para resguardo local o auditorías.")
             
-            supabase = st.session_state["supabase_client"]
-            
             # Lista oficial de las tablas del Core
             tablas_sistema = ["usuarios", "marcas_historicas", "marcas_referencia", "asignaciones", "catalogo_competencias", "bitacora_entrenamientos", "historial_hitos"]
             
