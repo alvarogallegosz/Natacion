@@ -415,26 +415,15 @@ def obtener_atletas_filtrados_supabase():
 @st.cache_data(ttl=300, show_spinner=False)
 def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
     """
-    Calcula dinámicamente los puntos World Aquatics (WA) aplicando la fórmula cúbica oficial.
-    Maneja excepciones de conversión y valores nulos para evitar caídas en el renderizado.
+    Calcula los puntos WA basándose en el WR específico de la prueba y género activos.
     """
     try:
-        # Forzar conversión a flotante por si llegan valores en formato string o None
         t = float(tiempo_atleta)
         wr = float(record_mundial)
-        
-        # Validación preventiva: si los tiempos son inconsistentes, retorna 0 puntos
         if t <= 0 or wr <= 0:
             return 0
-            
-        # Fórmula oficial World Aquatics: 1000 * (WR / T)^3 truncado a entero
-        puntos = int(1000 * ((wr / t) ** 3))
-        
-        # Evita cualquier distorsión de valores negativos o incoherentes
-        return max(0, puntos)
-        
+        return max(0, int(1000 * ((wr / t) ** 3)))
     except (ValueError, TypeError):
-        # Si entra un guion "-", un None o un dato no numérico durante la simulación, retorna 0
         return 0
 # -------------------------------------------------------------
 # CONTROL DE ACCESO, REGISTRO Y RECUPERACIÓN DE SESIÓN UNIFICADO
@@ -1380,30 +1369,30 @@ else:
                 "Tiempo Prog.": "-"
             }])
             anchos_columnas = [0.52, 0.16, 0.16, 0.16]
-    else:
+else:
         if not simulacion_externa and len(df_procesado) > 0:
-            # 1. Creamos la base del render incluyendo el Tiempo original numérico para el cálculo
             df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
             
-            # 2. Inyección dinámica de Puntos WA (usando el WR disponible en el contexto/gráfico o df_procesado)
-            # Nota: Asegúrate de que 'wr_prueba_segundos' o la variable del WR del gráfico esté accesible aquí.
-            # Si el WR viene mapeado en cada fila de df_procesado, usas: row["wr_prueba_segundos"]
-            # Si tienes el WR en una variable global del gráfico (ej. wr_actual), la usamos directamente:
-            wr_referencia = wr_actual if 'wr_actual' in locals() else 20.91  # Fallback de seguridad al WR de tu gráfica
+            # =============================================================================
+            # EXTRACCIÓN DINÁMICA DEL WR CORRESPONDIENTE A LA PRUEBA Y GÉNERO ACTIVOS
+            # =============================================================================
+            # Aquí interceptamos el WR exacto que está usando tu gráfico actual.
+            # Puedes usar la variable con la que pintas la línea horizontal del WR en el lienzo.
+            wr_referencia_real = wr_de_la_prueba  # <-- SUSTITUYE CON TU VARIABLE DE WR (Ej: wr_actual, wr_prueba, etc.)
             
+            # Se calcula la columna usando el WR específico de esta prueba
             df_table_render["WA"] = df_table_render["Tiempo"].apply(
-                lambda x: calcular_puntos_wa(x, wr_referencia)
+                lambda x: calcular_puntos_wa(x, wr_referencia_real)
             )
             
-            # 3. Reordenamos columnas para un look de reporte profesional
+            # Reordenamiento estético para el lienzo
             df_table_render = df_table_render[["Edad", "Tiempo", "WA", "Evento / Fecha"]]
             
-            # 4. Ahora sí, aplicamos el formateo visual de strings
+            # Formateo de strings para presentación visual
             df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
             df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
             df_table_render["WA"] = df_table_render["WA"].map(lambda x: f"{x} pts" if x > 0 else "-")
             
-            # Ajuste de distribución de anchos para incorporar la columna WA (Suman 1.0)
             anchos_columnas = [0.13, 0.13, 0.14, 0.60]
         else:
             df_table_render = pd.DataFrame([{
