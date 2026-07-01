@@ -2040,7 +2040,7 @@ else:
                         key="piz_radio_tipo_idx"
                     )
 
-                # RESOLUCIÓN DEL CLIENTE DE SUPABASE (Busca la variable global directa de tu app)
+# RESOLUCIÓN DEL CLIENTE DE SUPABASE (Busca la variable global directa de tu app)
                 ctx_supabase = None
                 try:
                     ctx_supabase = supabase
@@ -2050,9 +2050,44 @@ else:
                 atletas_pool = []
                 if ctx_supabase:
                     try:
-                        resp_sb = ctx_supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                        if resp_sb.data:
-                            atletas_pool = resp_sb.data
+                        # =============================================================================
+                        # FILTRADO DE SEGURIDAD CONTRA LEAKS DE ACCESO
+                        # =============================================================================
+                        es_entrenador = st.session_state.get("rol") == "Entrenador"
+                        entrenador_id = st.session_state.get("usuario_id") # ID único del entrenador logueado
+                        
+                        permitir_consulta = True
+                        ids_autorizados = []
+
+                        # Si es Entrenador, restringimos el pool basándonos en la tabla de asignaciones
+                        if es_entrenador:
+                            if entrenador_id:
+                                resp_asig = ctx_supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", entrenador_id).execute()
+                                if resp_asig.data:
+                                    ids_autorizados = [reg["atleta_id"] for reg in resp_asig.data]
+                                
+                                # Si el entrenador no tiene atletas asignados, vaciamos el pool preventivamente
+                                if not ids_autorizados:
+                                    permitir_consulta = False
+                            else:
+                                st.error("❌ Error de sesión: No se encontró el ID del entrenador.")
+                                permitir_consulta = False
+
+                        if permitir_consulta:
+                            # Construimos la query base para Nadadores Activos
+                            query_atletas = ctx_supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo")
+                            
+                            # Si es Entrenador, aplicamos el filtro estricto de inclusión
+                            if es_entrenador:
+                                query_atletas = query_atletas.in_("id", ids_autorizados)
+                                
+                            resp_sb = query_atletas.execute()
+                            
+                            if resp_sb.data:
+                                atletas_pool = resp_sb.data
+                        else:
+                            st.warning("⚠️ No tienes atletas asignados en tu perfil de Entrenador.")
+
                     except Exception as e:
                         st.error(f"Error al cargar nómina desde Supabase: {e}")
 
