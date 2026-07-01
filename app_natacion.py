@@ -2295,7 +2295,7 @@ with tab_reportes:
         st.markdown("---")
 
         # =============================================================================
-        # 2. SECCIÓN DE SEGMENTACIÓN (PRESERVADA DE LA VERSIÓN ESTABLE)
+        # 2. SECCIÓN DE SEGMENTACIÓN CON FILTRADO DE SEGURIDAD ANTILEAK
         # =============================================================================
         st.markdown("### 🔍 Segmentación de Destinatarios (Filtros Activos)")
         
@@ -2325,18 +2325,53 @@ with tab_reportes:
         atletas_pool_rep = []
         if ctx_supabase_rep:
             try:
-                resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                if resp_sb.data:
-                    atletas_pool_rep = resp_sb.data
+                # ---------------------------------------------------------------------
+                # CONTROL DE ACCESO PARA PARAMETRIZACIÓN DE ENTRENADORES
+                # ---------------------------------------------------------------------
+                es_entrenador_rep = st.session_state.get("rol") == "Entrenador"
+                entrenador_id_rep = st.session_state.get("usuario_id")
+                
+                permitir_consulta_rep = True
+                ids_autorizados_rep = []
+
+                if es_entrenador_rep:
+                    if entrenador_id_rep:
+                        # Extraemos los atletas asignados al entrenador logueado
+                        resp_asig_rep = ctx_supabase_rep.table("asignaciones").select("atleta_id").eq("entrenador_id", entrenador_id_rep).execute()
+                        if resp_asig_rep.data:
+                            ids_autorizados_rep = [reg["atleta_id"] for reg in resp_asig_rep.data]
+                        
+                        # Cortocircuito seguro si el pool del entrenador está vacío
+                        if not ids_autorizados_rep:
+                            permitir_consulta_rep = False
+                    else:
+                        st.error("❌ Error de sesión: No se detectó ID único de Entrenador.")
+                        permitir_consulta_rep = False
+
+                if permitir_consulta_rep:
+                    # Query base para Nadadores Activos
+                    query_atletas_rep = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo")
+                    
+                    # Si es Entrenador, inyectamos la restricción restrictiva IN
+                    if es_entrenador_rep:
+                        query_atletas_rep = query_atletas_rep.in_("id", ids_autorizados_rep)
+                        
+                    resp_sb = query_atletas_rep.execute()
+                    if resp_sb.data:
+                        atletas_pool_rep = resp_sb.data
+                else:
+                    st.warning("⚠️ No posees atletas asignados en este momento bajo tu perfil de Entrenador.")
+
             except Exception as e:
                 st.error(f"Error al cargar nómina para reportes: {e}")
 
-        # Aplicar filtros estables de género y categoría
+        # Aplicar filtros estables de género
         if filtro_genero_rep == "Femenino (F)":
             atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "F"]
         elif filtro_genero_rep == "Masculino (M)":
             atletas_pool_rep = [a for a in atletas_pool_rep if a.get("genero") == "M"]
 
+        # De aquí hacia abajo se mantiene tu lógica exacta...
         categorias_disponibles_rep = sorted(list(set([
             calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
             for a in atletas_pool_rep if a.get("fecha_nacimiento")
