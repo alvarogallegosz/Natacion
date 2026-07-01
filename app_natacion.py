@@ -1369,7 +1369,7 @@ else:
                 "Tiempo Prog.": "-"
             }])
             anchos_columnas = [0.52, 0.16, 0.16, 0.16]
-else:
+    else:
         if not simulacion_externa and len(df_procesado) > 0:
             df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
             
