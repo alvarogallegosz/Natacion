@@ -1378,7 +1378,7 @@ else:
             # =============================================================================
             # Aquí interceptamos el WR exacto que está usando tu gráfico actual.
             # Puedes usar la variable con la que pintas la línea horizontal del WR en el lienzo.
-            wr_referencia_real = wr_de_la_prueba  # <-- SUSTITUYE CON TU VARIABLE DE WR (Ej: wr_actual, wr_prueba, etc.)
+            wr_referencia_real = m_wr  # <-- SUSTITUYE CON TU VARIABLE DE WR (Ej: wr_actual, wr_prueba, etc.)
             
             # Se calcula la columna usando el WR específico de esta prueba
             df_table_render["WA"] = df_table_render["Tiempo"].apply(
