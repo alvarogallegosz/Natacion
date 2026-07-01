@@ -7,12 +7,11 @@ import datetime
 import io
 import hashlib
 from supabase import create_client, Client
-
-# --- NUEVOS IMPORTS PARA EL ENVÍO DE CORREOS ---
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+import streamlit as tf
+import random
 # -------------------------------------------------------------
 # FUNCIÓN DE ENCRIPTACIÓN DE CONTRASEÑAS
 # -------------------------------------------------------------
@@ -427,8 +426,17 @@ if "autenticado" not in st.session_state:
     st.session_state.nadador_seleccionado_genero = "F"
     st.session_state.nadador_seleccionado_categoria = ""
 
+# Inicialización de variables para verificación por código temporal
+if "reg_codigo_verificacion" not in st.session_state:
+    st.session_state.reg_codigo_verificacion = None
+    st.session_state.reg_datos_temporales = None
+if "rec_codigo_verificacion" not in st.session_state:
+    st.session_state.rec_codigo_verificacion = None
+    st.session_state.rec_datos_temporales = None
+
 def login_usuario(user, password):
     try:
+        user_lower = user.strip().lower()
         hashed_pw = hash_password(password)
         response = supabase.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user).eq("contrasena", hashed_pw).execute()
         if response.data:
@@ -470,7 +478,7 @@ if not st.session_state.autenticado:
         tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
         
         with tab_login:
-            st.caption("Nota: Los nombres de usuario y contraseñas distinguen mayúsculas/minúsculas.")
+            st.caption("Nota: Los nombres de usuario se procesan en minúsculas.")
             with st.form("form_login"):
                 usuario_input = st.text_input("Usuario o Correo:")
                 contrasena_input = st.text_input("Contraseña:", type="password")
@@ -483,85 +491,175 @@ if not st.session_state.autenticado:
                         
         with tab_registro:
             st.markdown("### 📝 Registro de Nuevas Cuentas")
-            st.caption("Nota: Los nombres de usuario y contraseñas distinguen mayúsculas/minúsculas.")
-            nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], key="reg_rol_selector")
-            es_nadador_reg = (nuevo_rol == "Nadador")
-            
-            with st.form("form_registro_dinamico"):
-                nuevo_nombre = st.text_input("Nombre completo:")
-                nuevo_usuario = st.text_input("Nombre de Usuario (Alias):")
-                nuevo_email = st.text_input("Correo Electrónico:")
-                nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
-                
-                nuevo_genero = None
-                nueva_fecha_nac = None
-                
-                if es_nadador_reg:
-                    st.markdown("---")
-                    st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")
-                    nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
-                    nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
-                
-                                     
-                if st.form_submit_button("🚀 Crear Cuenta en el Sistema"):
-                    if nuevo_nombre and nuevo_usuario and nueva_contrasena and nuevo_email:
-                        try:
-                            chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario).execute()
-                            if chequeo.data:
-                                st.error("El nombre de usuario ya está tomado.")
-                            else:
-                                status_inicial = "Pendiente" if nuevo_rol in ["Head Coach", "Entrenador", "Administrador"] else "Activo"
-                                
-                                nuevo_registro = {
-                                    "nombre": nuevo_nombre, 
-                                    "usuario": nuevo_usuario, 
-                                    "email": nuevo_email,
-                                    "contrasena": hash_password(nueva_contrasena),
-                                    "rol": nuevo_rol, 
-                                    "estatus": status_inicial,
-                                    "genero": nuevo_genero if es_nadador_reg else None,
-                                    "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
-                                }
-                                supabase.table("usuarios").insert(nuevo_registro).execute()
+# Requerimiento 5: Si ya se envió el código de registro, mostrar interfaz de verificación
+            if st.session_state.reg_codigo_verificacion:
+                st.info(f"Se ha enviado un código de verificación al correo: **{st.session_state.reg_datos_temporales['email']}**")
+                with st.form("form_verificacion_registro"):
+                    codigo_ingresado = st.text_input("Ingrese el código temporal de 6 dígitos:")
+                    
+                    if st.form_submit_button("Confirmar y Registrar Cuenta"):
+                        if codigo_ingresado.strip() == str(st.session_state.reg_codigo_verificacion):
+                            try:
+                                supabase.table("usuarios").insert(st.session_state.reg_datos_temporales).execute()
+                                status_inicial = st.session_state.reg_datos_temporales["estatus"]
+                                nuevo_nombre = st.session_state.reg_datos_temporales["nombre"]
+                                nuevo_rol = st.session_state.reg_datos_temporales["rol"]
+                                nuevo_email = st.session_state.reg_datos_temporales["email"]
                                 
                                 if status_inicial == "Pendiente":
-                                    enviar_email("Cuenta en Revisión", f"Hola {nuevo_nombre}, tu cuenta de {nuevo_rol} ha sido registrada. Esta pendiente de revision por el administrador.", nuevo_email)
+                                    enviar_email("Cuenta en Revisión", f"Hola {nuevo_nombre}, tu cuenta de {nuevo_rol} ha sido registrada. Está pendiente de revisión por el administrador.", nuevo_email)
                                     enviar_email("Nuevo Registro Pendiente", f"El usuario {nuevo_nombre} ({nuevo_rol}) se ha registrado. Email: {nuevo_email}. Favor revisar en consola admin.", st.secrets["EMAIL_ADMIN"])
-                                    st.success(f"¡Registro exitoso como **{nuevo_rol}**! Tu cuenta debe ser aprobarla el administrador.")
+                                    st.success(f"¡Registro exitoso como **{nuevo_rol}**! Tu cuenta debe ser aprobada por el administrador.")
                                 else:
                                     st.success(f"¡Registro exitoso como **{nuevo_rol}**! Ya puede iniciar sesión.")
-                        except Exception as reg_err:
-                            st.error(f"Error en registro: {reg_err}")
-                    else:
-                        st.error("Por favor complete todos los datos obligatorios del formulario.")
+                                
+                                # Limpiar estados temporales
+                                st.session_state.reg_codigo_verificacion = None
+                                st.session_state.reg_datos_temporales = None
+                            except Exception as reg_err:
+                                st.error(f"Error en registro: {reg_err}")
+                        else:
+                            st.error("❌ El código ingresado es incorrecto. Inténtelo de nuevo.")
+                    
+                if st.button("❌ Cancelar Registro"):
+                    st.session_state.reg_codigo_verificacion = None
+                    st.session_state.reg_datos_temporales = None
+                    st.rerun()
+            
+            else:
+                # Flujo normal de llenado de datos de registro
+                nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], key="reg_rol_selector")
+                es_nadador_reg = (nuevo_rol == "Nadador")
+                
+                with st.form("form_registro_dinamico"):
+                    nuevo_nombre = st.text_input("Nombre completo:")
+                    
+                    # Requerimiento 3: Ejemplo sombreado del formato de usuario (placeholder)
+                    nuevo_usuario = st.text_input("Nombre de Usuario (Alias):", placeholder="ejemplo: alberto_jordan o maria_jimenez")
+                    nuevo_email = st.text_input("Correo Electrónico:", placeholder="ejemplo: altair19@gmail.com")
+                    
+                    # Requerimiento 2: Doble entrada de confirmación de contraseña en registro
+                    nueva_contrasena = st.text_input("Establecer Contraseña:", type="password")
+                    confirmar_contrasena = st.text_input("Confirmar Contraseña:", type="password")
+                    
+                    nuevo_genero = None
+                    nueva_fecha_nac = None
+                    
+                    if es_nadador_reg:
+                        st.markdown("---")
+                        st.markdown("##### 🧬 Datos Biométricos Requeridos (Categorías Feveda)")
+                        nuevo_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
+                        nueva_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
+                    
+                    if st.form_submit_button("🚀 Enviar Código de Verificación"):
+                        if nuevo_nombre and nuevo_usuario and nueva_contrasena and confirmar_contrasena and nuevo_email:
+                            if nueva_contrasena != confirmar_contrasena:
+                                st.error("❌ Las contraseñas no coinciden.")
+                            else:
+                                # Requerimiento 1 aplicado a registro para asegurar consistencia
+                                nuevo_usuario_clean = nuevo_usuario.strip().lower()
+                                try:
+                                    chequeo = supabase.table("usuarios").select("id").eq("usuario", nuevo_usuario_clean).execute()
+                                    if chequeo.data:
+                                        st.error("El nombre de usuario ya está tomado.")
+                                    else:
+                                        # Generación del código temporal (Requerimiento 5)
+                                        codigo_temp = random.randint(100000, 999999)
+                                        status_inicial = "Pendiente" if nuevo_rol in ["Head Coach", "Entrenador", "Administrador"] else "Activo"
+                                        
+                                        # Guardar datos estructurados en la sesión temporalmente
+                                        st.session_state.reg_datos_temporales = {
+                                            "nombre": nuevo_nombre, 
+                                            "usuario": nuevo_usuario_clean, 
+                                            "email": nuevo_email.strip(),
+                                            "contrasena": hash_password(nueva_contrasena),
+                                            "rol": nuevo_rol, 
+                                            "estatus": status_inicial,
+                                            "genero": nuevo_genero if es_nadador_reg else None,
+                                            "fecha_nacimiento": nueva_fecha_nac.isoformat() if (es_nadador_reg and nueva_fecha_nac) else None
+                                        }
+                                        
+                                        # Enviar correo con código temporal
+                                        cuerpo_mail = f"Hola {nuevo_nombre},\n\nTu código temporal de verificación para registrarte en el sistema es: {codigo_temp}\n\nSi no solicitaste este registro, ignora este correo."
+                                        if enviar_email("Código de Verificación de Registro", cuerpo_mail, nuevo_email.strip()):
+                                            st.session_state.reg_codigo_verificacion = codigo_temp
+                                            st.success("📩 Código enviado con éxito. Revise su bandeja de entrada.")
+                                            st.rerun()
+                                        else:
+                                            st.error("No se pudo enviar el correo de verificación. Revise la configuración SMTP o la dirección provista.")
+                                except Exception as reg_err:
+                                    st.error(f"Error en validación: {reg_err}")
+                        else:
+                            st.error("Por favor complete todos los datos obligatorios del formulario.")
 
         with tab_recuperar:
             st.markdown("### Restablecer Contraseña")
-            with st.form("form_recuperacion"):
-                rec_usuario = st.text_input("Nombre de Usuario (Alias):")
-                rec_email = st.text_input("Correo Electrónico Asociado:")
-                nueva_clave = st.text_input("Nueva Contraseña Deseada:", type="password")
-                confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password")
-                
-                if st.form_submit_button("🔄 Actualizar Contraseña"):
-                    if not (rec_usuario and rec_email and nueva_clave and confirmar_clave):
-                        st.error("Todos los campos del formulario de recuperación son obligatorios.")
-                    elif nueva_clave != confirmar_clave:
-                        st.error("La confirmación no coincide con la nueva contraseña introducida.")
-                    else:
-                        try:
-                            verificacion = supabase.table("usuarios").select("id, estatus").eq("usuario", rec_usuario).eq("email", rec_email).execute()
-                            if verificacion.data:
-                                user_info = verificacion.data[0]
-                                if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
-                                    st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
+            # Requerimiento 6: Rutina de seguridad e interfaz para confirmación de código en Recuperación
+            if st.session_state.rec_codigo_verificacion:
+                st.info(f"Se ha enviado un código de seguridad a la dirección vinculada.")
+                with st.form("form_verificacion_recuperacion"):
+                    codigo_rec_ingresado = st.text_input("Ingrese el código temporal de recuperación:")
+                    
+                    if st.form_submit_button("Validar Código y Cambiar Contraseña"):
+                        if codigo_rec_ingresado.strip() == str(st.session_state.rec_codigo_verificacion):
+                            try:
+                                datos = st.session_state.rec_datos_temporales
+                                supabase.table("usuarios").update({"contrasena": datos["nueva_contrasena"]}).eq("id", datos["user_id"]).execute()
+                                st.success("✅ Contraseña actualizada correctamente. Ya puede iniciar sesión.")
+                                
+                                # Limpiar estados temporales
+                                st.session_state.rec_codigo_verificacion = None
+                                st.session_state.rec_datos_temporales = None
+                            except Exception as rec_err:
+                                st.error(f"Error al actualizar la contraseña: {rec_err}")
+                        else:
+                            st.error("❌ El código ingresado es incorrecto.")
+                            
+                if st.button("❌ Cancelar Recuperación"):
+                    st.session_state.rec_codigo_verificacion = None
+                    st.session_state.rec_datos_temporales = None
+                    st.rerun()
+            
+            else:
+                with st.form("form_recuperacion"):
+                    # Requerimiento 1 aplicado aquí para evitar fallas por mayúsculas/minúsculas
+                    rec_usuario = st.text_input("Nombre de Usuario (Alias):")
+                    rec_email = st.text_input("Correo Electrónico Asociado:")
+                    nueva_clave = st.text_input("Nueva Contraseña Deseada:", type="password")
+                    confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password")
+                    
+                    if st.form_submit_button("🔄 Solicitar Código de Recuperación"):
+                        if not (rec_usuario and rec_email and nueva_clave and confirmar_clave):
+                            st.error("Todos los campos del formulario de recuperación son obligatorios.")
+                        elif nueva_clave != confirmar_clave:
+                            st.error("La confirmación no coincide con la nueva contraseña introducida.")
+                        else:
+                            rec_usuario_clean = rec_usuario.strip().lower()
+                            try:
+                                verificacion = supabase.table("usuarios").select("id, estatus, nombre").eq("usuario", rec_usuario_clean).eq("email", rec_email.strip()).execute()
+                                if verificacion.data:
+                                    user_info = verificacion.data[0]
+                                    if user_info.get("estatus") in ["Suspendido", "Bloqueado"]:
+                                        st.error("Esta cuenta se encuentra suspendida o bloqueada por la administración.")
+                                    else:
+                                        # Generación del código temporal (Requerimiento 6)
+                                        codigo_rec_temp = random.randint(100000, 999999)
+                                        st.session_state.rec_datos_temporales = {
+                                            "user_id": user_info["id"],
+                                            "nueva_contrasena": hash_password(nueva_clave)
+                                        }
+                                        
+                                        cuerpo_rec_mail = f"Hola {user_info['nombre']},\n\nHas solicitado un restablecimiento de contraseña. Tu código de seguridad temporal es: {codigo_rec_temp}\n\nSi no realizaste esta acción, contacta de inmediato al administrador."
+                                        if enviar_email("Código de Seguridad - Recuperación de Contraseña", cuerpo_rec_mail, rec_email.strip()):
+                                            st.session_state.rec_codigo_verificacion = codigo_rec_temp
+                                            st.success("📩 Código de seguridad enviado al correo electrónico.")
+                                            st.rerun()
+                                        else:
+                                            st.error("Error al enviar el correo de recuperación.")
                                 else:
-                                    supabase.table("usuarios").update({"contrasena": hash_password(nueva_clave)}).eq("id", user_info["id"]).execute()
-                                    st.success("✅ Contraseña actualizada correctamente.")
-                            else:
-                                st.error("❌ Los datos proporcionados no coinciden.")
-                        except Exception as rec_err:
-                            st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
+                                    st.error("❌ Los datos proporcionados no coinciden con ningún registro activo.")
+                            except Exception as rec_err:
+                                st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
                             
     st.stop()
 
