@@ -673,7 +673,7 @@ if st.sidebar.button("🚪 Salir del Sistema"):
     st.rerun()
 # Agrega esto en tu sidebar o cerca de los controles de selección
 with st.sidebar:
-    st.markdown("---")
+    st.markdown("<hr style='width: 30%; margin: 8px auto; border-top: 1px solid #ccc;'/>", unsafe_allow_html=True)
     if st.button("🔄 Refrescar Datos (Limpiar Caché)"):
         # Limpia toda la caché de datos
         st.cache_data.clear()
