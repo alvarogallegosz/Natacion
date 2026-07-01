@@ -243,7 +243,7 @@ def enviar_email(asunto, cuerpo, destinatario):
         return False
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(page_title="Simulador de proyección de rendimiento para natación", layout="wide")
+st.set_page_config(page_title="Swimming Club Training Control and Projections", layout="wide")
 
 st.markdown(
     """
@@ -472,7 +472,7 @@ def login_usuario(user, password):
         return False
 
 if not st.session_state.autenticado:
-    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Sistema de Proyección de Rendimiento y Gestión de Resultados en Competencia - Club de Natación Centro Gallego</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏊‍♂️ Swimming Club Training and Projetions System - Sistema de Control de Entrenamientos y Proyección de Rendimientos</h2>", unsafe_allow_html=True)
     c_login, _ = st.columns([1.5, 1.5])
     with c_login:
         tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
