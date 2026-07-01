@@ -122,16 +122,47 @@ def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
             return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 14 años."
     return True, None
 
-# ... (El resto de tu script continúa exactamente igual a partir de aquí) ...
+def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
+    """
+    Calcula la fecha exacta en la que el cron/sistema debe notificar al atleta.
+    """
+    if isinstance(fecha_inicio_competencia, str):
+        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
+        
+    fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
+    return fecha_alerta
+
     
 # -------------------------------------------------------------
 # FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
-@st.cache_data(show_spinner=False, ttl=600)
+@st.cache_data(show_spinner=False, ttl=600)  # Almacena en caché por 10 minutos
 def obtener_datos_hitos_atleta(nadador_id):
+    """
+    Consulta de forma segura y aislada la información del atleta.
+    Al estar decorada con @st.cache_data, Streamlit garantiza que NO 
+    se generen loops infinitos ni sobrecargas a Supabase.
+    """
+    try:
+        res_atleta = supabase.table("usuarios") \
+            .select("fecha_nacimiento") \
+            .eq("id", nadador_id) \
+            .execute()
+            
+        res_hitos = supabase.table("historial_hitos") \
+            .select("*, catalogo_competencias(*)") \
+            .eq("usuario_id", nadador_id) \
+            .execute()
+            
+        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
+            return {
+                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
+                "hitos": res_hitos.data if res_hitos.data else []
+            }
     except Exception as e:
         print(f"Error interno en consulta cacheada de Supabase: {e}")
     return None
+
 def sincronizar_hitos_competencias_atleta(nadador_id, fecha_nacimiento, genero_atleta):
     """
     Revisa el catálogo de competencias y asegura que el atleta tenga creados sus hitos
