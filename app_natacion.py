@@ -122,10 +122,21 @@ def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
             return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 14 años."
     return True, None
 
+def calcular_fecha_alerta(fecha_inicio):
+    """
+    Calcula fecha 15 días antes de la competencia.
+    """
+    if isinstance(fecha_inicio, str):
+        fecha_inicio = datetime.datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
+        
+    fecha_alerta = fecha_inicio - 15
+    return fecha_alerta
+
 def obtener_datos_hitos_atleta(nadador_id):
     except Exception as e:
         print(f"Error interno en consulta cacheada de Supabase: {e}")
     return None
+
 def sincronizar_hitos_competencias_atleta(nadador_id, fecha_nacimiento, genero_atleta):
     """
     Revisa el catálogo de competencias y asegura que el atleta tenga creados sus hitos
