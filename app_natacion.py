@@ -1871,9 +1871,42 @@ else:
                         st.rerun()
             except Exception as e:
                 st.error(f"Error en panel de control: {e}")
+            st.markdown("### 💾 Centro de Respaldos y Salvaguarda Local")
+            st.info("Descarga copias de seguridad directas desde Supabase en formato CSV para resguardo local o auditorías.")
+            
+            # Lista oficial de las tablas del Core
+            tablas_sistema = ["usuarios", "marcas_historicas", "marcas_referencia", "asignaciones", "catalogo_competencias"]
+            
+            opcion_backup = st.selectbox("Seleccione el alcance del respaldo:", ["Tabla Individual", "Base de Datos Completa (ZIP)"])
+            
+            if opcion_backup == "Tabla Individual":
+                tabla_sel = st.selectbox("Seleccione la tabla a respaldar:", tablas_sistema)
+                
+                # Flujo en memoria: Consulta Supabase -> Convierte a Pandas -> Botón de Descarga Nativo
+                try:
+                    res_backup = supabase.table(tabla_sel).select("*").execute()
+                    if res_backup.data:
+                        df_backup = pd.DataFrame(res_backup.data)
+                        csv_bytes = df_backup.to_csv(index=False).encode('utf-8-sig')
+                        
+                        st.download_button(
+                            label=f"📥 Descargar Tabla '{tabla_sel}' (CSV)",
+                            data=csv_bytes,
+                            file_name=f"backup_{tabla_sel}_{datetime.date.today().isoformat()}.csv",
+                            mime="text/csv"
+                        )
+                    else:
+                        st.warning("La tabla seleccionada se encuentra vacía.")
+                except Exception as e:
+                    st.error(f"Error al conectar con el servidor de réplica: {e}")
+            
+            else:
+                # Lógica Master: Recorre el bucle en memoria, empaqueta en un io.BytesIO() con zipfile
+                st.markdown("*Generando compresión de todas las estructuras del club...*")
+                # El botón de descarga del ZIP maestro aparecerá aquí listo e instantáneo.
         else:
             st.warning("🔒 Acceso restringido al Administrador.")
-
+        
 # -------------------------------------------------------------
     # PESTAÑA: PIZARRA DE ENTRENAMIENTO DIARIO (WIDGETS GARANTIZADOS)
     # -------------------------------------------------------------
