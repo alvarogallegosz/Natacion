@@ -2538,7 +2538,7 @@ with tab_reportes:
                         df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
 
                         # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
-                        fig_vol, ax1 = plt.subplots(figsize=(8.5, 4.2))
+                        fig_vol, ax1 = plt.subplots(figsize=(8.5, 3.8))
                         fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
                         
                         # Preparar los datos vectoriales para las áreas acumulativas por estilo
@@ -2554,7 +2554,7 @@ with tab_reportes:
                             alpha=0.65
                         )
                             
-                        ax1.set_xlabel("Días del Calendario (Serie de Tiempo Continua)", fontsize=9)
+                        ax1.set_xlabel("Días del Calendario (Serie de Tiempo Continua)", fontsize=7)
                         ax1.set_ylabel("Volumen Acumulado por Estilos (Metros)", fontsize=9)
                         ax1.tick_params(axis='y', labelsize=8)
                         ax1.grid(True, linestyle=":", alpha=0.3)
@@ -2606,7 +2606,7 @@ with tab_reportes:
                         # Posicionamos la leyenda fija en el extremo superior izquierdo, bien holgada
                         ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, ncol=3)
                         
-                        plt.xticks(rotation=45, fontsize=8)
+                        plt.xticks(rotation=45, fontsize=7)
                         plt.tight_layout()
                         st.pyplot(fig_vol)
          
@@ -2810,7 +2810,7 @@ with tab_reportes:
 # =============================================================================
                                 # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
                                 # =============================================================================
-                                fig_ban, ax1 = plt.subplots(figsize=(8.5, 4.2))
+                                fig_ban, ax1 = plt.subplots(figsize=(8.5, 3.8))
                                 
                                 # --- EJE 1 (Izquierdo): Métricas Clásicas en Metros ---
                                 l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
@@ -2826,8 +2826,8 @@ with tab_reportes:
                                 max_metros = max(df_cargas["CTL"].max(), df_cargas["ATL"].max(), df_cargas["Volumen"].max(), 500.0)
                                 min_metros = min(df_cargas["TSB"].min(), 0.0)
                                 
-                                # Le damos una holgura del 20% para que las líneas respiren y no se aplasten arriba
-                                ax1.set_ylim(min_metros * 1.2, max_metros * 1.2)
+                                # Le damos una holgura del 25% para que las líneas respiren y no se aplasten arriba
+                                ax1.set_ylim(min_metros * 1.25, max_metros * 1.25)
                                 
                                 # --- EJE 2 (Derecho): Curva Porcentual Relativa y Líneas de Control ---
                                 ax2 = ax1.twinx()
@@ -2862,9 +2862,9 @@ with tab_reportes:
                                 # Consolidación unificada de leyendas de ambos ejes
                                 lineas_totales = l_ctl + l_atl + [b_tsb] + l_pct
                                 etiquetas_totales = [l.get_label() for l in lineas_totales]
-                                ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=8, ncol=2)
+                                ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=7, ncol=2)
                                 
-                                ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="bold")
+                                ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=10, fontweight="light")
                                 plt.xticks(rotation=25, fontsize=8)
                                 plt.tight_layout()
                                 st.pyplot(fig_ban)
