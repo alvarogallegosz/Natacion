@@ -1558,7 +1558,7 @@ else:
                 # CAMBIO 1: Cambiamos a text_input para admitir formatos con dos puntos (:)
                 ins_tiempo_str = st.text_input("Tiempo Oficial (Formatos: '1:13.34' o '46.28'):", placeholder="1:13.34")
                 
-                ins_nota = st.text_input("Evento / Fecha:")
+                ins_nota = st.text_input("Evento  Año - Lugar:")
                 
                 if st.form_submit_button("💾 Guardar Registro"):
                     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
