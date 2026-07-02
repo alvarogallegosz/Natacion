@@ -2538,7 +2538,7 @@ with tab_reportes:
                         df_vol_diario = df_vol_diario.sort_values("Fecha").reset_index(drop=True)
 
                         # RENDIMIENTO DEL LIENZO CON GRÁFICO DE ÁREAS ACUMULADAS
-                        fig_vol, ax1 = plt.subplots(figsize=(11, 5.2))
+                        fig_vol, ax1 = plt.subplots(figsize=(8.5, 6.2))
                         fechas_str = [f.strftime("%d/%m") for f in df_vol_diario["Fecha"]]
                         
                         # Preparar los datos vectoriales para las áreas acumulativas por estilo
@@ -2587,8 +2587,25 @@ with tab_reportes:
                         # Unificación limpia de leyendas
                         lines1, labels1 = ax1.get_legend_handles_labels()
                         lines2, labels2 = ax2.get_legend_handles_labels()
+                        
+                        # =============================================================================
+                        # CALIBRACIÓN DINÁMICA DE LÍMITES DE EJES Y (COLCHÓN DE SEGURIDAD)
+                        # =============================================================================
+                        # 1. Eje Izquierdo (stackplot): Sumamos los estilos por fila para hallar el pico real acumulado
+                        suma_acumulada_por_dia = df_vol_diario[estilos_lista].sum(axis=1)
+                        max_ax1 = suma_acumulada_por_dia.max() if not suma_acumulada_por_dia.empty else 100
+                        
+                        # Al tener la leyenda arriba a la izquierda, un 30% da el margen perfecto para que no se solapen
+                        ax1.set_ylim(0, max_ax1 * 1.30) 
+                        
+                        # 2. Eje Derecho (twinx): Evaluamos el valor individual más alto de las líneas de intensidad
+                        max_ax2 = df_vol_diario[intensidades_lista].max().max() if not df_vol_diario[intensidades_lista].empty else 100
+                        ax2.set_ylim(0, max_ax2 * 1.20) # 20% de holgura para el eje secundario
+                        # =============================================================================
+                        
+                        # Posicionamos la leyenda fija en el extremo superior izquierdo, bien holgada
                         ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, ncol=3)
-                      
+                        
                         plt.xticks(rotation=45, fontsize=8)
                         plt.tight_layout()
                         st.pyplot(fig_vol)
@@ -2793,7 +2810,7 @@ with tab_reportes:
 # =============================================================================
                                 # RENDERIZADO DEL MOTOR GRÁFICO HÍBRIDO PRO (ESCALA CORREGIDA)
                                 # =============================================================================
-                                fig_ban, ax1 = plt.subplots(figsize=(11, 5.2))
+                                fig_ban, ax1 = plt.subplots(figsize=(8.5, 6.2))
                                 
                                 # --- EJE 1 (Izquierdo): Métricas Clásicas en Metros ---
                                 l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Capacidad Crónica (CTL)", color="#1f77b4", linewidth=2.2)
