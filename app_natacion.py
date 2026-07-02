@@ -2009,11 +2009,11 @@ else:
                     
                 c_int, c_imp, c_not = st.columns(3)
                 with c_int:
-                    intensidad = st.selectbox("Intensidad / Ritmo", ["Suave (Aeróbico Ligero 3-4)", "Medio (Aeróbico Medio 5-6)", "Fuerte (Umbral 7-8)", "Sprint (Máximo 9-10)", "Ritmo de Competencia"], key="piz_int")
+                    intensidad = st.selectbox("Ritmo / Intensidad RPE", ["Suave (Aeróbico Ligero 3-4)", "Medio (Aeróbico Medio 5-6)", "Sostenido (Umbral 7-8)", "Ritmo de Competencia" (Anaeróbico 9-10), "Sprint (Máximo 10-11)"], key="piz_int")
                 with c_imp:
                     implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"], key="piz_imp")
                 with c_not:
-                    notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: Respiración c/3, Descanso 20s", key="piz_not")
+                    notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: c/1:30 nado y descanso, Respiración c/3, Descanso 20s", key="piz_not")
 
                 if st.button("Añadir a la sesión", use_container_width=True, key="btn_add_piz"):
                     bloque = {
