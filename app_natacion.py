@@ -1056,7 +1056,7 @@ if modo_equipo:
             df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
 
             fig = plt.figure(figsize=(8.5, 11.0))
-            ax = fig.add_axes([0.14, 0.63, 0.72, 0.33])
+            ax = fig.add_axes([0.14, 0.53, 0.72, 0.33])
             
             colores = plt.get_cmap("tab10", len(atletas_filtrados))
             hay_datos_visibles = False
@@ -1159,7 +1159,7 @@ if modo_equipo:
 # -------------------------------------------------------------
 else:
     fig = plt.figure(figsize=(8.5, 11.0))
-    ax = fig.add_axes([0.14, 0.63, 0.72, 0.33])
+    ax = fig.add_axes([0.14, 0.53, 0.72, 0.33])
     
     edades_curva = np.linspace(t0, t_peak, 300)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
@@ -1405,7 +1405,7 @@ else:
 
     if df_table_render is not None and not df_table_render.empty:
         total_filas = len(df_table_render)
-        limite_filas_por_bloque = 20
+        limite_filas_por_bloque = 18
         
         def estilizar_tabla_nativo(instancia_tabla):
             instancia_tabla.auto_set_font_size(False)
@@ -1421,7 +1421,7 @@ else:
                     cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
         if total_filas <= limite_filas_por_bloque:
-            ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.54])
+            ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.44])
             ax_table.axis('off')
             mpl_table = ax_table.table(
                 cellText=df_table_render.values, 
@@ -1432,7 +1432,7 @@ else:
             )
             estilizar_tabla_nativo(mpl_table)
         else:
-            if total_filas > 40: 
+            if total_filas > 36: 
                 df_table_render = df_table_render.iloc[:32]
             df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
             df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
@@ -1440,7 +1440,7 @@ else:
             # Distribución proporcional adaptada para el bloque doble en paralelo
             anchos_doble = anchos_columnas if es_modo_micro_tabla else [0.15, 0.15, 0.16, 0.54]
             
-            ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.54])
+            ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.44])
             ax_table1.axis('off')
             mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
             estilizar_tabla_nativo(mpl_table1)
