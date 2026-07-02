@@ -1056,7 +1056,7 @@ if modo_equipo:
             df_global_marcas = pd.DataFrame(res_marcas_colectivo.data) if res_marcas_colectivo.data else pd.DataFrame()
 
             fig = plt.figure(figsize=(8.5, 11.0))
-            ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+            ax = fig.add_axes([0.14, 0.63, 0.72, 0.33])
             
             colores = plt.get_cmap("tab10", len(atletas_filtrados))
             hay_datos_visibles = False
@@ -1283,7 +1283,7 @@ else:
                                 "Competencia / Evento": nombre_evento,
                                 "Fecha": fecha_evento_real.strftime('%d/%m/%Y'),
                                 "Edad": f"{edad_hito_calculada:.2f} a",
-                                "Tiempo Prog.": f"{tiempo_proyectado_val:.2f} s"
+                                "Tiempo Proyectado": f"{tiempo_proyectado_val:.2f} s"
                             })
                     except Exception as e_hito:
                         print(f"Advertencia procesando hito individual: {e_hito}")
