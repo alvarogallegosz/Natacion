@@ -1421,7 +1421,7 @@ else:
                     cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
 
         if total_filas <= limite_filas_por_bloque:
-            ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.40])
+            ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.58])
             ax_table.axis('off')
             mpl_table = ax_table.table(
                 cellText=df_table_render.values, 
