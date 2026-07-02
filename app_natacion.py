@@ -1283,7 +1283,7 @@ else:
                                 "Competencia / Evento": nombre_evento,
                                 "Fecha": fecha_evento_real.strftime('%d/%m/%Y'),
                                 "Edad": f"{edad_hito_calculada:.2f} a",
-                                "Tiempo Proyectado": f"{tiempo_proyectado_val:.2f} s"
+                                "Marca Proyectada": f"{tiempo_proyectado_val:.2f} s"
                             })
                     except Exception as e_hito:
                         print(f"Advertencia procesando hito individual: {e_hito}")
