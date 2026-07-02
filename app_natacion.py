@@ -2862,10 +2862,10 @@ with tab_reportes:
                                 # Consolidación unificada de leyendas de ambos ejes
                                 lineas_totales = l_ctl + l_atl + [b_tsb] + l_pct
                                 etiquetas_totales = [l.get_label() for l in lineas_totales]
-                                ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=6, ncol=2)
+                                ax1.legend(lineas_totales, etiquetas_totales, loc="upper left", fontsize=7, ncol=2)
                                 
                                 ax1.set_title(f"Perfil Fisiológico Híbrido: {atletas_opciones_carga[atleta_sel_id]}", fontsize=11, fontweight="light")
-                                plt.xticks(rotation=25, fontsize=8)
+                                plt.xticks(rotation=25, fontsize=5)
                                 plt.tight_layout()
                                 st.pyplot(fig_ban)
                                 
