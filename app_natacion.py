@@ -131,7 +131,23 @@ def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
         
     fecha_alerta = fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
     return fecha_alerta
-
+# -------------------------------------------------------------
+# TRANSFORMACIÓN DE TIEMPOS DE SEGUNDOS (ss,00) A MINUTOS (mm:ss,00)
+# -------------------------------------------------------------
+def formatear_a_minutos(segundos_flotante: float) -> str:
+    """Convierte segundos (ej: 84.15) a formato de natación M:SS.hh (ej: 1:24.15)"""
+    try:
+        if segundos_flotante <= 0 or pd.isna(segundos_flotante):
+            return "-"
+        minutos = int(segundos_flotante // 60)
+        segundos = segundos_flotante % 60
+        
+        if minutos > 0:
+            return f"{minutos}:{segundos:05.2f}"  # M:SS.hh (fuerza 2 dígitos en segundos)
+        else:
+            return f"{segundos:.2f} s"            # Si es menor a un minuto, lo deja en segundos
+    except (ValueError, TypeError):
+        return "-"
     
 # -------------------------------------------------------------
 # FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
@@ -1057,7 +1073,13 @@ if modo_equipo:
 
             fig = plt.figure(figsize=(8.5, 11.0))
             ax = fig.add_axes([0.14, 0.58, 0.72, 0.33])
-            
+            from matplotlib.ticker import FuncFormatter
+
+            # Creamos el formateador dinámico para el eje de Matplotlib
+            formateador_eje_y = FuncFormatter(lambda x, pos: formatear_a_minutos(x))
+
+            # Se lo aplicamos al eje de tiempos (asumiendo que es ax1 o ax el que tiene los segundos)
+            ax.yaxis.set_major_formatter(formateador_eje_y)
             colores = plt.get_cmap("tab10", len(atletas_filtrados))
             hay_datos_visibles = False
             linea_fisiologica_anotada = False
@@ -1160,7 +1182,13 @@ if modo_equipo:
 else:
     fig = plt.figure(figsize=(8.5, 11.0))
     ax = fig.add_axes([0.14, 0.58, 0.72, 0.33])
-    
+    from matplotlib.ticker import FuncFormatter
+
+    # Creamos el formateador dinámico para el eje de Matplotlib
+    formateador_eje_y = FuncFormatter(lambda x, pos: formatear_a_minutos(x))
+
+    # Se lo aplicamos al eje de tiempos (asumiendo que es ax1 o ax el que tiene los segundos)
+    ax.yaxis.set_major_formatter(formateador_eje_y)    
     edades_curva = np.linspace(t0, t_peak, 300)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
     
@@ -1390,7 +1418,7 @@ else:
             
             # Formateo de strings para presentación visual
             df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
-            df_table_render["Tiempo"] = df_table_render["Tiempo"].map(lambda x: f"{x:.2f} s")
+            df_table_render["Tiempo"] = df_table_render["Tiempo"].apply(formatear_a_minutos)
             df_table_render["WA"] = df_table_render["WA"].map(lambda x: f"{x} pts" if x > 0 else "-")
             
             anchos_columnas = [0.13, 0.13, 0.14, 0.60]
