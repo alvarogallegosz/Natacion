@@ -1159,7 +1159,7 @@ if modo_equipo:
 # -------------------------------------------------------------
 else:
     fig = plt.figure(figsize=(8.5, 11.0))
-    ax = fig.add_axes([0.14, 0.52, 0.72, 0.33])
+    ax = fig.add_axes([0.14, 0.60, 0.72, 0.33])
     
     edades_curva = np.linspace(t0, t_peak, 300)
     tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
