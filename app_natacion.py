@@ -2528,7 +2528,7 @@ with tab_reportes:
                                 for k_int, v_m in dict_int.items():
                                     target_int = "Aeróbico Ligero"
                                     if "Medio" in k_int: target_int = "Aeróbico Medio"
-                                    elif "Umbral" in k_int or "Fuerte" in k_int: target_int = "Umbral"
+                                    elif "Umbral" in k_int or "Sostenido" in k_int: target_int = "Umbral"
                                     elif "Sprint" in k_int or "Anaeróbico" in k_int: target_int = "Anaeróbico"
                                     row_vol[target_int] += v_m
                             
