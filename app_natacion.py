@@ -148,7 +148,22 @@ def formatear_a_minutos(segundos_flotante: float) -> str:
             return f"{segundos:.2f} s"            # Si es menor a un minuto, lo deja en segundos
     except (ValueError, TypeError):
         return "-"
-    
+def convertir_string_a_segundos(tiempo_str: str) -> float:
+    """
+    Convierte un string formateado (M:SS.hh o SS.hh) a segundos flotantes.
+    Ejemplos: '1:13.34' -> 73.34 | '46.28' -> 46.28
+    """
+    try:
+        tiempo_str = tiempo_str.strip()
+        if ":" in tiempo_str:
+            partes_minutos = tiempo_str.split(":")
+            minutos = int(partes_minutos[0])
+            segundos = float(partes_minutos[1])
+            return float(round((minutos * 60) + segundos, 2))
+        else:
+            return float(round(float(tiempo_str), 2))
+    except Exception:
+        raise ValueError("Formato de tiempo inválido. Use 'M:SS.hh' o 'SS.hh'")    
 # -------------------------------------------------------------
 # FUNCIÓN DE CALCULO DE EDAD_HITO (MÓDULO INDEPENDIENTE)
 # -------------------------------------------------------------
@@ -1539,12 +1554,18 @@ else:
             st.markdown("**Ingresar Nueva Marca**")
             with st.form("form_insertar_marca", clear_on_submit=True):
                 ins_fecha_evento = st.date_input("Fecha de la Competencia:", min_value=datetime.date(2020, 1, 1), max_value=datetime.date.today(), value=datetime.date.today())
-                ins_tiempo = st.number_input("Tiempo Oficial (seg):", min_value=20.0,  max_value=1800.0, step=0.01)
+                
+                # CAMBIO 1: Cambiamos a text_input para admitir formatos con dos puntos (:)
+                ins_tiempo_str = st.text_input("Tiempo Oficial (Formatos: '1:13.34' o '46.28'):", placeholder="1:13.34")
+                
                 ins_nota = st.text_input("Evento / Fecha:")
                 
                 if st.form_submit_button("💾 Guardar Registro"):
                     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"] or st.session_state.usuario_id == st.session_state.nadador_seleccionado_id:
                         try:
+                            # CAMBIO 2: Validar y convertir el string a segundos flotantes inmediatamente
+                            ins_tiempo = convertir_string_a_segundos(ins_tiempo_str)
+                            
                             id_atleta = st.session_state.nadador_seleccionado_id
                             fecha_nacimiento_atleta = st.session_state.fecha_nacimiento
                             
@@ -1563,13 +1584,17 @@ else:
                                     nueva_m = {
                                         "prueba": titulo_grafico, 
                                         "edad": float(edad_calculada), 
-                                        "tiempo": float(ins_tiempo),
+                                        "tiempo": float(ins_tiempo), # <--- Se guarda el float limpio en Supabase
                                         "nota": ins_nota, 
                                         "usuario_id": id_atleta
                                     }
                                     supabase.table("marcas_historicas").insert(nueva_m).execute()
-                                    st.success(f"Marca guardada. Edad calculada automáticamente: {edad_calculada} años.")
+                                    st.success(f"¡Marca guardada! Convertido a {ins_tiempo}s. Edad: {edad_calculada} años.")
                                     st.rerun()
+                                    
+                        except ValueError as e:
+                            # Captura si el usuario metió mal el formato del tiempo (letras, etc.)
+                            st.error(f"❌ {e}")
                         except Exception as e:
                             st.error(f"Error al guardar el registro: {e}")
                         
