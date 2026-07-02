@@ -2009,7 +2009,7 @@ else:
                     
                 c_int, c_imp, c_not = st.columns(3)
                 with c_int:
-                    intensidad = st.selectbox("Ritmo / Intensidad RPE", ["Suave (Aeróbico Ligero 3-4)", "Medio (Aeróbico Medio 5-6)", "Sostenido (Umbral 7-8)", "Ritmo de Competencia" (Anaeróbico 9-10), "Sprint (Máximo 10-11)"], key="piz_int")
+                    intensidad = st.selectbox("Ritmo / Intensidad RPE", ["Suave (Aeróbico Ligero 3-4)", "Medio (Aeróbico Medio 5-6)", "Sostenido (Umbral 7-8)", "Ritmo de Competencia (Anaeróbico 9-10)", "Sprint (Máximo 10-11)"], key="piz_int")
                 with c_imp:
                     implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"], key="piz_imp")
                 with c_not:
